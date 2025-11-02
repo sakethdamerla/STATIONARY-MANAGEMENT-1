@@ -44,7 +44,10 @@ const getCourseConnection = async (course) => {
  */
 const connectDB = async () => {
   try {
-    console.log('Using MONGO_URI:', process.env.MONGO_URI);
+    if (!process.env.MONGO_URI) {
+      throw new Error('MONGO_URI environment variable is not set');
+    }
+    
     // Mongoose.connect returns a promise. Provide some sensible options and a timeout so failures are reported quickly.
     const conn = await mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 10000, // 10s timeout for faster failure

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, BookOpen, CreditCard, Package } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 const StudentDetail = ({ students = [], setStudents, products = [] }) => {
   const { id } = useParams();
@@ -37,7 +38,7 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
     try {
       setSaving(true);
       const courseParam = String(updated.course || '').toLowerCase();
-      await fetch(`/api/users/${courseParam}/${updated.id}`, {
+      await fetch(apiUrl(`/api/users/${courseParam}/${updated.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paid: updated.paid, items: updated.items }),

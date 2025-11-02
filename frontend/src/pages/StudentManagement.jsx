@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Upload, Search, Users, Edit2, Trash2, X } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 const StudentRow = ({ student, editingId, editFields, setEditFields, startEdit, saveEdit, cancelEdit, deleteStudent }) => {
   const isEditing = editingId === student.id;
@@ -138,7 +139,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent }) => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/config/academic');
+        const res = await fetch(apiUrl('/api/config/academic'));
         if (res.ok) {
           const data = await res.json();
           setConfig(data);
@@ -193,7 +194,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent }) => {
     try {
       const original = (students || []).find(s => s.id === id);
       const courseParam = String(original?.course || editFields.course || '').toLowerCase();
-      const res = await fetch(`/api/users/${courseParam}/${id}`, {
+      const res = await fetch(apiUrl(`/api/users/${courseParam}/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -217,7 +218,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent }) => {
     const { id, course } = student;
     try {
       const courseParam = String(course || '').toLowerCase();
-      const res = await fetch(`/api/users/${courseParam}/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/users/${courseParam}/${id}`), { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
       setStudents(prev => prev.filter(s => s.id !== id));
     } catch (err) {
@@ -365,7 +366,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent }) => {
                     const fd = new FormData();
                     fd.append('file', bulkFile);
                     const importCourse = courseFilter !== 'all' ? courseFilter : (config?.courses?.[0]?.name || '');
-                    const res = await fetch(`/api/users/import/${importCourse}`, { method: 'POST', body: fd });
+                    const res = await fetch(apiUrl(`/api/users/import/${importCourse}`), { method: 'POST', body: fd });
                     if (!res.ok) throw new Error('Upload failed');
                     const data = await res.json();
                     if (data && Array.isArray(data.imported)) {

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Search, Edit, Trash2 } from 'lucide-react';
 import StudentReceiptModal from './StudentReceipt.jsx';
+import { apiUrl } from '../utils/api';
 
 const CourseDashboard = ({ products = [] }) => {
   const { course } = useParams();
@@ -16,7 +17,7 @@ const CourseDashboard = ({ products = [] }) => {
     const fetchStudents = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/users/${course}`);
+        const response = await fetch(apiUrl(`/api/users/${course}`));
         if (response.ok) {
           const data = (await response.json()).map(s => ({...s, id: s._id}));
           setStudents(data);
@@ -55,7 +56,7 @@ const CourseDashboard = ({ products = [] }) => {
       if (student.id === studentId) {
         const updatedStudent = { ...student, ...updateData };
         
-        fetch(`/api/users/${course}/${student._id}`, {
+        fetch(apiUrl(`/api/users/${course}/${student._id}`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paid: updatedStudent.paid, items: updatedStudent.items }),
@@ -112,7 +113,7 @@ const CourseDashboard = ({ products = [] }) => {
   const StudentRow = ({ student }) => {
     const handleDelete = () => {
       if (window.confirm('Are you sure you want to delete this student?')) {
-        fetch(`/api/users/${course}/${student._id}`, { method: 'DELETE' })
+        fetch(apiUrl(`/api/users/${course}/${student._id}`), { method: 'DELETE' })
           .then(res => {
             if (res.ok) {
               setStudents(prev => prev.filter(s => s.id !== student.id));

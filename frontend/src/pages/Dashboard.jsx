@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiUrl } from '../utils/api';
 
 const Dashboard = () => {
   const [courseStats, setCourseStats] = useState({});
@@ -15,7 +16,7 @@ const Dashboard = () => {
       
       for (const course of courseOptions) {
         try {
-          const response = await fetch(`/api/users/${course}`);
+          const response = await fetch(apiUrl(`/api/users/${course}`));
           if (response.ok) {
             const students = await response.json();
             stats[course] = students.length;
@@ -71,9 +72,9 @@ const Dashboard = () => {
           <span className="text-6xl animate-bounce-gentle">🎓</span>
         </div>
         <h1 className="text-4xl font-bold text-gray-900 mb-3">College Stationery Management</h1>
-        <p className="text-gray-600 max-w-2xl mx-auto text-lg leading-relaxed">
+        {/* <p className="text-gray-600 max-w-2xl mx-auto text-lg leading-relaxed">
           Efficiently manage student records and stationery distribution across all academic programs
-        </p>
+        </p> */}
       </div>
 
       {/* Quick Stats */}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiUrl } from '../utils/api';
 
 const AddStudent = ({ addStudent }) => {
   const [name, setName] = useState('');
@@ -14,7 +15,7 @@ const AddStudent = ({ addStudent }) => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/config/academic');
+        const res = await fetch(apiUrl('/api/config/academic'));
         if (res.ok) {
           const data = await res.json();
           setConfig(data);

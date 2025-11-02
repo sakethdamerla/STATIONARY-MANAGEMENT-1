@@ -187,9 +187,6 @@ const importUsers = asyncHandler(async (req, res) => {
     throw new Error('No file uploaded');
   }
 
-  // Get the appropriate User model for the course
-  const UserModel = await getUserModel(course);
-
   const XLSX = require('xlsx');
   const buffer = req.file.buffer;
   // Support CSV and XLSX by delegating to xlsx library
@@ -211,8 +208,8 @@ const importUsers = asyncHandler(async (req, res) => {
       continue;
     }
 
-    // Check existing in the course-specific database
-    let existing = await UserModel.findOne({ studentId: String(studentId) });
+    // Check existing in the course-specific collection (filtered by course)
+    let existing = await User.findOne({ studentId: String(studentId), course });
     if (existing) {
       // update basic profile if present
       existing.name = name || existing.name;
@@ -234,7 +231,7 @@ const importUsers = asyncHandler(async (req, res) => {
       password: 'temp123' // Temporary password
     };
     try {
-      const created = await UserModel.create(toCreate);
+      const created = await User.create(toCreate);
       imported.push({ _id: created._id, name: created.name, studentId: created.studentId, course: created.course, year: created.year, branch: created.branch });
     } catch (err) {
       // skip on error but continue

@@ -7,12 +7,15 @@ export default defineConfig(({ mode }) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '');
 
+  // Get backend URL from environment variable or use default for development
+  const backendUrl = env.VITE_API_BASE_URL || env.BACKEND_URL || 'http://localhost:5000';
+
   return {
     plugins: [react()],
     server: {
       proxy: {
         '/api': {
-          target: env.BACKEND_URL,
+          target: backendUrl,
           changeOrigin: true,
           secure: false,
         },

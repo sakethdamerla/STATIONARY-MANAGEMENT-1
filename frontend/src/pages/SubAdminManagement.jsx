@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Edit, Trash2, X } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 // A simple modal component for creating/editing sub-admins
 const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
@@ -88,7 +89,7 @@ const SubAdminManagement = ({ currentUser }) => {
   useEffect(() => {
     const fetchSubAdmins = async () => {
       try {
-        const response = await fetch('/api/subadmins');
+        const response = await fetch(apiUrl('/api/subadmins'));
         if (!response.ok) {
           throw new Error(`Failed to load: ${response.status} ${response.statusText}`);
         }
@@ -118,7 +119,7 @@ const SubAdminManagement = ({ currentUser }) => {
   const handleDelete = (id) => {
     if (!window.confirm('Are you sure you want to delete this sub-admin?')) return;
 
-    fetch(`/api/subadmins/${id}`, { method: 'DELETE' })
+    fetch(apiUrl(`/api/subadmins/${id}`), { method: 'DELETE' })
       .then(res => {
         if (!res.ok) throw new Error('Failed to delete');
         setSubAdmins(prev => prev.filter(sa => sa.id !== id));
@@ -128,7 +129,7 @@ const SubAdminManagement = ({ currentUser }) => {
 
   const handleSave = async (subAdminData) => {
     const isUpdating = !!subAdminData.id;
-    const url = isUpdating ? `/api/subadmins/${subAdminData.id}` : '/api/subadmins';
+    const url = isUpdating ? apiUrl(`/api/subadmins/${subAdminData.id}`) : apiUrl('/api/subadmins');
     const method = isUpdating ? 'PUT' : 'POST';
 
     try {

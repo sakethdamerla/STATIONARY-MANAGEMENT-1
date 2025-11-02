@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit, Trash2, Package } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 /**
  * @typedef {object} Product
@@ -21,7 +22,7 @@ const ItemsList = ({ itemCategories, addItemCategory, setItemCategories, current
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/config/academic');
+        const res = await fetch(apiUrl('/api/config/academic'));
         if (res.ok) {
           const data = await res.json();
           setConfig(data);
@@ -53,7 +54,7 @@ const ItemsList = ({ itemCategories, addItemCategory, setItemCategories, current
     const name = newItem.trim();
     if (!name) return;
     try {
-      const response = await fetch('/api/products', {
+      const response = await fetch(apiUrl('/api/products'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, description: name, price: 0, category: 'Other', forCourse: selectedCourse || undefined, year: selectedYear ? Number(selectedYear) : undefined }),
@@ -73,7 +74,7 @@ const ItemsList = ({ itemCategories, addItemCategory, setItemCategories, current
 
   const handleDelete = async (productId, productName) => {
     try {
-      const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/products/${productId}`), { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete');
       setProducts && setProducts(prev => (prev || []).filter(p => p._id !== productId));
       setItemCategories && setItemCategories(prev => prev.filter(i => i !== productName));
@@ -94,7 +95,7 @@ const ItemsList = ({ itemCategories, addItemCategory, setItemCategories, current
     const product = (products || []).find(p => p.name.toLowerCase().replace(/\s+/g, '_') === oldVal);
     if (!product) return;
     try {
-      const res = await fetch(`/api/products/${product._id}`, {
+      const res = await fetch(apiUrl(`/api/products/${product._id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newVal }),

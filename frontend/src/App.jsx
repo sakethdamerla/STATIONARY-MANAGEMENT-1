@@ -12,6 +12,7 @@ import SubAdminManagement from './pages/SubAdminManagement';
 import ItemsList from './pages/ItemsList';
 import HomePage from './pages/HomePage';
 import CourseManagement from './pages/CourseManagement';
+import { apiUrl } from './utils/api';
 // import StudentReceiptModal from './pages/StudentReceipt.jsx'; // Not used
 
 // Placeholder component for other routes
@@ -52,7 +53,7 @@ function App() {
       // We are using a static admin login; skip backend profile check
       // Attempt to fetch students data but do not log out on failure
       try {
-        const studentsRes = await fetch('/api/users');
+        const studentsRes = await fetch(apiUrl('/api/users'));
         if (studentsRes.ok) {
           const studentsData = await studentsRes.json();
           const formattedStudents = studentsData.map(s => ({ ...s, id: s._id }));
@@ -76,7 +77,7 @@ function App() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch('/api/products');
+        const res = await fetch(apiUrl('/api/products'));
         if (!res.ok) throw new Error(`Server responded with ${res.status}`);
         const data = await res.json();
         setProducts(data || []);
@@ -136,7 +137,7 @@ function App() {
         password: 'password123', // Default or generated password
       };
       // Use the correct relative endpoint for registration
-      const response = await fetch('/api/users/register', {
+      const response = await fetch(apiUrl('/api/users/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(studentWithDefaults),
@@ -192,7 +193,7 @@ function App() {
     }
     // Try sub-admin login via API
     try {
-      const res = await fetch('/api/subadmins/login', {
+      const res = await fetch(apiUrl('/api/subadmins/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: id, password }),
@@ -213,7 +214,7 @@ function App() {
 
   const handleLogout = () => {
     // It's good practice to also notify the backend of logout
-    fetch('/api/auth/logout', { method: 'POST' }).catch(err => console.warn("Logout notification failed", err));
+    fetch(apiUrl('/api/auth/logout'), { method: 'POST' }).catch(err => console.warn("Logout notification failed", err));
     localStorage.removeItem('currentUser');
     localStorage.removeItem('isAuthenticated');
     setIsAuthenticated(false);

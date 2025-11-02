@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 const CourseManagement = () => {
   const [courses, setCourses] = useState([]);
@@ -18,7 +19,7 @@ const CourseManagement = () => {
       try {
         setLoading(true);
         // Prefer new endpoint
-        let res = await fetch('/api/academic-config/courses');
+        let res = await fetch(apiUrl('/api/academic-config/courses'));
         if (res.ok) {
           const data = await res.json();
           setCourses(Array.isArray(data) ? data : []);
@@ -26,7 +27,7 @@ const CourseManagement = () => {
         }
         // Fallback to legacy singleton config
         if (res.status === 404) {
-          res = await fetch('/api/config/academic');
+          res = await fetch(apiUrl('/api/config/academic'));
           if (res.ok) {
             const data = await res.json();
             setCourses(Array.isArray(data?.courses) ? data.courses : []);
@@ -72,7 +73,7 @@ const CourseManagement = () => {
     try {
       setLoading(true);
       setError('');
-      let res = await fetch('/api/academic-config/courses', {
+      let res = await fetch(apiUrl('/api/academic-config/courses'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: normalizedNameCode, displayName: trimmedName, years: parsedYears, branches: parsedBranches }),
@@ -86,7 +87,7 @@ const CourseManagement = () => {
       // Fallback path using legacy config if new endpoint not present
       if (res.status === 404) {
         // Load current config
-        const getRes = await fetch('/api/config/academic');
+        const getRes = await fetch(apiUrl('/api/config/academic'));
         if (!getRes.ok) throw new Error('Failed to load config');
         const cfg = await getRes.json();
         const nextCourses = Array.isArray(cfg?.courses) ? cfg.courses.slice() : [];
@@ -94,7 +95,7 @@ const CourseManagement = () => {
           throw new Error('Course already exists');
         }
         nextCourses.push({ name: normalizedNameCode, displayName: trimmedName, years: parsedYears.length ? parsedYears : [1], branches: parsedBranches });
-        const putRes = await fetch('/api/config/academic', {
+        const putRes = await fetch(apiUrl('/api/config/academic'), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ courses: nextCourses }),
@@ -128,13 +129,13 @@ const CourseManagement = () => {
       }
       if (res.status === 404) {
         // Fallback delete via legacy config
-        const getRes = await fetch('/api/config/academic');
+        const getRes = await fetch(apiUrl('/api/config/academic'));
         if (!getRes.ok) throw new Error('Failed to load config');
         const cfg = await getRes.json();
         const before = Array.isArray(cfg?.courses) ? cfg.courses.length : 0;
         const nextCourses = (cfg?.courses || []).filter(c => String(c._id) !== String(courseId) && (c.name !== courseCode && (c.name || '').toLowerCase() !== String(courseCode || '').toLowerCase()));
         if (nextCourses.length === before) throw new Error('Course not found');
-        const putRes = await fetch('/api/config/academic', {
+        const putRes = await fetch(apiUrl('/api/config/academic'), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ courses: nextCourses }),
@@ -148,13 +149,13 @@ const CourseManagement = () => {
       if (e && e.status === 404) {
         // go to fallback logic
         try {
-          const getRes = await fetch('/api/config/academic');
+          const getRes = await fetch(apiUrl('/api/config/academic'));
           if (!getRes.ok) throw new Error('Failed to load config');
           const cfg = await getRes.json();
           const before = Array.isArray(cfg?.courses) ? cfg.courses.length : 0;
           const nextCourses = (cfg?.courses || []).filter(c => String(c._id) !== String(courseId) && (c.name !== courseCode && (c.name || '').toLowerCase() !== String(courseCode || '').toLowerCase()));
           if (nextCourses.length === before) throw new Error('Course not found');
-          const putRes = await fetch('/api/config/academic', {
+          const putRes = await fetch(apiUrl('/api/config/academic'), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ courses: nextCourses }),
@@ -214,7 +215,7 @@ const CourseManagement = () => {
         };
       });
 
-      const putRes = await fetch('/api/config/academic', {
+      const putRes = await fetch(apiUrl('/api/config/academic'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ courses: nextCourses }),
