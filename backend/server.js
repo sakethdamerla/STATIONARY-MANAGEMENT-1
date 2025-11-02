@@ -15,7 +15,10 @@ const app = express();
 connectDB();
 
 // Enable CORS
-app.use(cors());
+app.use(cors(
+  "https://pydah-stationary-management.vercel.app/",
+  "https://pydah-stationary-management.vercel.app"
+));
 
 // Middleware to parse JSON
 app.use(express.json());
