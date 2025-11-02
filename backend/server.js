@@ -14,11 +14,45 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
+
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+       "https://pydah-stationary-management.vercel.app/",
+  "https://pydah-stationary-management.vercel.app",
+      'http://localhost:5173',
+      'http://localhost:5000'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked request from:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-auth-token',
+    'Origin',
+    'Accept',
+    'X-Requested-With'
+  ],
+  exposedHeaders: ['Authorization'],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400 // 24 hours
+};
+
 // Enable CORS
-app.use(cors(
-  "https://pydah-stationary-management.vercel.app/",
-  "https://pydah-stationary-management.vercel.app"
-));
+app.use(cors(corsOptions));
 
 // Middleware to parse JSON
 app.use(express.json());
