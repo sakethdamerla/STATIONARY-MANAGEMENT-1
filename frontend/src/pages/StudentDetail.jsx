@@ -84,14 +84,14 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <button 
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <ArrowLeft size={16} />
-                Back
-              </button>
-              <div>
+          <button 
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+          <div>
                 <h1 className="text-2xl font-bold text-gray-900">Student Details</h1>
               </div>
             </div>
@@ -111,7 +111,7 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
           <div className="lg:col-span-1 space-y-4">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
               <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
-                <User className="w-5 h-5 text-blue-600" />
+                  <User className="w-5 h-5 text-blue-600" />
                 <h3 className="font-semibold text-gray-900">Student Info</h3>
               </div>
               
@@ -136,8 +136,8 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                 <div>
                   <span className="text-xs text-gray-500">Course</span>
                   <p className="text-sm font-medium text-gray-900 mt-0.5">{student.course.toUpperCase()}</p>
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <span className="text-xs text-gray-500">Year</span>
                   <p className="text-sm font-medium text-gray-900 mt-0.5">Year {student.year}</p>
                 </div>
@@ -148,8 +148,8 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+                  </div>
+                </div>
 
           {/* Main Content Area */}
           <div className="lg:col-span-3 space-y-6">
@@ -188,9 +188,9 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                               {p.description}
                             </p>
                           )}
-                        </div>
-                      </div>
-                    </div>
+                  </div>
+                  </div>
+                </div>
                   ))}
                 </div>
               )}
@@ -266,13 +266,13 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                                         minute: '2-digit',
                                       })}
                                     </span>
-                                  </div>
+                  </div>
                                   <div className="flex items-center gap-1">
                                     <Package size={12} />
                                     <span>{transaction.items?.length || 0} item{transaction.items?.length !== 1 ? 's' : ''}</span>
-                                  </div>
-                                </div>
-                              </div>
+                  </div>
+                </div>
+                    </div>
                               <div className="ml-4 flex items-center gap-2">
                                 <button
                                   onClick={() => triggerPrint()}
@@ -286,10 +286,10 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                                   <div className="flex items-center gap-1 text-base font-bold text-gray-900">
                                     <DollarSign size={16} />
                                     <span>₹{Number(transaction.totalAmount).toFixed(2)}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
                             {/* Transaction Items - Collapsible or compact view */}
                             {transaction.items && transaction.items.length > 0 && (
@@ -304,9 +304,9 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                                       </span>
                                     </div>
                                   ))}
-                                </div>
-                              </div>
-                            )}
+                  </div>
+                </div>
+              )}
 
                             {/* Remarks */}
                             {transaction.remarks && (
@@ -370,8 +370,8 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                                 <p style={{ fontSize: '14px', color: '#6b7280', margin: '0' }}>
                                   Stationery Management System
                                 </p>
-                              </div>
-                            </div>
+            </div>
+          </div>
 
                             <div className="print-content">
                               <div style={{ marginBottom: '20px' }}>
@@ -390,7 +390,7 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                                     <p style={{ margin: '5px 0' }}><strong>Date:</strong> {new Date(transaction.transactionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                                   </div>
                                 </div>
-                              </div>
+                </div>
 
                               <table className="print-table">
                                 <thead>
@@ -434,8 +434,8 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                                 {transaction.remarks && (
                                   <p style={{ margin: '5px 0' }}><strong>Remarks:</strong> {transaction.remarks}</p>
                                 )}
-                              </div>
-
+              </div>
+              
                               <div className="print-footer">
                                 <p style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center', margin: '0' }}>
                                   Generated on {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} | 
@@ -444,7 +444,7 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                               </div>
                             </div>
                           </div>
-                        </div>
+                </div>
                       );
                     };
 

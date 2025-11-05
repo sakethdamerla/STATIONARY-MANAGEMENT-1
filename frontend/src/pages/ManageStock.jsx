@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Package, Plus, Building2, Archive } from 'lucide-react';
+import { Package, Plus, Building2, Archive, List } from 'lucide-react';
 import AddProduct from './stock/AddProduct';
 import AddStock from './stock/AddStock';
 import VendorManagement from './stock/VendorManagement';
+import StockEntries from './stock/StockEntries';
 
 const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, currentCourse, products = [], setProducts }) => {
   const [activeTab, setActiveTab] = useState('products');
@@ -10,6 +11,7 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
   const tabs = [
     { id: 'products', label: 'Add Product', icon: Package },
     { id: 'stock', label: 'Add Stock', icon: Plus },
+    { id: 'entries', label: 'Stock Entries', icon: List },
     { id: 'vendors', label: 'Vendor Management', icon: Building2 },
   ];
 
@@ -67,6 +69,7 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
           {activeTab === 'stock' && (
             <AddStock products={products} setProducts={setProducts} />
           )}
+          {activeTab === 'entries' && <StockEntries />}
           {activeTab === 'vendors' && <VendorManagement />}
         </div>
       </div>

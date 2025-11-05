@@ -31,8 +31,9 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         if (res.ok) {
           const data = await res.json();
           setConfig(data);
-          if (!selectedCourse && data.courses?.[0]) {
-            setSelectedCourse(data.courses[0].name);
+          // Default to "All Courses" (empty string) instead of first course
+          if (!selectedCourse) {
+            setSelectedCourse('');
           }
         }
       } catch (_) {}
@@ -184,15 +185,15 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
       }
 
       if (showAddProduct) {
-        // Create new product (without price and stock)
+        // Create new product (with price, but stock stays 0)
         const response = await fetch(apiUrl('/api/products'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: formData.name,
             description: formData.description || '',
-            price: 0, // Default price
-            stock: 0, // Default stock
+            price: formData.price || 0,
+            stock: 0, // Default stock - should be added via Add Stock tab
             remarks: formData.remarks || '',
             forCourse: formData.forCourse || undefined,
             years: formData.years || [],
@@ -738,6 +739,27 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                       rows={3}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                       placeholder="Enter product description (max 250 characters)..."
+                    />
+                  </div>
+
+                  {/* Price Section */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <DollarSign size={18} className="text-blue-600" />
+                      <label className="block text-sm font-semibold text-gray-700">
+                        Price <span className="text-red-500">*</span>
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      name="price"
+                      value={formData.price}
+                      onChange={handleFormChange}
+                      min="0"
+                      step="0.01"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="0.00"
+                      required
                     />
                   </div>
 

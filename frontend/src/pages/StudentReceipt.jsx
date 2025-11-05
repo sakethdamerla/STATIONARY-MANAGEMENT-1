@@ -14,6 +14,7 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
   const [remarks, setRemarks] = useState('');
   const [savedTransactionItems, setSavedTransactionItems] = useState([]);
   const [savedPaymentInfo, setSavedPaymentInfo] = useState({ paymentMethod: 'cash', isPaid: false, remarks: '', totalAmount: 0 });
+  const [statusMsg, setStatusMsg] = useState({ type: '', message: '' });
 
   const triggerPrint = useReactToPrint({
     contentRef: receiptRef,
@@ -198,9 +199,17 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
       setPaymentMethod('cash');
       setIsPaid(false);
       setRemarks('');
+      
+      // Show success message and close modal after 1.5 seconds
+      setStatusMsg({ type: 'success', message: 'Transaction saved successfully!' });
+      setTimeout(() => {
+        setStatusMsg({ type: '', message: '' });
+        onClose(); // Close the modal after showing success message
+      }, 1500);
     } catch (error) {
       console.error('Error saving transaction:', error);
-      alert(`Error: ${error.message}`);
+      setStatusMsg({ type: 'error', message: error.message || 'Failed to save transaction' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
     } finally {
       setSaving(false);
     }
@@ -237,6 +246,17 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
           </div>
           </div>
 
+        {/* Status Message */}
+        {statusMsg.message && (
+          <div className={`mx-6 mt-4 p-4 rounded-xl text-sm font-medium ${
+            statusMsg.type === 'success'
+              ? 'bg-green-50 text-green-700 border border-green-200'
+              : 'bg-red-50 text-red-700 border border-red-200'
+          }`}>
+            {statusMsg.message}
+          </div>
+        )}
+
         {/* Content - Split into two columns */}
         <div className="flex-1 overflow-y-auto" ref={receiptRef}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
@@ -266,7 +286,7 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
                     <p className="text-gray-900 font-semibold mt-1">{student.branch || 'N/A'}</p>
                   </div>
                 </div>
-              </div>
+          </div>
 
               {/* Items Selection Section */}
               <div className="no-print">

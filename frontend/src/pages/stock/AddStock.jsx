@@ -13,14 +13,12 @@ const AddStock = ({ products = [], setProducts }) => {
     remarks: '',
   });
   const [vendors, setVendors] = useState([]);
-  const [stockEntries, setStockEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ type: '', message: '' });
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   useEffect(() => {
     fetchVendors();
-    fetchStockEntries();
   }, []);
 
   useEffect(() => {
@@ -44,17 +42,6 @@ const AddStock = ({ products = [], setProducts }) => {
     }
   };
 
-  const fetchStockEntries = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/stock-entries'));
-      if (res.ok) {
-        const data = await res.json();
-        setStockEntries(data);
-      }
-    } catch (err) {
-      console.error('Error fetching stock entries:', err);
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,7 +76,6 @@ const AddStock = ({ products = [], setProducts }) => {
       }
 
       const newStockEntry = await res.json();
-      setStockEntries(prev => [newStockEntry, ...prev]);
       
       // Update product stock in local state
       if (setProducts) {
@@ -113,9 +99,6 @@ const AddStock = ({ products = [], setProducts }) => {
         remarks: '',
       });
       setSelectedProduct(null);
-
-      // Refresh stock entries
-      fetchStockEntries();
       
       setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
     } catch (err) {
@@ -154,9 +137,9 @@ const AddStock = ({ products = [], setProducts }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Form Section */}
-        <div className="lg:col-span-2">
+        <div>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Product Selection */}
             <div>
@@ -323,46 +306,6 @@ const AddStock = ({ products = [], setProducts }) => {
               {loading ? 'Adding Stock...' : 'Add Stock'}
             </button>
           </form>
-        </div>
-
-        {/* Recent Stock Entries */}
-        <div className="lg:col-span-1">
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 sticky top-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Stock Entries</h3>
-            <div className="space-y-3 max-h-[600px] overflow-y-auto">
-              {stockEntries.length > 0 ? (
-                stockEntries.slice(0, 10).map((entry) => (
-                  <div key={entry._id} className="bg-white rounded-lg border border-gray-200 p-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-gray-900 truncate">
-                          {entry.product?.name || 'Unknown Product'}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {entry.vendor?.name || 'Unknown Vendor'}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-green-600 ml-2">
-                        +{entry.quantity}
-                      </span>
-                    </div>
-                    {entry.invoiceNumber && (
-                      <p className="text-xs text-gray-500">
-                        Invoice: {entry.invoiceNumber}
-                      </p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-1">
-                      {new Date(entry.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No stock entries yet
-                </p>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>

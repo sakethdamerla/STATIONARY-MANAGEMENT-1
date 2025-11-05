@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Building2, Edit, Trash2, Mail, Phone, MapPin, FileText, Search, X } from 'lucide-react';
+import { Plus, Building2, Edit, Trash2, Mail, Phone, MapPin, FileText, Search, X, History, Package, Calendar, DollarSign } from 'lucide-react';
 import { apiUrl } from '../../utils/api';
 
 const VendorManagement = () => {
@@ -9,6 +9,10 @@ const VendorManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [stockEntries, setStockEntries] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     contactPerson: '',
@@ -159,6 +163,39 @@ const VendorManagement = () => {
     );
   });
 
+  const handleViewHistory = async (vendor) => {
+    setSelectedVendor(vendor);
+    setShowHistoryModal(true);
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(apiUrl(`/api/stock-entries?vendor=${vendor._id}`));
+      if (res.ok) {
+        const data = await res.json();
+        setStockEntries(data);
+      }
+    } catch (err) {
+      console.error('Error fetching stock entries:', err);
+      setStatusMsg({ type: 'error', message: 'Failed to fetch stock history' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const formatCurrency = (amount) => {
+    return `₹${Number(amount || 0).toFixed(2)}`;
+  };
+
   return (
     <div>
       {/* Header */}
@@ -273,6 +310,13 @@ const VendorManagement = () => {
 
               {/* Actions */}
               <div className="p-6 pt-0 flex gap-2">
+                <button
+                  onClick={() => handleViewHistory(vendor)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 rounded-xl hover:bg-green-100 transition-colors font-medium text-sm"
+                >
+                  <History size={16} />
+                  History
+                </button>
                 <button
                   onClick={() => handleEdit(vendor)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors font-medium text-sm"
@@ -491,6 +535,140 @@ const VendorManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Exchange History Modal */}
+      {showHistoryModal && selectedVendor && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-gray-900 bg-opacity-30 flex items-center justify-center z-50 p-4" onClick={() => {
+          setShowHistoryModal(false);
+          setSelectedVendor(null);
+          setStockEntries([]);
+        }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Stock Exchange History</h3>
+                <p className="text-sm text-gray-600 mt-1">{selectedVendor.name}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowHistoryModal(false);
+                  setSelectedVendor(null);
+                  setStockEntries([]);
+                }}
+                className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+              >
+                <X size={18} className="text-gray-600" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {loadingHistory ? (
+                <div className="text-center py-12">
+                  <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-gray-500">Loading history...</p>
+                </div>
+              ) : stockEntries.length > 0 ? (
+                <>
+                  {/* Summary */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6 border border-blue-100">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Total Entries</p>
+                        <p className="text-lg font-bold text-gray-900">{stockEntries.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Total Quantity</p>
+                        <p className="text-lg font-bold text-gray-900">
+                          {stockEntries.reduce((sum, entry) => sum + (entry.quantity || 0), 0)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Total Cost</p>
+                        <p className="text-lg font-bold text-gray-900">
+                          {formatCurrency(stockEntries.reduce((sum, entry) => sum + (entry.totalCost || 0), 0))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Avg. Price</p>
+                        <p className="text-lg font-bold text-gray-900">
+                          {formatCurrency(
+                            stockEntries.length > 0
+                              ? stockEntries.reduce((sum, entry) => sum + (entry.purchasePrice || 0), 0) / stockEntries.length
+                              : 0
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* History List */}
+                  <div className="space-y-4">
+                    {stockEntries.map((entry) => (
+                      <div
+                        key={entry._id}
+                        className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Package size={16} className="text-gray-400" />
+                              <span className="font-semibold text-gray-900">
+                                {entry.product?.name || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Calendar size={14} className="text-gray-400" />
+                              <span>{formatDate(entry.invoiceDate || entry.createdAt)}</span>
+                            </div>
+                            {entry.invoiceNumber && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <FileText size={14} className="text-gray-400" />
+                                <span>Invoice: {entry.invoiceNumber}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-2 text-right">
+                            <div>
+                              <span className="text-sm text-gray-600">Quantity: </span>
+                              <span className="font-semibold text-gray-900">{entry.quantity || 0}</span>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Unit Price: </span>
+                              <span className="font-semibold text-gray-900">
+                                {formatCurrency(entry.purchasePrice || 0)}
+                              </span>
+                            </div>
+                            <div className="pt-2 border-t border-gray-200">
+                              <span className="text-sm text-gray-600">Total Cost: </span>
+                              <span className="font-bold text-lg text-blue-600">
+                                {formatCurrency(entry.totalCost || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {entry.remarks && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-500 mb-1">Remarks:</p>
+                            <p className="text-sm text-gray-700">{entry.remarks}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <History className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Stock History</h3>
+                  <p className="text-gray-600">
+                    No stock entries found for this vendor
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
