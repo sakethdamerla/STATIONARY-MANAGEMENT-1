@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Edit, Trash2, Receipt, Download, Eye, X, FileText, Calendar, Package, Building2 } from 'lucide-react';
+import { Search, Filter, Edit, Trash2, Receipt, Download, Eye, X, FileText, Calendar, Package, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 import jsPDF from 'jspdf';
 
@@ -24,13 +24,20 @@ const Transactions = () => {
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [reportType, setReportType] = useState(''); // 'day-end', 'stock', 'vendor-purchase'
+  
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+  
   const [reportFilters, setReportFilters] = useState({
     course: '',
     paymentMethod: '',
     isPaid: '',
-    startDate: '',
-    endDate: '',
-    includeItems: true,
+    startDate: getTodayDate(),
+    endDate: getTodayDate(),
+    includeItems: false,
     includeSummary: true,
     // For stock report
     productCategory: '',
@@ -38,6 +45,8 @@ const Transactions = () => {
     vendor: '',
   });
   const [vendors, setVendors] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     fetchTransactions();
@@ -117,6 +126,17 @@ const Transactions = () => {
       return matchesSearch;
     });
   }, [transactions, searchTerm]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedTransactions = filteredTransactions.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filters]);
 
   const handleDelete = async (transactionId) => {
     if (!window.confirm('Are you sure you want to delete this transaction?')) {
@@ -261,10 +281,9 @@ const Transactions = () => {
       pdf.setFillColor(230, 230, 230);
       pdf.rect(20, yPos - 3, 170, 5, 'F');
       pdf.text('Date', 22, yPos);
-      pdf.text('Transaction ID', 45, yPos);
-      pdf.text('Student', 85, yPos);
-      pdf.text('Course', 120, yPos);
-      pdf.text('Amount', 150, yPos);
+      pdf.text('Student', 50, yPos);
+      pdf.text('Course', 110, yPos);
+      pdf.text('Amount', 145, yPos);
       pdf.text('Status', 175, yPos);
       yPos += 6;
 
@@ -282,19 +301,17 @@ const Transactions = () => {
           pdf.setFillColor(230, 230, 230);
           pdf.rect(20, yPos - 3, 170, 5, 'F');
           pdf.text('Date', 22, yPos);
-          pdf.text('Transaction ID', 45, yPos);
-          pdf.text('Student', 85, yPos);
-          pdf.text('Course', 120, yPos);
-          pdf.text('Amount', 150, yPos);
+          pdf.text('Student', 50, yPos);
+          pdf.text('Course', 110, yPos);
+          pdf.text('Amount', 145, yPos);
           pdf.text('Status', 175, yPos);
           yPos += 6;
           pdf.setFont(undefined, 'normal');
         }
 
         const date = new Date(transaction.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const transactionId = (transaction.transactionId || 'N/A').substring(0, 12);
-        const studentName = (transaction.student?.name || 'N/A').substring(0, 15);
-        const course = (transaction.student?.course || 'N/A').toUpperCase().substring(0, 8);
+        const studentName = (transaction.student?.name || 'N/A').substring(0, 20);
+        const course = (transaction.student?.course || 'N/A').toUpperCase().substring(0, 10);
         const amount = formatCurrencyForPDF(transaction.totalAmount);
         const status = transaction.isPaid ? 'Paid' : 'Unpaid';
 
@@ -305,10 +322,9 @@ const Transactions = () => {
         }
 
         pdf.text(date, 22, yPos);
-        pdf.text(transactionId, 45, yPos);
-        pdf.text(studentName, 85, yPos);
-        pdf.text(course, 120, yPos);
-        pdf.text(amount, 150, yPos);
+        pdf.text(studentName, 50, yPos);
+        pdf.text(course, 110, yPos);
+        pdf.text(amount, 145, yPos);
         pdf.text(status, 175, yPos);
         yPos += 5;
 
@@ -414,109 +430,151 @@ const Transactions = () => {
         format: 'a4'
       });
 
-      // Header
-      pdf.setFontSize(20);
+      // Header Section
+      pdf.setFontSize(18);
       pdf.setTextColor(30, 58, 138);
-      pdf.text('PYDAH COLLEGE OF ENGINEERING', 105, 20, { align: 'center' });
-      pdf.setFontSize(14);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('PYDAH COLLEGE OF ENGINEERING', 105, 15, { align: 'center' });
+      pdf.setFontSize(12);
       pdf.setTextColor(100, 100, 100);
+      pdf.setFont(undefined, 'normal');
+      pdf.text('Stationery Management System', 105, 22, { align: 'center' });
+      pdf.setFontSize(14);
+      pdf.setTextColor(30, 58, 138);
+      pdf.setFont(undefined, 'bold');
       pdf.text('Stock Report', 105, 30, { align: 'center' });
+      
+      // Draw line under header
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(20, 35, 190, 35);
+      
+      let yPos = 42;
 
-      // Report Info
+      // Report Info Section
       pdf.setFontSize(10);
       pdf.setTextColor(0, 0, 0);
-      let yPos = 40;
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Report Information', 20, yPos);
+      yPos += 6;
+      pdf.setFont(undefined, 'normal');
       
       if (reportFilters.course) {
-        pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 20, yPos);
-        yPos += 7;
+        pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 25, yPos);
+        yPos += 5;
       }
       if (reportFilters.productCategory) {
-        pdf.text(`Category: ${reportFilters.productCategory}`, 20, yPos);
-        yPos += 7;
+        pdf.text(`Category: ${reportFilters.productCategory}`, 25, yPos);
+        yPos += 5;
       }
-      pdf.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 20, yPos);
-      yPos += 10;
+      pdf.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 25, yPos);
+      yPos += 8;
 
-      // Summary
+      // Summary Section
       if (reportFilters.includeSummary && products.length > 0) {
         const totalStock = products.reduce((sum, p) => sum + (p.stock || 0), 0);
         const totalValue = products.reduce((sum, p) => sum + ((p.stock || 0) * (p.price || 0)), 0);
         const lowStockCount = products.filter(p => (p.stock || 0) < 10).length;
+        const outOfStockCount = products.filter(p => (p.stock || 0) === 0).length;
         
-        pdf.setFontSize(12);
+        pdf.setFontSize(11);
         pdf.setFont(undefined, 'bold');
-        pdf.text('Summary', 20, yPos);
+        pdf.setFillColor(240, 240, 240);
+        pdf.rect(20, yPos - 4, 170, 6, 'F');
+        pdf.text('Summary Statistics', 20, yPos);
         yPos += 7;
+        
         pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(10);
+        pdf.setFontSize(9);
         pdf.text(`Total Products: ${products.length}`, 25, yPos);
-        yPos += 7;
+        yPos += 5;
         pdf.text(`Total Stock Units: ${totalStock}`, 25, yPos);
-        yPos += 7;
+        yPos += 5;
         pdf.text(`Total Stock Value: ${formatCurrencyForPDF(totalValue)}`, 25, yPos);
-        yPos += 7;
+        yPos += 5;
         pdf.text(`Low Stock Items (<10 units): ${lowStockCount}`, 25, yPos);
-        yPos += 10;
+        yPos += 5;
+        pdf.text(`Out of Stock Items: ${outOfStockCount}`, 25, yPos);
+        yPos += 8;
       }
 
-      // Products list
+      // Stock Details Table
       if (products.length > 0) {
-        pdf.setFontSize(12);
+        pdf.setFontSize(11);
         pdf.setFont(undefined, 'bold');
+        pdf.setFillColor(240, 240, 240);
+        pdf.rect(20, yPos - 4, 170, 6, 'F');
         pdf.text('Stock Details', 20, yPos);
         yPos += 7;
 
-        pdf.setFontSize(9);
+        // Table Headers
+        pdf.setFontSize(8);
         pdf.setFont(undefined, 'bold');
-        pdf.text('Product Name', 20, yPos);
-        pdf.text('Category', 60, yPos);
-        pdf.text('Course', 100, yPos);
-        pdf.text('Price', 130, yPos);
-        pdf.text('Stock', 150, yPos);
-        pdf.text('Value', 170, yPos);
-        
-        pdf.setDrawColor(200, 200, 200);
-        pdf.line(20, yPos + 2, 190, yPos + 2);
-        yPos += 8;
+        pdf.setFillColor(230, 230, 230);
+        pdf.rect(20, yPos - 3, 170, 5, 'F');
+        pdf.text('Product Name', 22, yPos);
+        pdf.text('Price', 100, yPos);
+        pdf.text('Stock', 130, yPos);
+        pdf.text('Value', 160, yPos);
+        yPos += 6;
 
         pdf.setFont(undefined, 'normal');
         pdf.setFontSize(8);
 
         products.forEach((product, index) => {
+          // Check if we need a new page
           if (yPos > 270) {
             pdf.addPage();
             yPos = 20;
+            // Redraw table headers on new page
             pdf.setFont(undefined, 'bold');
-            pdf.text('Product Name', 20, yPos);
-            pdf.text('Category', 60, yPos);
-            pdf.text('Course', 100, yPos);
-            pdf.text('Price', 130, yPos);
-            pdf.text('Stock', 150, yPos);
-            pdf.text('Value', 170, yPos);
-            pdf.line(20, yPos + 2, 190, yPos + 2);
-            yPos += 8;
+            pdf.setFontSize(8);
+            pdf.setFillColor(230, 230, 230);
+            pdf.rect(20, yPos - 3, 170, 5, 'F');
+            pdf.text('Product Name', 22, yPos);
+            pdf.text('Price', 100, yPos);
+            pdf.text('Stock', 130, yPos);
+            pdf.text('Value', 160, yPos);
+            yPos += 6;
             pdf.setFont(undefined, 'normal');
           }
 
-          const productName = (product.name || 'N/A').substring(0, 25);
-          const category = (product.category || 'N/A').substring(0, 15);
-          const course = (product.forCourse || 'All').toUpperCase().substring(0, 8);
+          const productName = (product.name || 'N/A').substring(0, 40);
           const price = formatCurrencyForPDF(product.price || 0);
           const stock = product.stock || 0;
           const value = formatCurrencyForPDF((product.stock || 0) * (product.price || 0));
 
-          pdf.text(productName, 20, yPos);
-          pdf.text(category, 60, yPos);
-          pdf.text(course, 100, yPos);
-          pdf.text(price, 130, yPos);
-          pdf.text(stock.toString(), 150, yPos);
-          pdf.text(value, 170, yPos);
-          yPos += 6;
+          // Alternate row background
+          if (index % 2 === 0) {
+            pdf.setFillColor(250, 250, 250);
+            pdf.rect(20, yPos - 3, 170, 5, 'F');
+          }
+
+          pdf.text(productName, 22, yPos);
+          pdf.text(price, 100, yPos);
+          pdf.text(stock.toString(), 130, yPos);
+          pdf.text(value, 160, yPos);
+          yPos += 5;
+
+          // Draw separator line
+          if (index < products.length - 1) {
+            pdf.setDrawColor(220, 220, 220);
+            pdf.line(20, yPos, 190, yPos);
+            yPos += 2;
+          }
         });
       } else {
         pdf.setFontSize(10);
         pdf.text('No products found for the selected filters.', 20, yPos);
+      }
+
+      // Footer
+      const pageCount = pdf.internal.pages.length - 1;
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(`Page ${i} of ${pageCount}`, 105, 285, { align: 'center' });
+        pdf.text(`Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 105, 290, { align: 'center' });
       }
 
       const fileName = `Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -529,15 +587,19 @@ const Transactions = () => {
 
   const generateVendorPurchaseReport = async () => {
     try {
-      const queryParams = new URLSearchParams();
-      if (reportFilters.vendor) queryParams.append('vendor', reportFilters.vendor);
-      if (reportFilters.startDate) queryParams.append('startDate', reportFilters.startDate);
-      if (reportFilters.endDate) queryParams.append('endDate', reportFilters.endDate);
-
-      const response = await fetch(apiUrl(`/api/stock-entries?${queryParams.toString()}`));
+      // Fetch all stock entries first
+      const response = await fetch(apiUrl('/api/stock-entries'));
       if (!response.ok) throw new Error('Failed to fetch stock entries for report');
       
       let stockEntries = await response.json();
+
+      // Apply filters on client side
+      if (reportFilters.vendor) {
+        stockEntries = stockEntries.filter(entry => {
+          const entryVendorId = entry.vendor?._id || entry.vendor;
+          return String(entryVendorId) === String(reportFilters.vendor);
+        });
+      }
 
       // Filter by date range on client side
       if (reportFilters.startDate || reportFilters.endDate) {
@@ -555,107 +617,164 @@ const Transactions = () => {
         format: 'a4'
       });
 
-      // Header
-      pdf.setFontSize(20);
+      // Header Section
+      pdf.setFontSize(18);
       pdf.setTextColor(30, 58, 138);
-      pdf.text('PYDAH COLLEGE OF ENGINEERING', 105, 20, { align: 'center' });
-      pdf.setFontSize(14);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('PYDAH COLLEGE OF ENGINEERING', 105, 15, { align: 'center' });
+      pdf.setFontSize(12);
       pdf.setTextColor(100, 100, 100);
+      pdf.setFont(undefined, 'normal');
+      pdf.text('Stationery Management System', 105, 22, { align: 'center' });
+      pdf.setFontSize(14);
+      pdf.setTextColor(30, 58, 138);
+      pdf.setFont(undefined, 'bold');
       pdf.text('Vendor Purchase Report', 105, 30, { align: 'center' });
+      
+      // Draw line under header
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(20, 35, 190, 35);
+      
+      let yPos = 42;
 
-      // Report Info
+      // Report Info Section
       pdf.setFontSize(10);
       pdf.setTextColor(0, 0, 0);
-      let yPos = 40;
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Report Information', 20, yPos);
+      yPos += 6;
+      pdf.setFont(undefined, 'normal');
       
       if (reportFilters.startDate || reportFilters.endDate) {
-        pdf.text(`Date Range: ${reportFilters.startDate || 'All'} to ${reportFilters.endDate || 'All'}`, 20, yPos);
-        yPos += 7;
+        pdf.text(`Date Range: ${reportFilters.startDate || 'All'} to ${reportFilters.endDate || 'All'}`, 25, yPos);
+        yPos += 5;
       }
       if (reportFilters.vendor) {
         const vendorName = vendors.find(v => v._id === reportFilters.vendor)?.name || 'N/A';
-        pdf.text(`Vendor: ${vendorName}`, 20, yPos);
-        yPos += 7;
+        pdf.text(`Vendor: ${vendorName}`, 25, yPos);
+        yPos += 5;
       }
-      pdf.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 20, yPos);
-      yPos += 10;
+      pdf.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 25, yPos);
+      yPos += 8;
 
-      // Summary
+      // Summary Section
       if (reportFilters.includeSummary && stockEntries.length > 0) {
         const totalQuantity = stockEntries.reduce((sum, e) => sum + (e.quantity || 0), 0);
         const totalCost = stockEntries.reduce((sum, e) => sum + (e.totalCost || 0), 0);
-        const uniqueVendors = new Set(stockEntries.map(e => e.vendor?._id || e.vendor)).size;
+        const uniqueVendors = new Set(stockEntries.map(e => {
+          const vendorId = e.vendor?._id || e.vendor;
+          return vendorId ? String(vendorId) : null;
+        }).filter(Boolean)).size;
         
-        pdf.setFontSize(12);
+        pdf.setFontSize(11);
         pdf.setFont(undefined, 'bold');
-        pdf.text('Summary', 20, yPos);
+        pdf.setFillColor(240, 240, 240);
+        pdf.rect(20, yPos - 4, 170, 6, 'F');
+        pdf.text('Summary Statistics', 20, yPos);
         yPos += 7;
+        
         pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(10);
+        pdf.setFontSize(9);
         pdf.text(`Total Purchase Entries: ${stockEntries.length}`, 25, yPos);
-        yPos += 7;
+        yPos += 5;
         pdf.text(`Total Quantity Purchased: ${totalQuantity}`, 25, yPos);
-        yPos += 7;
+        yPos += 5;
         pdf.text(`Total Purchase Cost: ${formatCurrencyForPDF(totalCost)}`, 25, yPos);
-        yPos += 7;
+        yPos += 5;
         pdf.text(`Number of Vendors: ${uniqueVendors}`, 25, yPos);
-        yPos += 10;
+        yPos += 8;
       }
 
-      // Stock Entries list
+      // Purchase Entries Table
       if (stockEntries.length > 0) {
-        pdf.setFontSize(12);
+        pdf.setFontSize(11);
         pdf.setFont(undefined, 'bold');
+        pdf.setFillColor(240, 240, 240);
+        pdf.rect(20, yPos - 4, 170, 6, 'F');
         pdf.text('Purchase Entries', 20, yPos);
         yPos += 7;
 
+        // Table Headers
+        pdf.setFontSize(8);
+        pdf.setFont(undefined, 'bold');
+        pdf.setFillColor(230, 230, 230);
+        pdf.rect(20, yPos - 3, 170, 5, 'F');
+        pdf.text('Date', 22, yPos);
+        pdf.text('Invoice', 50, yPos);
+        pdf.text('Product', 80, yPos);
+        pdf.text('Vendor', 120, yPos);
+        pdf.text('Qty', 150, yPos);
+        pdf.text('Unit Price', 160, yPos);
+        pdf.text('Total', 175, yPos);
+        yPos += 6;
+
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(8);
+
         stockEntries.forEach((entry, index) => {
-          if (yPos > 250) {
+          // Check if we need a new page
+          if (yPos > 270) {
             pdf.addPage();
             yPos = 20;
+            // Redraw table headers on new page
+            pdf.setFont(undefined, 'bold');
+            pdf.setFontSize(8);
+            pdf.setFillColor(230, 230, 230);
+            pdf.rect(20, yPos - 3, 170, 5, 'F');
+            pdf.text('Date', 22, yPos);
+            pdf.text('Invoice', 50, yPos);
+            pdf.text('Product', 80, yPos);
+            pdf.text('Vendor', 120, yPos);
+            pdf.text('Qty', 150, yPos);
+            pdf.text('Unit Price', 160, yPos);
+            pdf.text('Total', 175, yPos);
+            yPos += 6;
+            pdf.setFont(undefined, 'normal');
           }
 
-          pdf.setFontSize(9);
-          pdf.setFont(undefined, 'bold');
-          pdf.setFillColor(240, 240, 240);
-          pdf.rect(20, yPos - 3, 170, 6, 'F');
-          
           const date = new Date(entry.invoiceDate || entry.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          const productName = entry.product?.name || 'N/A';
-          const vendorName = entry.vendor?.name || 'N/A';
+          const invoiceNumber = (entry.invoiceNumber || 'N/A').substring(0, 12);
+          const productName = (entry.product?.name || 'N/A').substring(0, 15);
+          const vendorName = (entry.vendor?.name || 'N/A').substring(0, 15);
           const quantity = entry.quantity || 0;
           const purchasePrice = formatCurrencyForPDF(entry.purchasePrice || 0);
           const totalCost = formatCurrencyForPDF(entry.totalCost || 0);
-          const invoiceNumber = entry.invoiceNumber || 'N/A';
 
-          pdf.text(`Date: ${date}`, 22, yPos);
-          pdf.text(`Invoice: ${invoiceNumber}`, 80, yPos);
-          yPos += 6;
-          
-          pdf.text(`Product: ${productName}`, 22, yPos);
-          pdf.text(`Vendor: ${vendorName}`, 100, yPos);
-          yPos += 6;
-          
-          pdf.text(`Quantity: ${quantity}`, 22, yPos);
-          pdf.text(`Unit Price: ${purchasePrice}`, 80, yPos);
-          pdf.text(`Total Cost: ${totalCost}`, 130, yPos);
-          yPos += 8;
-
-          if (entry.remarks) {
-            pdf.setFontSize(8);
-            pdf.text(`Remarks: ${entry.remarks}`, 22, yPos);
-            yPos += 5;
+          // Alternate row background
+          if (index % 2 === 0) {
+            pdf.setFillColor(250, 250, 250);
+            pdf.rect(20, yPos - 3, 170, 5, 'F');
           }
 
+          pdf.text(date, 22, yPos);
+          pdf.text(invoiceNumber, 50, yPos);
+          pdf.text(productName, 80, yPos);
+          pdf.text(vendorName, 120, yPos);
+          pdf.text(quantity.toString(), 150, yPos);
+          pdf.text(purchasePrice, 160, yPos);
+          pdf.text(totalCost, 175, yPos);
+          yPos += 5;
+
+          // Draw separator line
           if (index < stockEntries.length - 1) {
-            pdf.setDrawColor(200, 200, 200);
+            pdf.setDrawColor(220, 220, 220);
             pdf.line(20, yPos, 190, yPos);
-            yPos += 5;
+            yPos += 2;
           }
         });
       } else {
         pdf.setFontSize(10);
         pdf.text('No purchase entries found for the selected filters.', 20, yPos);
+      }
+
+      // Footer
+      const pageCount = pdf.internal.pages.length - 1;
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(`Page ${i} of ${pageCount}`, 105, 285, { align: 'center' });
+        pdf.text(`Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 105, 290, { align: 'center' });
       }
 
       const fileName = `Vendor_Purchase_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -819,9 +938,27 @@ const Transactions = () => {
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">Transaction List</h3>
-              <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
-                {filteredTransactions.length} transactions
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                  {filteredTransactions.length} transactions
+                </span>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Show:</label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -850,7 +987,7 @@ const Transactions = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTransactions.map(transaction => (
+                  {paginatedTransactions.map(transaction => (
                     <tr key={transaction._id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col">
@@ -912,6 +1049,66 @@ const Transactions = () => {
               </table>
             )}
           </div>
+          
+          {/* Pagination */}
+          {filteredTransactions.length > 0 && totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(endIndex, filteredTransactions.length)}</span> of{' '}
+                  <span className="font-medium">{filteredTransactions.length}</span> transactions
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                  >
+                    <ChevronLeft size={16} />
+                    Previous
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                      // Show first page, last page, current page, and pages around current
+                      if (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      ) {
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${
+                              currentPage === page
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      } else if (page === currentPage - 2 || page === currentPage + 2) {
+                        return <span key={page} className="px-2 text-gray-500">...</span>;
+                      }
+                      return null;
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                  >
+                    Next
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1041,7 +1238,15 @@ const Transactions = () => {
                   <p className="text-sm text-gray-600 mb-4">Select the type of report you want to generate</p>
                   <div className="grid grid-cols-1 gap-4">
                     <button
-                      onClick={() => setReportType('day-end')}
+                      onClick={() => {
+                        setReportType('day-end');
+                        // Reset to today's date when selecting day-end report
+                        setReportFilters(prev => ({
+                          ...prev,
+                          startDate: getTodayDate(),
+                          endDate: getTodayDate(),
+                        }));
+                      }}
                       className="p-6 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
                     >
                       <div className="flex items-center gap-3">
@@ -1105,6 +1310,7 @@ const Transactions = () => {
                   {/* Day-End Report Filters */}
                   {reportType === 'day-end' && (
                     <>
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>

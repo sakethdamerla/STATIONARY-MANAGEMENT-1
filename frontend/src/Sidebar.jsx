@@ -88,12 +88,12 @@ const Sidebar = ({ onLogout, isMobile: isMobileProp, sidebarOpen, setSidebarOpen
         fixed left-0 top-0 h-full bg-black border-r border-slate-600 flex flex-col z-50 shadow-2xl transition-all duration-300
         ${isMobileProp 
           ? `w-60 ${!sidebarOpen ? '-translate-x-full' : 'translate-x-0'}` 
-          : `${!sidebarOpen ? 'w-20' : 'w-80'}`
+          : `${!sidebarOpen ? 'w-20' : 'w-60'}`
         }
       `}>
         
         {/* Header Section */}
-        <div className="p-4 border-b border-slate-600 bg-black">
+        <div className="p-4 border-b border-slate-600 bg-gradient-to-r from-slate-800 to-slate-700">
           <div className="flex items-center justify-between">
             {sidebarOpen && (
               <div className="flex items-center gap-3">
