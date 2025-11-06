@@ -25,7 +25,7 @@ const Sidebar = ({ onLogout, isMobile: isMobileProp, sidebarOpen, setSidebarOpen
     if (sidebarOpen) {
       const timer = setTimeout(() => {
         setSidebarOpen(false);
-      }, 4000); // 4 seconds
+      }, 6000); // 6 seconds
 
       return () => clearTimeout(timer);
     }
