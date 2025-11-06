@@ -94,20 +94,20 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
-          <div>
+              <button 
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+              >
+                <ArrowLeft size={16} />
+                Back
+              </button>
+              <div>
                 <h1 className="text-2xl font-bold text-gray-900">Student Details</h1>
               </div>
             </div>
             <button
               onClick={() => setShowTransactionModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 transition-all font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
             >
               <Receipt size={18} />
               Make Transaction
@@ -118,16 +118,18 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Sidebar - Student Info */}
-          <div className="lg:col-span-1 space-y-4">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
-                  <User className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-gray-900">Student Info</h3>
+          <div className="lg:col-span-1">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-5">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/20">
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                  <User className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="font-semibold text-white">Student Info</h3>
               </div>
               
               {/* Avatar Section */}
-              <div className="flex flex-col items-center mb-6 pb-6 border-b border-gray-200">
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3">
+              <div className="flex flex-col items-center mb-6 pb-6 border-b border-white/20">
+                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg mb-3 backdrop-blur-sm">
                   {student.name
                     .split(' ')
                     .map(n => n[0])
@@ -135,41 +137,43 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                     .toUpperCase()
                     .slice(0, 2)}
                 </div>
-                <h4 className="text-lg font-bold text-gray-900 text-center">{student.name}</h4>
+                <h4 className="text-lg font-bold text-white text-center">{student.name}</h4>
               </div>
               
               <div className="space-y-3">
-                <div>
-                  <span className="text-xs text-gray-500">Student ID</span>
-                  <p className="text-sm font-medium text-gray-900 mt-0.5">{student.studentId}</p>
+                <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
+                  <span className="text-xs text-blue-100 font-medium">Student ID</span>
+                  <p className="text-sm font-semibold text-white mt-1">{student.studentId}</p>
                 </div>
-                <div>
-                  <span className="text-xs text-gray-500">Course</span>
-                  <p className="text-sm font-medium text-gray-900 mt-0.5">{student.course.toUpperCase()}</p>
-                  </div>
-                  <div>
-                  <span className="text-xs text-gray-500">Year</span>
-                  <p className="text-sm font-medium text-gray-900 mt-0.5">Year {student.year}</p>
+                <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
+                  <span className="text-xs text-blue-100 font-medium">Course</span>
+                  <p className="text-sm font-semibold text-white mt-1">{student.course.toUpperCase()}</p>
+                </div>
+                <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
+                  <span className="text-xs text-blue-100 font-medium">Year</span>
+                  <p className="text-sm font-semibold text-white mt-1">Year {student.year}</p>
                 </div>
                 {student.branch && (
-                  <div>
-                    <span className="text-xs text-gray-500">Branch</span>
-                    <p className="text-sm font-medium text-gray-900 mt-0.5">{student.branch}</p>
+                  <div className="bg-white/20 rounded-lg p-3 backdrop-blur-sm">
+                    <span className="text-xs text-blue-100 font-medium">Branch</span>
+                    <p className="text-sm font-semibold text-white mt-1">{student.branch}</p>
                   </div>
                 )}
               </div>
-                  </div>
-                </div>
+            </div>
+          </div>
 
           {/* Main Content Area */}
           <div className="lg:col-span-3 space-y-6">
             {/* Stationery Items Section */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
-                  <Package className="w-5 h-5 text-green-600" />
-                <h3 className="font-semibold text-gray-900">Stationery Items</h3>
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-5">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/20">
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Package className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="font-semibold text-white">Stationery Items</h3>
                 {allocatedItems.length > 0 && (
-                  <span className="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  <span className="ml-auto text-xs text-white bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
                     {allocatedItems.length} {allocatedItems.length === 1 ? 'item' : 'items'}
                   </span>
                 )}
@@ -177,42 +181,44 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
               
               {allocatedItems.length === 0 ? (
                 <div className="text-center py-8">
-                  <Package className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No items allocated to this student yet.</p>
+                  <Package className="w-10 h-10 text-white/50 mx-auto mb-2" />
+                  <p className="text-sm text-green-100">No items allocated to this student yet.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {allocatedItems.map(p => (
                     <div 
                       key={p._id || p.name}
-                      className="p-4 rounded-lg border border-blue-300 bg-blue-50 hover:bg-blue-100 transition-colors"
+                      className="p-3 rounded-lg border border-white/30 bg-white/20 hover:bg-white/30 transition-colors backdrop-blur-sm"
                     >
-                      <div className="flex items-start gap-3">
-                        <Package className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex items-start gap-2">
+                        <Package className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-semibold text-blue-900 mb-1">
+                          <h4 className="text-sm font-semibold text-white mb-1">
                             {p.name}
                           </h4>
                           {p.description && (
-                            <p className="text-xs text-blue-700 leading-relaxed">
+                            <p className="text-xs text-green-100 leading-relaxed line-clamp-2">
                               {p.description}
                             </p>
                           )}
-                  </div>
-                  </div>
-                </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
-                </div>
+            </div>
 
             {/* Transaction History Section */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
-                <History className="w-5 h-5 text-purple-600" />
-                <h3 className="font-semibold text-gray-900">Transaction History</h3>
+            <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl shadow-lg p-5">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/20">
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                  <History className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="font-semibold text-white">Transaction History</h3>
                 {transactions.length > 0 && (
-                  <span className="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  <span className="ml-auto text-xs text-white bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
                     {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
                   </span>
                 )}
@@ -220,13 +226,13 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
 
               {loadingTransactions ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                  <span className="ml-3 text-sm text-gray-600">Loading transactions...</span>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span className="ml-3 text-sm text-purple-100">Loading transactions...</span>
                 </div>
               ) : transactions.length === 0 ? (
                 <div className="text-center py-12">
-                  <History className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No transactions found for this student.</p>
+                  <History className="w-10 h-10 text-white/50 mx-auto mb-2" />
+                  <p className="text-sm text-purple-100">No transactions found for this student.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -241,30 +247,30 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                       return (
                         <div key={transaction._id}>
                           <div
-                            className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                            className="border border-white/30 rounded-lg p-4 bg-white/20 hover:bg-white/30 transition-colors backdrop-blur-sm"
                           >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                  <span className="text-xs font-semibold text-gray-900 truncate">
+                                  <span className="text-xs font-semibold text-white truncate">
                                     {transaction.transactionId}
                                   </span>
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                     transaction.isPaid
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-red-100 text-red-700'
+                                      ? 'bg-green-400/30 text-green-100 border border-green-300/50'
+                                      : 'bg-red-400/30 text-red-100 border border-red-300/50'
                                   }`}>
                                     {transaction.isPaid ? 'Paid' : 'Unpaid'}
                                   </span>
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                     transaction.paymentMethod === 'cash'
-                                      ? 'bg-blue-100 text-blue-700'
-                                      : 'bg-purple-100 text-purple-700'
+                                      ? 'bg-blue-400/30 text-blue-100 border border-blue-300/50'
+                                      : 'bg-purple-400/30 text-purple-100 border border-purple-300/50'
                                   }`}>
                                     {transaction.paymentMethod === 'cash' ? 'Cash' : 'Online'}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-3 text-xs text-gray-500">
+                                <div className="flex items-center gap-3 text-xs text-purple-100">
                                   <div className="flex items-center gap-1">
                                     <Calendar size={12} />
                                     <span>
@@ -276,53 +282,53 @@ const StudentDetail = ({ students = [], setStudents, products = [] }) => {
                                         minute: '2-digit',
                                       })}
                                     </span>
-                  </div>
+                                  </div>
                                   <div className="flex items-center gap-1">
                                     <Package size={12} />
                                     <span>{transaction.items?.length || 0} item{transaction.items?.length !== 1 ? 's' : ''}</span>
-                  </div>
-                </div>
-                    </div>
+                                  </div>
+                                </div>
+                              </div>
                               <div className="ml-4 flex items-center gap-2">
                                 <button
                                   onClick={() => triggerPrint()}
-                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors no-print"
+                                  className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors no-print backdrop-blur-sm border border-white/30"
                                   title="Print Receipt"
                                 >
                                   <Printer size={14} />
                                   Print
                                 </button>
                                 <div className="text-right">
-                                  <div className="flex items-center gap-1 text-base font-bold text-gray-900">
+                                  <div className="flex items-center gap-1 text-base font-bold text-white">
                                     <DollarSign size={16} />
                                     <span>₹{Number(transaction.totalAmount).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
 
                             {/* Transaction Items - Collapsible or compact view */}
                             {transaction.items && transaction.items.length > 0 && (
-                              <div className="mt-2 pt-2 border-t border-gray-100">
+                              <div className="mt-2 pt-2 border-t border-white/30">
                                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                                   {transaction.items.map((item, idx) => (
-                                    <div key={idx} className="text-xs text-gray-600">
-                                      <span className="font-medium">{item.name}</span>
-                                      <span className="text-gray-500"> ×{item.quantity}</span>
-                                      <span className="text-gray-700 font-semibold ml-1">
+                                    <div key={idx} className="text-xs text-purple-100">
+                                      <span className="font-medium text-white">{item.name}</span>
+                                      <span className="text-purple-100"> ×{item.quantity}</span>
+                                      <span className="text-white font-semibold ml-1">
                                         ₹{Number(item.total).toFixed(2)}
                                       </span>
                                     </div>
                                   ))}
-                  </div>
-                </div>
-              )}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Remarks */}
                             {transaction.remarks && (
-                              <div className="mt-2 pt-2 border-t border-gray-100">
-                                <p className="text-xs text-gray-600">
-                                  <span className="font-medium">Remarks:</span> {transaction.remarks}
+                              <div className="mt-2 pt-2 border-t border-white/30">
+                                <p className="text-xs text-purple-100">
+                                  <span className="font-medium text-white">Remarks:</span> {transaction.remarks}
                                 </p>
                               </div>
                             )}

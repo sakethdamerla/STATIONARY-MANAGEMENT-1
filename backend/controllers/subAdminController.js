@@ -4,12 +4,12 @@ const { SubAdmin } = require('../models/subAdminModel');
 // GET /api/subadmins
 const listSubAdmins = asyncHandler(async (req, res) => {
   const subadmins = await SubAdmin.find({}).select('-password');
-  res.json(subadmins);
+  res.json(subadmins.map(sa => ({ _id: sa._id, name: sa.name, role: sa.role, permissions: sa.permissions || [] })));
 });
 
 // POST /api/subadmins
 const createSubAdmin = asyncHandler(async (req, res) => {
-  const { name, password, role } = req.body;
+  const { name, password, role, permissions } = req.body;
   if (!name || !password) {
     res.status(400);
     throw new Error('Name and password are required');
@@ -19,14 +19,14 @@ const createSubAdmin = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('Sub-admin with this name already exists');
   }
-  const created = await SubAdmin.create({ name, password, role });
-  res.status(201).json({ _id: created._id, name: created.name, role: created.role });
+  const created = await SubAdmin.create({ name, password, role, permissions: permissions || [] });
+  res.status(201).json({ _id: created._id, name: created.name, role: created.role, permissions: created.permissions });
 });
 
 // PUT /api/subadmins/:id
 const updateSubAdmin = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, password, role } = req.body;
+  const { name, password, role, permissions } = req.body;
   const sub = await SubAdmin.findById(id).select('+password');
   if (!sub) {
     res.status(404);
@@ -35,8 +35,9 @@ const updateSubAdmin = asyncHandler(async (req, res) => {
   if (name) sub.name = name;
   if (role) sub.role = role;
   if (password) sub.password = password; // will be hashed by pre-save
+  if (permissions !== undefined) sub.permissions = permissions;
   const saved = await sub.save();
-  res.json({ _id: saved._id, name: saved.name, role: saved.role });
+  res.json({ _id: saved._id, name: saved.name, role: saved.role, permissions: saved.permissions });
 });
 
 // DELETE /api/subadmins/:id
@@ -64,7 +65,7 @@ const loginSubAdmin = asyncHandler(async (req, res) => {
     res.status(401);
     throw new Error('Invalid credentials');
   }
-  res.json({ _id: sub._id, name: sub.name, role: sub.role });
+  res.json({ _id: sub._id, name: sub.name, role: sub.role, permissions: sub.permissions || [] });
 });
 
 module.exports = {

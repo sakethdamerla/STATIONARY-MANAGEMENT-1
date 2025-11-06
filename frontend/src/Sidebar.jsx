@@ -20,19 +20,54 @@ const Sidebar = ({ onLogout, isMobile: isMobileProp, sidebarOpen, setSidebarOpen
     }
   }, [isMobileProp, sidebarOpen, setSidebarOpen]);
 
+  // Auto-close sidebar after 4 seconds when expanded
+  useEffect(() => {
+    if (sidebarOpen) {
+      const timer = setTimeout(() => {
+        setSidebarOpen(false);
+      }, 4000); // 4 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [sidebarOpen, setSidebarOpen]);
+
   // Check if current user is super admin
   const isSuperAdmin = currentUser?.role === 'Administrator';
+  const isSubAdmin = !isSuperAdmin && currentUser?.role;
+  const subAdminPermissions = currentUser?.permissions || [];
 
-  const menuItems = [
-    { path: '/', label: 'Dashboard', icon: Home, exact: true },
-    { path: '/add-student', label: 'Add Student', icon: PlusCircle },
-    { path: '/student-management', label: 'Manage Students', icon: Users },
+  // Map sidebar items with permission keys
+  const allMenuItems = [
+    { path: '/', label: 'Dashboard', icon: Home, exact: true, permissionKey: 'dashboard' },
+    { path: '/add-student', label: 'Add Student', icon: PlusCircle, permissionKey: 'add-student' },
+    { path: '/student-management', label: 'Manage Students', icon: Users, permissionKey: 'student-management' },
     { path: '/sub-admin-management', label: 'Manage Sub-Admins', icon: UserPlus, superAdminOnly: true },
-    { path: '/courses', label: 'Add Courses', icon: GraduationCap },
-    { path: '/manage-stock', label: 'Manage Stock', icon: List },
-    { path: '/transactions', label: 'Transactions', icon: Receipt },
-    { path: '/settings', label: 'Settings', icon: Settings },
-  ].filter(item => !item.superAdminOnly || isSuperAdmin);
+    { path: '/courses', label: 'Add Courses', icon: GraduationCap, permissionKey: 'courses' },
+    { path: '/manage-stock', label: 'Manage Stock', icon: List, permissionKey: 'manage-stock' },
+    { path: '/transactions', label: 'Transactions', icon: Receipt, permissionKey: 'transactions' },
+    { path: '/settings', label: 'Settings', icon: Settings, permissionKey: 'settings' },
+  ];
+
+  // Filter menu items based on user type and permissions
+  const menuItems = allMenuItems.filter(item => {
+    // Super admin can see everything except sub-admin management is always visible for them
+    if (isSuperAdmin) {
+      return true; // Super admin sees all items
+    }
+    // Sub-admin: filter by permissions
+    if (isSubAdmin) {
+      // If item requires super admin only, hide it
+      if (item.superAdminOnly) return false;
+      // If item has permission key, check if sub-admin has that permission
+      if (item.permissionKey) {
+        return subAdminPermissions.includes(item.permissionKey);
+      }
+      // Items without permission key are not accessible to sub-admins
+      return false;
+    }
+    // Default: show all non-super-admin-only items
+    return !item.superAdminOnly;
+  });
 
   const handleToggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);

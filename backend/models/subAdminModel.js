@@ -19,6 +19,12 @@ const subAdminSchema = new mongoose.Schema(
       default: 'Editor',
       enum: ['Editor', 'Viewer', 'Accountant'],
     },
+    permissions: {
+      type: [String],
+      default: [],
+      // Permissions will be based on sidebar menu items
+      // e.g., ['dashboard', 'add-student', 'student-management', 'courses', 'manage-stock', 'transactions', 'settings']
+    },
   },
   { timestamps: true }
 );

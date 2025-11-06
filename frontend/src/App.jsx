@@ -13,6 +13,7 @@ import ManageStock from './pages/ManageStock';
 import HomePage from './pages/HomePage';
 import CourseManagement from './pages/CourseManagement';
 import Transactions from './pages/Transactions';
+import ProtectedRoute from './components/ProtectedRoute';
 import { apiUrl } from './utils/api';
 // import StudentReceiptModal from './pages/StudentReceipt.jsx'; // Not used
 
@@ -201,7 +202,7 @@ function App() {
       });
       if (!res.ok) return false;
       const data = await res.json();
-      const userData = { name: data.name, role: data.role, id: data._id };
+      const userData = { name: data.name, role: data.role, id: data._id, permissions: data.permissions || [] };
       setCurrentUser(userData);
       localStorage.setItem('currentUser', JSON.stringify(userData));
       setIsAuthenticated(true);
@@ -257,35 +258,80 @@ function App() {
                 />
                 <Route
                   path="/course/:course"
-                  element={<CourseDashboard products={products} />}
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermission="course-dashboard">
+                      <CourseDashboard products={products} />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/student/:id"
-                  element={<StudentDetail students={students} setStudents={setStudents} products={products} />}
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermissions={["student-management", "course-dashboard"]}>
+                      <StudentDetail students={students} setStudents={setStudents} products={products} />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/add-student"
-                  element={<AddStudent addStudent={addStudent} />}
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermission="add-student">
+                      <AddStudent addStudent={addStudent} />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/student-management"
-                  element={<StudentManagement students={students} setStudents={setStudents} addStudent={addStudent} />}
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermission="student-management">
+                      <StudentManagement students={students} setStudents={setStudents} addStudent={addStudent} />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/sub-admin-management"
-                  element={<SubAdminManagement currentUser={currentUser} />}
+                  element={
+                    <ProtectedRoute currentUser={currentUser} superAdminOnly={true}>
+                      <SubAdminManagement currentUser={currentUser} />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/manage-stock"
-                  element={<ManageStock itemCategories={itemCategories} addItemCategory={addItemCategory} setItemCategories={setItemCategories} currentCourse={currentCourse} products={products} setProducts={setProducts} />}
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermission="manage-stock">
+                      <ManageStock itemCategories={itemCategories} addItemCategory={addItemCategory} setItemCategories={setItemCategories} currentCourse={currentCourse} products={products} setProducts={setProducts} />
+                    </ProtectedRoute>
+                  }
                 />
-                <Route path="/courses" element={<CourseManagement />} />
-                <Route path="/transactions" element={<Transactions />} />
+                <Route 
+                  path="/courses" 
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermission="courses">
+                      <CourseManagement />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/transactions" 
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
+                      <Transactions />
+                    </ProtectedRoute>
+                  } 
+                />
                 {/* <Route
                   path="/student-receipt"
                   element={<Navigate to="/" />} // This route is no longer needed
                 /> */}
-                <Route path="/settings" element={<Settings />} />
+                <Route 
+                  path="/settings" 
+                  element={
+                    <ProtectedRoute currentUser={currentUser} requiredPermission="settings">
+                      <Settings />
+                    </ProtectedRoute>
+                  } 
+                />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </div>

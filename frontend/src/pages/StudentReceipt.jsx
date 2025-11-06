@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Printer, X, Download, Save, Plus, Minus } from 'lucide-react';
+import { Printer, X, Download, Save, Plus, Minus, Package, CreditCard, Receipt } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { useReactToPrint } from 'react-to-print';
 import jsPDF from 'jspdf';
@@ -217,7 +217,8 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
 
   return (
     <div 
-      className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}
       onClick={onClose}
     >
       <style type="text/css" media="print">
@@ -227,28 +228,28 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
       </style>
 
       <div 
-        className={`bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col relative ${saving ? 'opacity-60 pointer-events-none' : ''}`}
+        className={`bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col relative ${saving ? 'opacity-60 pointer-events-none' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
         <button 
           onClick={onClose} 
-          className="absolute top-4 right-4 z-10 w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center cursor-pointer transition-colors no-print"
+          className="absolute top-4 right-4 z-10 w-10 h-10 bg-white hover:bg-gray-100 rounded-full flex items-center justify-center cursor-pointer transition-colors no-print shadow-lg border border-gray-200"
         >
-          <X size={16} className="text-gray-600" />
+          <X size={20} className="text-gray-600" />
         </button>
 
         {/* Header */}
-        <div className="border-b border-gray-200 px-6 py-5 bg-gradient-to-r from-blue-50 to-white">
+        <div className="px-5 py-4 bg-gray-800 rounded-t-2xl border-b border-gray-700">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900">Stationery Transaction</h2>
-            <p className="text-sm text-gray-600 mt-1">Pydah College of Engineering</p>
+            <h2 className="text-xl font-bold text-white">Stationery Transaction</h2>
+            <p className="text-xs text-gray-300 mt-0.5">Pydah College of Engineering</p>
           </div>
-          </div>
+        </div>
 
         {/* Status Message */}
         {statusMsg.message && (
-          <div className={`mx-6 mt-4 p-4 rounded-xl text-sm font-medium ${
+          <div className={`mx-5 mt-3 p-3 rounded-lg text-xs font-medium ${
             statusMsg.type === 'success'
               ? 'bg-green-50 text-green-700 border border-green-200'
               : 'bg-red-50 text-red-700 border border-red-200'
@@ -258,87 +259,65 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
         )}
 
         {/* Content - Split into two columns */}
-        <div className="flex-1 overflow-y-auto" ref={receiptRef}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
-            {/* Left Column - Student Info & Items Selection & Payment */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Student Info */}
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center gap-2">
-                  <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
-                  Student Information
-                </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500 text-xs font-medium">Student Name:</span>
-                    <p className="text-gray-900 font-semibold mt-1">{student.name}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 text-xs font-medium">Student ID:</span>
-                    <p className="text-gray-900 font-semibold mt-1">{student.studentId}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 text-xs font-medium">Course:</span>
-                    <p className="text-gray-900 font-semibold mt-1">{student.course.toUpperCase()} - Year {student.year}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 text-xs font-medium">Branch:</span>
-                    <p className="text-gray-900 font-semibold mt-1">{student.branch || 'N/A'}</p>
-                  </div>
-                </div>
-          </div>
-
+        <div className="flex-1" ref={receiptRef}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+            {/* Left Column - Items Selection & Payment */}
+            <div className="space-y-4">
               {/* Items Selection Section */}
               <div className="no-print">
-                <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-1 h-6 bg-blue-600 rounded-full"></span>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <div className="w-6 h-6 bg-gray-700 rounded-lg flex items-center justify-center">
+                    <Package size={14} className="text-white" />
+                  </div>
                   Select Items
                 </h3>
                 {visibleItems.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-sm text-gray-500">No items available for this course/year</p>
+                  <div className="text-center py-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                    <p className="text-xs text-gray-500">No items available for this course/year</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                     {visibleItems.map(item => {
                       const quantity = selectedItems[item._id] || 0;
                       const isSelected = quantity > 0;
                   return (
                         <div 
                           key={item._id} 
-                          className={`flex items-center justify-between gap-4 p-3 rounded-lg border-2 transition-all ${
+                          className={`flex items-center justify-between gap-2 p-2 rounded-lg border-2 transition-all ${
                             isSelected 
                               ? 'border-blue-500 bg-blue-50 shadow-sm' 
                               : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
                           }`}
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className={`font-medium text-sm ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className={`font-medium text-xs ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
                                 {item.name}
                               </span>
-                              <div className="flex items-center gap-3 ml-2">
-                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
-                                  Stock: <span className={item.stock <= 5 ? 'text-red-600 font-semibold' : item.stock <= 10 ? 'text-orange-600 font-semibold' : 'text-gray-600'}>{item.stock || 0}</span>
-                                </span>
-                                <span className="font-semibold text-blue-600 text-sm whitespace-nowrap">
-                                  ₹{item.price?.toFixed(2) || '0.00'}
-                                </span>
-                              </div>
+                              <span className="font-semibold text-blue-600 text-xs whitespace-nowrap ml-2">
+                                ₹{item.price?.toFixed(2) || '0.00'}
+                              </span>
                             </div>
-                            {item.description && (
-                              <p className="text-xs text-gray-500 italic mt-1 line-clamp-1">{item.description}</p>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 font-medium">
+                                Stock: <span className={item.stock <= 5 ? 'text-red-600 font-semibold' : item.stock <= 10 ? 'text-orange-600 font-semibold' : 'text-gray-600'}>{item.stock || 0}</span>
+                              </span>
+                              {isSelected && (
+                                <span className="font-semibold text-green-600 text-xs">
+                                  Total: ₹{(quantity * item.price).toFixed(2)}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             <div className="flex items-center border border-gray-300 rounded-md bg-white">
                               <button
                                 type="button"
-                                className="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-l-md"
+                                className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-l-md"
                                 onClick={() => handleQuantityChange(item._id, -1)}
                                 disabled={quantity === 0}
                               >
-                                <Minus size={12} />
+                                <Minus size={10} />
                               </button>
                               <input
                                 type="number"
@@ -354,22 +333,17 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
                                     setSelectedItems(prev => ({ ...prev, [item._id]: val }));
                                   }
                                 }}
-                                className="w-12 text-center border-0 font-semibold text-sm focus:outline-none focus:ring-0"
+                                className="w-10 text-center border-0 font-semibold text-xs focus:outline-none focus:ring-0"
                               />
                               <button
                                 type="button"
-                                className="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors rounded-r-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors rounded-r-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 onClick={() => handleQuantityChange(item._id, 1)}
                                 disabled={quantity >= (item.stock || 0)}
                               >
-                                <Plus size={12} />
+                                <Plus size={10} />
                               </button>
                             </div>
-                            {isSelected && (
-                              <span className="font-semibold text-green-600 min-w-[70px] text-right text-sm whitespace-nowrap">
-                                ₹{(quantity * item.price).toFixed(2)}
-                              </span>
-                            )}
                           </div>
                         </div>
                       );
@@ -380,23 +354,25 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
 
               {/* Payment Section */}
               {transactionItems.length > 0 && (
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200 no-print">
-                  <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span className="w-1 h-6 bg-green-600 rounded-full"></span>
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-sm no-print">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gray-700 rounded-lg flex items-center justify-center">
+                      <CreditCard size={14} className="text-white" />
+                    </div>
                     Payment Details
                   </h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     {/* Payment Method Toggle */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2">Payment Method</label>
-                      <div className="relative inline-flex items-center bg-gray-100 rounded-lg p-1 w-full md:w-auto">
+                      <div className="relative inline-flex items-center bg-gray-100 rounded-lg p-1 w-full">
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('cash')}
-                          className={`relative flex-1 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+                          className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${
                             paymentMethod === 'cash'
-                              ? 'bg-white text-blue-700 shadow-sm'
+                              ? 'bg-white text-gray-900 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
@@ -405,9 +381,9 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('online')}
-                          className={`relative flex-1 px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+                          className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${
                             paymentMethod === 'online'
-                              ? 'bg-white text-blue-700 shadow-sm'
+                              ? 'bg-white text-gray-900 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
@@ -435,15 +411,15 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
                   </div>
 
                   {/* Remarks */}
-                  <div className="mt-4">
-                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                  <div className="mt-3 col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
                       Remarks (Optional)
                     </label>
                     <textarea
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
                       placeholder="Add any remarks..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400"
                       rows={2}
                     />
               </div>
@@ -453,64 +429,66 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
 
             {/* Right Column - Receipt Preview */}
             {(transactionItems.length > 0 || savedTransactionItems.length > 0) && (
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg border-2 border-gray-300 p-5 sticky top-6">
-                  <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-6 bg-purple-600 rounded-full"></span>
+              <div>
+                <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-sm sticky top-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gray-700 rounded-lg flex items-center justify-center">
+                      <Receipt size={14} className="text-white" />
+                    </div>
                     Receipt Preview
                   </h3>
 
               {/* Receipt Items Section - For printing */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                     <div className="border-b border-gray-200 pb-2">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Items Issued</h4>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Items Issued</h4>
+                      <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
                         {(transactionItems.length > 0 ? transactionItems : savedTransactionItems).map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center py-1.5 border-b border-gray-100 text-xs">
-                            <div className="flex-1">
-                              <span className="font-medium text-gray-900">{item.name}</span>
-                              <span className="text-gray-500 ml-2">× {item.quantity}</span>
+                          <div key={idx} className="flex justify-between items-center py-1.5 px-2 bg-gray-50 rounded-lg text-xs">
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-gray-900 text-xs truncate block">{item.name}</span>
+                              <span className="text-gray-500 text-xs">× {item.quantity}</span>
                             </div>
-                            <span className="font-semibold text-gray-900">₹{item.total.toFixed(2)}</span>
+                            <span className="font-semibold text-gray-900 text-xs ml-2 whitespace-nowrap">₹{item.total.toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                     
                     {/* Total */}
-                    <div className="flex justify-between items-center pt-3 border-t-2 border-gray-900">
-                      <span className="text-sm font-bold text-gray-900">Total Amount:</span>
-                      <span className="text-lg font-bold text-gray-900">
+                    <div className="flex justify-between items-center pt-2 border-t-2 border-gray-900">
+                      <span className="text-xs font-bold text-gray-900">Total:</span>
+                      <span className="text-base font-bold text-gray-900">
                         ₹{(transactionItems.length > 0 ? totalAmount : savedPaymentInfo.totalAmount).toFixed(2)}
                       </span>
                     </div>
 
                     {/* Payment Info */}
-                    <div className="pt-3 border-t border-gray-200 space-y-2 text-xs">
+                    <div className="pt-2 border-t border-gray-200 space-y-1.5 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">Payment Method:</span>
-                        <span className="text-gray-900 font-semibold capitalize">
+                        <span className="text-gray-600 font-medium text-xs">Method:</span>
+                        <span className="text-gray-900 font-semibold capitalize text-xs">
                           {transactionItems.length > 0 ? paymentMethod : savedPaymentInfo.paymentMethod}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">Payment Status:</span>
-                        <span className={`font-semibold ${(transactionItems.length > 0 ? isPaid : savedPaymentInfo.isPaid) ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className="text-gray-600 font-medium text-xs">Status:</span>
+                        <span className={`font-semibold text-xs ${(transactionItems.length > 0 ? isPaid : savedPaymentInfo.isPaid) ? 'text-green-600' : 'text-red-600'}`}>
                           {(transactionItems.length > 0 ? isPaid : savedPaymentInfo.isPaid) ? 'Paid' : 'Unpaid'}
                         </span>
                       </div>
                       {(transactionItems.length > 0 ? remarks : savedPaymentInfo.remarks) && (
-                        <div className="pt-2 border-t border-gray-200">
-                          <span className="text-gray-600 font-medium">Remarks:</span>
-                          <p className="text-gray-900 mt-1 text-xs">{transactionItems.length > 0 ? remarks : savedPaymentInfo.remarks}</p>
+                        <div className="pt-1.5 border-t border-gray-200">
+                          <span className="text-gray-600 font-medium text-xs">Remarks:</span>
+                          <p className="text-gray-900 mt-0.5 text-xs line-clamp-2">{transactionItems.length > 0 ? remarks : savedPaymentInfo.remarks}</p>
                         </div>
                       )}
                     </div>
 
                     {/* Date */}
-                    <div className="pt-3 border-t border-gray-200">
+                    <div className="pt-2 border-t border-gray-200">
                       <p className="text-xs text-gray-500 text-right">
-                        {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
                     </div>
                   </div>
@@ -571,11 +549,11 @@ const StudentReceiptModal = ({ student, products, onClose, onTransactionSaved })
         </div>
 
         {/* Footer Actions */}
-        <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex justify-end gap-3 rounded-b-xl no-print">
+        <div className="border-t border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 px-5 py-3 flex justify-end gap-3 rounded-b-2xl no-print">
           <button 
             onClick={handleSaveTransaction} 
             disabled={transactionItems.length === 0 || saving}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             <Save size={16} /> {saving ? 'Saving...' : 'Save Transaction'}
           </button>
