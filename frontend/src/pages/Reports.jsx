@@ -4,7 +4,7 @@ import { Search, Filter, Edit, Trash2, Receipt, Download, Eye, X, FileText, Cale
 import { apiUrl } from '../utils/api';
 import jsPDF from 'jspdf';
 
-const Transactions = () => {
+const Reports = () => {
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +24,10 @@ const Transactions = () => {
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [reportType, setReportType] = useState(''); // 'day-end', 'stock', 'vendor-purchase'
+  const [receiptSettings, setReceiptSettings] = useState({
+    receiptHeader: 'PYDAH COLLEGE OF ENGINEERING',
+    receiptSubheader: 'Stationery Management System',
+  });
   
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -52,7 +56,23 @@ const Transactions = () => {
     fetchTransactions();
     fetchStudents();
     fetchVendors();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch(apiUrl('/api/settings'));
+      if (response.ok) {
+        const data = await response.json();
+        setReceiptSettings({
+          receiptHeader: data.receiptHeader || 'PYDAH COLLEGE OF ENGINEERING',
+          receiptSubheader: data.receiptSubheader || 'Stationery Management System',
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to load receipt settings:', error.message || error);
+    }
+  };
 
   const fetchVendors = async () => {
     try {
@@ -189,55 +209,55 @@ const Transactions = () => {
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: 'a4'
+      format: 'a5'
     });
 
     // Header Section
     pdf.setFontSize(18);
     pdf.setTextColor(30, 58, 138);
     pdf.setFont(undefined, 'bold');
-    pdf.text('PYDAH COLLEGE OF ENGINEERING', 105, 15, { align: 'center' });
-    pdf.setFontSize(12);
+    pdf.text(receiptSettings.receiptHeader, 74, 12, { align: 'center' });
+    pdf.setFontSize(10);
     pdf.setTextColor(100, 100, 100);
     pdf.setFont(undefined, 'normal');
-    pdf.text('Stationery Management System', 105, 22, { align: 'center' });
-    pdf.setFontSize(14);
+    pdf.text(receiptSettings.receiptSubheader, 74, 18, { align: 'center' });
+    pdf.setFontSize(12);
     pdf.setTextColor(30, 58, 138);
     pdf.setFont(undefined, 'bold');
-    pdf.text('Day-End Transaction Report', 105, 30, { align: 'center' });
+    pdf.text('Day-End Transaction Report', 74, 24, { align: 'center' });
     
     // Draw line under header
     pdf.setDrawColor(200, 200, 200);
-    pdf.line(20, 35, 190, 35);
+    pdf.line(14, 28, 134, 28);
     
-    let yPos = 42;
+    let yPos = 34;
 
     // Report Info Section
     pdf.setFontSize(10);
     pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'bold');
-    pdf.text('Report Information', 20, yPos);
-    yPos += 6;
+    pdf.text('Report Information', 14, yPos);
+    yPos += 5;
     pdf.setFont(undefined, 'normal');
     
     if (reportFilters.startDate || reportFilters.endDate) {
-      pdf.text(`Date Range: ${reportFilters.startDate || 'All'} to ${reportFilters.endDate || 'All'}`, 25, yPos);
-      yPos += 5;
+      pdf.text(`Date: ${reportFilters.startDate || 'All'} to ${reportFilters.endDate || 'All'}`, 17, yPos);
+      yPos += 4;
     }
     if (reportFilters.course) {
-      pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 25, yPos);
-      yPos += 5;
+      pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 17, yPos);
+      yPos += 4;
     }
     if (reportFilters.paymentMethod) {
-      pdf.text(`Payment Method: ${reportFilters.paymentMethod.toUpperCase()}`, 25, yPos);
-      yPos += 5;
+      pdf.text(`Payment: ${reportFilters.paymentMethod.toUpperCase()}`, 17, yPos);
+      yPos += 4;
     }
     if (reportFilters.isPaid !== '') {
-      pdf.text(`Payment Status: ${reportFilters.isPaid === 'true' ? 'Paid' : 'Unpaid'}`, 25, yPos);
-      yPos += 5;
+      pdf.text(`Status: ${reportFilters.isPaid === 'true' ? 'Paid' : 'Unpaid'}`, 17, yPos);
+      yPos += 4;
     }
-    pdf.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 25, yPos);
-    yPos += 8;
+    pdf.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 17, yPos);
+    yPos += 6;
 
     // Summary Section
     if (reportFilters.includeSummary && transactions.length > 0) {
@@ -250,20 +270,20 @@ const Transactions = () => {
       pdf.setFontSize(11);
       pdf.setFont(undefined, 'bold');
       pdf.setFillColor(240, 240, 240);
-      pdf.rect(20, yPos - 4, 170, 6, 'F');
-      pdf.text('Summary Statistics', 20, yPos);
-      yPos += 7;
+      pdf.rect(14, yPos - 4, 120, 6, 'F');
+      pdf.text('Summary Statistics', 14, yPos);
+      yPos += 6;
       
       pdf.setFont(undefined, 'normal');
       pdf.setFontSize(9);
-      pdf.text(`Total Transactions: ${transactions.length}`, 25, yPos);
-      yPos += 5;
-      pdf.text(`Total Amount: ${formatCurrencyForPDF(totalAmount)}`, 25, yPos);
-      yPos += 5;
-      pdf.text(`Paid Transactions: ${paidCount} (${formatCurrencyForPDF(paidAmount)})`, 25, yPos);
-      yPos += 5;
-      pdf.text(`Unpaid Transactions: ${unpaidCount} (${formatCurrencyForPDF(unpaidAmount)})`, 25, yPos);
-      yPos += 8;
+      pdf.text(`Total: ${transactions.length}`, 17, yPos);
+      yPos += 4;
+      pdf.text(`Amount: ${formatCurrencyForPDF(totalAmount)}`, 17, yPos);
+      yPos += 4;
+      pdf.text(`Paid: ${paidCount} (${formatCurrencyForPDF(paidAmount)})`, 17, yPos);
+      yPos += 4;
+      pdf.text(`Unpaid: ${unpaidCount} (${formatCurrencyForPDF(unpaidAmount)})`, 17, yPos);
+      yPos += 6;
     }
 
     // Transactions Table Header
@@ -271,67 +291,67 @@ const Transactions = () => {
       pdf.setFontSize(11);
       pdf.setFont(undefined, 'bold');
       pdf.setFillColor(240, 240, 240);
-      pdf.rect(20, yPos - 4, 170, 6, 'F');
-      pdf.text('Transaction Details', 20, yPos);
-      yPos += 7;
+      pdf.rect(14, yPos - 4, 120, 6, 'F');
+      pdf.text('Transaction Details', 14, yPos);
+      yPos += 6;
 
       // Table Headers
       pdf.setFontSize(8);
       pdf.setFont(undefined, 'bold');
       pdf.setFillColor(230, 230, 230);
-      pdf.rect(20, yPos - 3, 170, 5, 'F');
-      pdf.text('Date', 22, yPos);
-      pdf.text('Student', 50, yPos);
-      pdf.text('Course', 110, yPos);
-      pdf.text('Amount', 145, yPos);
-      pdf.text('Status', 175, yPos);
-      yPos += 6;
+      pdf.rect(14, yPos - 3, 120, 5, 'F');
+      pdf.text('Date', 16, yPos);
+      pdf.text('Student', 44, yPos);
+      pdf.text('Course', 82, yPos);
+      pdf.text('Amount', 104, yPos);
+      pdf.text('Status', 126, yPos);
+      yPos += 5;
 
       pdf.setFont(undefined, 'normal');
       pdf.setFontSize(8);
 
       transactions.forEach((transaction, index) => {
         // Check if we need a new page
-        if (yPos > 270) {
+        if (yPos > 180) {
           pdf.addPage();
-          yPos = 20;
+          yPos = 14;
           // Redraw table headers on new page
           pdf.setFont(undefined, 'bold');
           pdf.setFontSize(8);
           pdf.setFillColor(230, 230, 230);
-          pdf.rect(20, yPos - 3, 170, 5, 'F');
-          pdf.text('Date', 22, yPos);
-          pdf.text('Student', 50, yPos);
-          pdf.text('Course', 110, yPos);
-          pdf.text('Amount', 145, yPos);
-          pdf.text('Status', 175, yPos);
-          yPos += 6;
+          pdf.rect(14, yPos - 3, 120, 5, 'F');
+          pdf.text('Date', 16, yPos);
+          pdf.text('Student', 44, yPos);
+          pdf.text('Course', 82, yPos);
+          pdf.text('Amount', 104, yPos);
+          pdf.text('Status', 126, yPos);
+          yPos += 5;
           pdf.setFont(undefined, 'normal');
         }
 
-        const date = new Date(transaction.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const studentName = (transaction.student?.name || 'N/A').substring(0, 20);
-        const course = (transaction.student?.course || 'N/A').toUpperCase().substring(0, 10);
+        const date = new Date(transaction.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const studentName = (transaction.student?.name || 'N/A').substring(0, 16);
+        const course = (transaction.student?.course || 'N/A').toUpperCase().substring(0, 8);
         const amount = formatCurrencyForPDF(transaction.totalAmount);
         const status = transaction.isPaid ? 'Paid' : 'Unpaid';
 
         // Alternate row background
         if (index % 2 === 0) {
           pdf.setFillColor(250, 250, 250);
-          pdf.rect(20, yPos - 3, 170, 5, 'F');
+          pdf.rect(14, yPos - 3, 120, 5, 'F');
         }
 
-        pdf.text(date, 22, yPos);
-        pdf.text(studentName, 50, yPos);
-        pdf.text(course, 110, yPos);
-        pdf.text(amount, 145, yPos);
-        pdf.text(status, 175, yPos);
+        pdf.text(date, 16, yPos);
+        pdf.text(studentName, 44, yPos);
+        pdf.text(course, 82, yPos);
+        pdf.text(amount, 104, yPos);
+        pdf.text(status, 126, yPos);
         yPos += 5;
 
         // Draw separator line
         if (index < transactions.length - 1) {
           pdf.setDrawColor(220, 220, 220);
-          pdf.line(20, yPos, 190, yPos);
+          pdf.line(14, yPos, 134, yPos);
           yPos += 2;
         }
       });
@@ -343,50 +363,50 @@ const Transactions = () => {
         pdf.setFontSize(11);
         pdf.setFont(undefined, 'bold');
         pdf.setFillColor(240, 240, 240);
-        pdf.rect(20, yPos - 4, 170, 6, 'F');
-        pdf.text('Item Details', 20, yPos);
-        yPos += 7;
+        pdf.rect(14, yPos - 4, 120, 6, 'F');
+        pdf.text('Item Details', 14, yPos);
+        yPos += 6;
 
         transactions.forEach((transaction, transIndex) => {
           if (transaction.items && transaction.items.length > 0) {
             // Check if we need a new page
-            if (yPos > 260) {
+            if (yPos > 180) {
               pdf.addPage();
-              yPos = 20;
+              yPos = 14;
             }
 
             pdf.setFontSize(9);
             pdf.setFont(undefined, 'bold');
-            pdf.text(`Transaction: ${transaction.transactionId || 'N/A'}`, 22, yPos);
-            yPos += 5;
+            pdf.text(`Transaction: ${transaction.transactionId || 'N/A'}`, 16, yPos);
+            yPos += 4;
 
             // Item table header
             pdf.setFontSize(7);
             pdf.setFont(undefined, 'bold');
             pdf.setFillColor(245, 245, 245);
-            pdf.rect(25, yPos - 2, 145, 4, 'F');
-            pdf.text('Item Name', 27, yPos);
-            pdf.text('Qty', 100, yPos);
-            pdf.text('Unit Price', 115, yPos);
-            pdf.text('Total', 150, yPos);
-            yPos += 5;
+            pdf.rect(16, yPos - 2, 112, 4, 'F');
+            pdf.text('Item Name', 18, yPos);
+            pdf.text('Qty', 78, yPos);
+            pdf.text('Unit Price', 92, yPos);
+            pdf.text('Total', 112, yPos);
+            yPos += 4;
 
             pdf.setFont(undefined, 'normal');
             transaction.items.forEach((item, itemIndex) => {
-              if (yPos > 270) {
+              if (yPos > 180) {
                 pdf.addPage();
-                yPos = 20;
+                yPos = 14;
               }
 
-              const itemName = (item.name || 'N/A').substring(0, 30);
+              const itemName = (item.name || 'N/A').substring(0, 25);
               const itemQty = item.quantity || 0;
               const itemPrice = formatCurrencyForPDF(item.price || 0);
               const itemTotal = formatCurrencyForPDF(item.total || 0);
 
-              pdf.text(`${itemIndex + 1}. ${itemName}`, 27, yPos);
-              pdf.text(itemQty.toString(), 100, yPos);
-              pdf.text(itemPrice, 115, yPos);
-              pdf.text(itemTotal, 150, yPos);
+              pdf.text(`${itemIndex + 1}. ${itemName}`, 18, yPos);
+              pdf.text(itemQty.toString(), 78, yPos);
+              pdf.text(itemPrice, 92, yPos);
+              pdf.text(itemTotal, 112, yPos);
               yPos += 4;
             });
 
@@ -405,8 +425,8 @@ const Transactions = () => {
       pdf.setPage(i);
       pdf.setFontSize(8);
       pdf.setTextColor(150, 150, 150);
-      pdf.text(`Page ${i} of ${pageCount}`, 105, 285, { align: 'center' });
-      pdf.text(`Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 105, 290, { align: 'center' });
+      pdf.text(`Page ${i} of ${pageCount}`, 74, 197, { align: 'center' });
+      pdf.text(`Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 74, 202, { align: 'center' });
     }
 
     const fileName = `Day_End_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -434,11 +454,11 @@ const Transactions = () => {
       pdf.setFontSize(18);
       pdf.setTextColor(30, 58, 138);
       pdf.setFont(undefined, 'bold');
-      pdf.text('PYDAH COLLEGE OF ENGINEERING', 105, 15, { align: 'center' });
+      pdf.text(receiptSettings.receiptHeader, 105, 15, { align: 'center' });
       pdf.setFontSize(12);
       pdf.setTextColor(100, 100, 100);
       pdf.setFont(undefined, 'normal');
-      pdf.text('Stationery Management System', 105, 22, { align: 'center' });
+      pdf.text(receiptSettings.receiptSubheader, 105, 22, { align: 'center' });
       pdf.setFontSize(14);
       pdf.setTextColor(30, 58, 138);
       pdf.setFont(undefined, 'bold');
@@ -621,11 +641,11 @@ const Transactions = () => {
       pdf.setFontSize(18);
       pdf.setTextColor(30, 58, 138);
       pdf.setFont(undefined, 'bold');
-      pdf.text('PYDAH COLLEGE OF ENGINEERING', 105, 15, { align: 'center' });
+      pdf.text(receiptSettings.receiptHeader, 105, 15, { align: 'center' });
       pdf.setFontSize(12);
       pdf.setTextColor(100, 100, 100);
       pdf.setFont(undefined, 'normal');
-      pdf.text('Stationery Management System', 105, 22, { align: 'center' });
+      pdf.text(receiptSettings.receiptSubheader, 105, 22, { align: 'center' });
       pdf.setFontSize(14);
       pdf.setTextColor(30, 58, 138);
       pdf.setFont(undefined, 'bold');
@@ -849,8 +869,8 @@ const Transactions = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
-            <p className="text-gray-600 mt-1">View and manage all transactions</p>
+            <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+            <p className="text-gray-600 mt-1">View transactions and generate detailed reports</p>
           </div>
           <button
             onClick={() => {
@@ -937,7 +957,7 @@ const Transactions = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Transaction List</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Transaction List</h3>
               <div className="flex items-center gap-4">
                 <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
                   {filteredTransactions.length} transactions
@@ -1540,5 +1560,5 @@ const Transactions = () => {
   );
 };
 
-export default Transactions;
+export default Reports;
 

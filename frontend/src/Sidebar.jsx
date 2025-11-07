@@ -34,7 +34,7 @@ const Sidebar = ({ onLogout, isMobile: isMobileProp, sidebarOpen, setSidebarOpen
     { path: '/sub-admin-management', label: 'Manage Sub-Admins', icon: UserPlus, superAdminOnly: true },
     { path: '/courses', label: 'Add Courses', icon: GraduationCap, permissionKey: 'courses' },
     { path: '/manage-stock', label: 'Manage Stock', icon: List, permissionKey: 'manage-stock' },
-    { path: '/transactions', label: 'Transactions', icon: Receipt, permissionKey: 'transactions' },
+    { path: '/transactions', label: 'Reports', icon: Receipt, permissionKey: 'transactions' },
     { path: '/settings', label: 'Settings', icon: Settings, permissionKey: 'settings' },
   ];
 

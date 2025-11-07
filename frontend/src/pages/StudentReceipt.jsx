@@ -20,6 +20,10 @@ const StudentReceiptModal = ({ student, products, prefilledItems = [], onClose, 
   const [savedTransactionItems, setSavedTransactionItems] = useState([]);
   const [savedPaymentInfo, setSavedPaymentInfo] = useState({ paymentMethod: 'cash', isPaid: false, remarks: '', totalAmount: 0 });
   const [statusMsg, setStatusMsg] = useState({ type: '', message: '' });
+  const [receiptConfig, setReceiptConfig] = useState({
+    receiptHeader: 'PYDAH COLLEGE OF ENGINEERING',
+    receiptSubheader: 'Stationery Management System',
+  });
 
   // Prefill items when prefilledItems prop is provided
   useEffect(() => {
@@ -38,6 +42,31 @@ const StudentReceiptModal = ({ student, products, prefilledItems = [], onClose, 
       setSelectedItems(initialItems);
     }
   }, [prefilledItems]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(apiUrl('/api/settings'));
+        if (response.ok) {
+          const data = await response.json();
+          if (isMounted) {
+            setReceiptConfig({
+              receiptHeader: data.receiptHeader || 'PYDAH COLLEGE OF ENGINEERING',
+              receiptSubheader: data.receiptSubheader || 'Stationery Management System',
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('Could not load receipt settings:', error.message || error);
+      }
+    };
+
+    fetchSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const triggerPrint = useReactToPrint({
     contentRef: receiptRef,
@@ -306,8 +335,8 @@ const StudentReceiptModal = ({ student, products, prefilledItems = [], onClose, 
         {/* Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-blue-700 to-indigo-700 rounded-t-2xl border-b border-blue-600/40">
           <div className="text-center">
-            <h2 className="text-xl font-bold text-white">Stationery Transaction</h2>
-            <p className="text-xs text-blue-100 mt-0.5">Pydah College of Engineering</p>
+            <h2 className="text-xl font-bold text-white">{receiptConfig.receiptHeader}</h2>
+            <p className="text-xs text-blue-100 mt-0.5">{receiptConfig.receiptSubheader}</p>
           </div>
         </div>
 

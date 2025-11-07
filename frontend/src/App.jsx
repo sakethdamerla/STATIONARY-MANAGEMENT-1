@@ -12,13 +12,46 @@ import SubAdminManagement from './pages/SubAdminManagement';
 import ManageStock from './pages/ManageStock';
 import HomePage from './pages/HomePage';
 import CourseManagement from './pages/CourseManagement';
-import Transactions from './pages/Transactions';
+import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
 import { apiUrl } from './utils/api';
-// import StudentReceiptModal from './pages/StudentReceipt.jsx'; // Not used
 
-// Placeholder component for other routes
-const Settings = () => <div className="placeholder-page"><h1>Settings</h1><p>This page is a placeholder for settings.</p></div>;
+const resolveDefaultPath = (user) => {
+  if (!user) return '/login';
+  if (user.role === 'Administrator') return '/';
+
+  const permissions = user.permissions || [];
+  const priorityPaths = [
+    { key: 'dashboard', path: '/' },
+    { key: 'add-student', path: '/add-student' },
+    { key: 'student-management', path: '/student-management' },
+    { key: 'course-dashboard', path: '/students-dashboard' },
+    { key: 'courses', path: '/courses' },
+    { key: 'manage-stock', path: '/manage-stock' },
+    { key: 'transactions', path: '/transactions' },
+    { key: 'settings', path: '/settings' },
+  ];
+
+  for (const item of priorityPaths) {
+    if (permissions.includes(item.key)) {
+      return item.path;
+    }
+  }
+
+  return '/';
+};
+
+const DefaultRoute = ({ currentUser }) => {
+  const targetPath = resolveDefaultPath(currentUser);
+
+  if (targetPath !== '/') {
+    return <Navigate to={targetPath} replace />;
+  }
+
+  return <Dashboard />;
+};
+// import StudentReceiptModal from './pages/StudentReceipt.jsx'; // Not used
 
 function App() {
   const [students, setStudents] = useState([]);
@@ -244,7 +277,7 @@ function App() {
                 {/* Dashboard is the default route for authenticated users */}
                 <Route
                   path="/"
-                  element={<Dashboard />}
+                  element={<DefaultRoute currentUser={currentUser} />}
                 />
                 <Route
                   path="/students-dashboard"
@@ -306,7 +339,7 @@ function App() {
                   path="/transactions" 
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
-                      <Transactions />
+                      <Reports />
                     </ProtectedRoute>
                   } 
                 />
