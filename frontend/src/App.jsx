@@ -65,7 +65,11 @@ function App() {
     const savedUser = localStorage.getItem('currentUser');
     return savedUser ? JSON.parse(savedUser) : null;
   });
-  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('isAuthenticated'));
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    const savedToken = localStorage.getItem('authToken');
+    if (savedToken) return true;
+    return !!localStorage.getItem('isAuthenticated');
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [pendingTransactions, setPendingTransactions] = useState(() => loadJSON('pendingTransactions', []));
@@ -151,6 +155,19 @@ function App() {
   useEffect(() => {
     saveJSON('pendingTransactions', pendingTransactions);
   }, [pendingTransactions]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      const token = localStorage.getItem('authToken');
+      const savedUser = localStorage.getItem('currentUser');
+      if (token && savedUser) {
+        setCurrentUser(JSON.parse(savedUser));
+        setIsAuthenticated(true);
+      }
+    } else {
+      localStorage.setItem('isAuthenticated', 'true');
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isOnline || pendingTransactions.length === 0 || processingQueueRef.current) {
@@ -307,6 +324,7 @@ function App() {
       }
 
       const data = await res.json();
+      const token = data.token || `local-${data._id}`;
       const userData = {
         name: data.name,
         role: data.role || 'Editor',
@@ -316,6 +334,7 @@ function App() {
 
       setCurrentUser(userData);
       localStorage.setItem('currentUser', JSON.stringify(userData));
+      localStorage.setItem('authToken', token);
       setIsAuthenticated(true);
       navigate('/');
       return true;
@@ -330,6 +349,7 @@ function App() {
     fetch(apiUrl('/api/auth/logout'), { method: 'POST' }).catch(err => console.warn("Logout notification failed", err));
     localStorage.removeItem('currentUser');
     localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('authToken');
     setIsAuthenticated(false);
     setCurrentUser(null);
     // The component will re-render to the public routes, and the Navigate path="*" will send them to "/" (HomePage)
