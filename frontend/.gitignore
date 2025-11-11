@@ -6,9 +6,9 @@
 .pnp.js
 
 # Development build output
-dev-dist/
-dist/
-build/
+/dev-dist
+/dist
+/build
 
 # testing
 /coverage
