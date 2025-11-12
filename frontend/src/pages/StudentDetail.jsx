@@ -21,6 +21,7 @@ const StudentDetail = ({
   const [transactions, setTransactions] = useState(() => []);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [prefillProducts, setPrefillProducts] = useState([]);
+  const [transactionMode, setTransactionMode] = useState('mapped');
   const [avatarFailed, setAvatarFailed] = useState(false);
 
   const normalizeCourse = (value) => {
@@ -123,7 +124,8 @@ const StudentDetail = ({
   const pendingItems = relevantItems.filter(({ received }) => !received);
   const issuedItems = relevantItems.filter(({ received }) => received);
 
-  const handleOpenTransaction = (products = []) => {
+  const handleOpenTransaction = (products = [], mode = 'mapped') => {
+    setTransactionMode(mode);
     setPrefillProducts(products);
     setShowTransactionModal(true);
   };
@@ -241,7 +243,7 @@ const StudentDetail = ({
               Back
             </button>
             <button
-              onClick={() => handleOpenTransaction(addOnProducts)}
+              onClick={() => handleOpenTransaction(addOnProducts, 'addon')}
               className="flex items-center gap-2 px-5 py-2.5 bg-white text-blue-800 rounded-xl hover:bg-blue-50 transition-all font-semibold shadow-lg"
             >
               <Receipt size={18} />
@@ -334,7 +336,7 @@ const StudentDetail = ({
                       <h4 className="text-xs font-semibold text-blue-500 uppercase tracking-wider">Pending Allocation</h4>
                       {pendingItems.length > 0 && (
                         <button
-                          onClick={() => handleOpenTransaction(pendingItems.map(({ product }) => product))}
+                          onClick={() => handleOpenTransaction(pendingItems.map(({ product }) => product), 'mapped')}
                           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-500 transition-colors shadow"
                         >
                           <Receipt size={14} />
@@ -673,10 +675,12 @@ const StudentDetail = ({
           student={student}
           products={products}
           prefilledItems={prefillProducts}
+          mode={transactionMode}
           isOnline={isOnline}
           onClose={() => {
             setShowTransactionModal(false);
             setPrefillProducts([]);
+            setTransactionMode('mapped');
           }}
           onTransactionSaved={(updatedStudent) => {
             setStudent(updatedStudent);

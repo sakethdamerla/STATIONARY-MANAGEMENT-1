@@ -214,15 +214,15 @@ const Reports = () => {
 
     // Header Section
     pdf.setFontSize(18);
-    pdf.setTextColor(30, 58, 138);
+    pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'bold');
     pdf.text(receiptSettings.receiptHeader, 74, 12, { align: 'center' });
     pdf.setFontSize(10);
-    pdf.setTextColor(100, 100, 100);
+    pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'normal');
     pdf.text(receiptSettings.receiptSubheader, 74, 18, { align: 'center' });
     pdf.setFontSize(12);
-    pdf.setTextColor(30, 58, 138);
+    pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'bold');
     pdf.text('Day-End Transaction Report', 74, 24, { align: 'center' });
     
@@ -233,57 +233,23 @@ const Reports = () => {
     let yPos = 34;
 
     // Report Info Section
-    pdf.setFontSize(10);
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Report Information', 14, yPos);
-    yPos += 5;
-    pdf.setFont(undefined, 'normal');
-    
-    if (reportFilters.startDate || reportFilters.endDate) {
-      pdf.text(`Date: ${reportFilters.startDate || 'All'} to ${reportFilters.endDate || 'All'}`, 17, yPos);
-      yPos += 4;
-    }
-    if (reportFilters.course) {
-      pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 17, yPos);
-      yPos += 4;
-    }
-    if (reportFilters.paymentMethod) {
-      pdf.text(`Payment: ${reportFilters.paymentMethod.toUpperCase()}`, 17, yPos);
-      yPos += 4;
-    }
-    if (reportFilters.isPaid !== '') {
-      pdf.text(`Status: ${reportFilters.isPaid === 'true' ? 'Paid' : 'Unpaid'}`, 17, yPos);
-      yPos += 4;
-    }
-    pdf.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 17, yPos);
-    yPos += 6;
-
-    // Summary Section
     if (reportFilters.includeSummary && transactions.length > 0) {
       const totalAmount = transactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
       const paidCount = transactions.filter(t => t.isPaid).length;
-      const unpaidCount = transactions.length - paidCount;
       const paidAmount = transactions.filter(t => t.isPaid).reduce((sum, t) => sum + (t.totalAmount || 0), 0);
-      const unpaidAmount = transactions.filter(t => !t.isPaid).reduce((sum, t) => sum + (t.totalAmount || 0), 0);
-      
-      pdf.setFontSize(11);
+
+      pdf.setFontSize(10);
       pdf.setFont(undefined, 'bold');
-      pdf.setFillColor(240, 240, 240);
-      pdf.rect(14, yPos - 4, 120, 6, 'F');
-      pdf.text('Summary Statistics', 14, yPos);
-      yPos += 6;
-      
+      pdf.text('Statistics', 14, yPos);
+
+      const statsY = yPos + 4;
       pdf.setFont(undefined, 'normal');
-      pdf.setFontSize(9);
-      pdf.text(`Total: ${transactions.length}`, 17, yPos);
-      yPos += 4;
-      pdf.text(`Amount: ${formatCurrencyForPDF(totalAmount)}`, 17, yPos);
-      yPos += 4;
-      pdf.text(`Paid: ${paidCount} (${formatCurrencyForPDF(paidAmount)})`, 17, yPos);
-      yPos += 4;
-      pdf.text(`Unpaid: ${unpaidCount} (${formatCurrencyForPDF(unpaidAmount)})`, 17, yPos);
-      yPos += 6;
+      pdf.setFontSize(8);
+      pdf.text(`Total: ${transactions.length}`, 16, statsY);
+      pdf.text(`Amount: ${formatCurrencyForPDF(totalAmount)}`, 52, statsY);
+      pdf.text(`Paid: ${paidCount} (${formatCurrencyForPDF(paidAmount)})`, 96, statsY);
+
+      yPos += 16;
     }
 
     // Transactions Table Header
@@ -296,19 +262,27 @@ const Reports = () => {
       yPos += 6;
 
       // Table Headers
-      pdf.setFontSize(8);
+      pdf.setFontSize(7);
       pdf.setFont(undefined, 'bold');
       pdf.setFillColor(230, 230, 230);
       pdf.rect(14, yPos - 3, 120, 5, 'F');
-      pdf.text('Date', 16, yPos);
-      pdf.text('Student', 44, yPos);
-      pdf.text('Course', 82, yPos);
-      pdf.text('Amount', 104, yPos);
-      pdf.text('Status', 126, yPos);
+      const colPositions = {
+        date: 16,
+        student: 44,
+        course: 76,
+        payment: 102,
+        amount: 128,
+      };
+
+      pdf.text('Date', colPositions.date, yPos);
+      pdf.text('Student', colPositions.student, yPos);
+      pdf.text('Course', colPositions.course, yPos);
+      pdf.text('Payment', colPositions.payment, yPos);
+      pdf.text('Amount', colPositions.amount, yPos, { align: 'right' });
       yPos += 5;
 
       pdf.setFont(undefined, 'normal');
-      pdf.setFontSize(8);
+      pdf.setFontSize(7);
 
       transactions.forEach((transaction, index) => {
         // Check if we need a new page
@@ -320,11 +294,11 @@ const Reports = () => {
           pdf.setFontSize(8);
           pdf.setFillColor(230, 230, 230);
           pdf.rect(14, yPos - 3, 120, 5, 'F');
-          pdf.text('Date', 16, yPos);
-          pdf.text('Student', 44, yPos);
-          pdf.text('Course', 82, yPos);
-          pdf.text('Amount', 104, yPos);
-          pdf.text('Status', 126, yPos);
+          pdf.text('Date', colPositions.date, yPos);
+          pdf.text('Student', colPositions.student, yPos);
+          pdf.text('Course', colPositions.course, yPos);
+          pdf.text('Payment', colPositions.payment, yPos);
+          pdf.text('Amount', colPositions.amount, yPos, { align: 'right' });
           yPos += 5;
           pdf.setFont(undefined, 'normal');
         }
@@ -333,7 +307,7 @@ const Reports = () => {
         const studentName = (transaction.student?.name || 'N/A').substring(0, 16);
         const course = (transaction.student?.course || 'N/A').toUpperCase().substring(0, 8);
         const amount = formatCurrencyForPDF(transaction.totalAmount);
-        const status = transaction.isPaid ? 'Paid' : 'Unpaid';
+        const payment = transaction.paymentMethod ? transaction.paymentMethod.toUpperCase() : 'N/A';
 
         // Alternate row background
         if (index % 2 === 0) {
@@ -341,11 +315,11 @@ const Reports = () => {
           pdf.rect(14, yPos - 3, 120, 5, 'F');
         }
 
-        pdf.text(date, 16, yPos);
-        pdf.text(studentName, 44, yPos);
-        pdf.text(course, 82, yPos);
-        pdf.text(amount, 104, yPos);
-        pdf.text(status, 126, yPos);
+        pdf.text(date, colPositions.date, yPos);
+        pdf.text(studentName, colPositions.student, yPos);
+        pdf.text(course, colPositions.course, yPos);
+        pdf.text(payment, colPositions.payment, yPos);
+        pdf.text(amount, colPositions.amount, yPos, { align: 'right' });
         yPos += 5;
 
         // Draw separator line
@@ -381,10 +355,10 @@ const Reports = () => {
             yPos += 4;
 
             // Item table header
-            pdf.setFontSize(7);
-            pdf.setFont(undefined, 'bold');
-            pdf.setFillColor(245, 245, 245);
-            pdf.rect(16, yPos - 2, 112, 4, 'F');
+        pdf.setFontSize(6);
+        pdf.setFont(undefined, 'bold');
+        pdf.setFillColor(245, 245, 245);
+        pdf.rect(16, yPos - 2, 112, 4, 'F');
             pdf.text('Item Name', 18, yPos);
             pdf.text('Qty', 78, yPos);
             pdf.text('Unit Price', 92, yPos);
@@ -442,7 +416,8 @@ const Reports = () => {
       const response = await fetch(apiUrl(`/api/products?${queryParams.toString()}`));
       if (!response.ok) throw new Error('Failed to fetch products for report');
       
-      const products = await response.json();
+      const allProducts = await response.json();
+      const products = Array.isArray(allProducts) ? allProducts.filter(product => !product?.isSet) : [];
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -527,7 +502,7 @@ const Reports = () => {
         yPos += 7;
 
         // Table Headers
-        pdf.setFontSize(8);
+            pdf.setFontSize(7);
         pdf.setFont(undefined, 'bold');
         pdf.setFillColor(230, 230, 230);
         pdf.rect(20, yPos - 3, 170, 5, 'F');
@@ -537,8 +512,8 @@ const Reports = () => {
         pdf.text('Value', 160, yPos);
         yPos += 6;
 
-        pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(8);
+            pdf.setFont(undefined, 'normal');
+            pdf.setFontSize(7);
 
         products.forEach((product, index) => {
           // Check if we need a new page

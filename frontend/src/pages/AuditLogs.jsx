@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardCheck, ClipboardList, RefreshCcw, CheckCircle2, XCircle, Info, History, Clock } from 'lucide-react';
+import { ClipboardCheck, ClipboardList, RefreshCcw, CheckCircle2, XCircle, Info, History, Clock, Lock } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 
 const getCurrentUserName = () => {
@@ -13,8 +13,30 @@ const getCurrentUserName = () => {
   }
 };
 
+const getCurrentUserInfo = () => {
+  try {
+    const saved = localStorage.getItem('currentUser');
+    return saved ? JSON.parse(saved) : null;
+  } catch (error) {
+    return null;
+  }
+};
+
 const AuditLogs = () => {
-  const [activeTab, setActiveTab] = useState('entry');
+  const currentUserInfo = useMemo(() => getCurrentUserInfo(), []);
+  const currentUserPermissions = Array.isArray(currentUserInfo?.permissions) ? currentUserInfo.permissions : [];
+  const isSuperAdmin = currentUserInfo?.role === 'Administrator';
+  const hasLegacyAuditPermission = currentUserPermissions.includes('audit-logs');
+  const canAccessEntry =
+    isSuperAdmin || hasLegacyAuditPermission || currentUserPermissions.includes('audit-log-entry');
+  const canAccessApproval =
+    isSuperAdmin || hasLegacyAuditPermission || currentUserPermissions.includes('audit-log-approval');
+
+  const [activeTab, setActiveTab] = useState(() => {
+    if (canAccessEntry) return 'entry';
+    if (canAccessApproval) return 'approval';
+    return 'none';
+  });
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState('');
@@ -62,7 +84,20 @@ const groupLogsByBatch = (logs = []) => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
 
-  const currentUserName = useMemo(() => getCurrentUserName(), []);
+  const currentUserName = useMemo(
+    () => currentUserInfo?.name || getCurrentUserName(),
+    [currentUserInfo]
+  );
+
+  useEffect(() => {
+    if (canAccessEntry && activeTab === 'none') {
+      setActiveTab('entry');
+    } else if (!canAccessEntry && activeTab === 'entry') {
+      setActiveTab(canAccessApproval ? 'approval' : 'none');
+    } else if (!canAccessApproval && activeTab === 'approval') {
+      setActiveTab(canAccessEntry ? 'entry' : 'none');
+    }
+  }, [canAccessEntry, canAccessApproval, activeTab]);
 
   const fetchProducts = async () => {
     try {
@@ -220,6 +255,9 @@ const groupLogsByBatch = (logs = []) => {
   };
 
   const handleSubmitAll = async () => {
+    if (!canAccessEntry) {
+      return;
+    }
     if (isSubmittingAll) return;
     const productsToSubmit = products.filter(product => {
       const values = entryValues[product._id];
@@ -259,6 +297,9 @@ const groupLogsByBatch = (logs = []) => {
   };
 
   const processGroupedLogs = async (group, action) => {
+    if (!canAccessApproval) {
+      return;
+    }
     if (!group?.items?.length) return;
     const endpoint = action === 'approve' ? 'approve' : 'reject';
     const reason =
@@ -340,31 +381,40 @@ const groupLogsByBatch = (logs = []) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
-              onClick={() => setActiveTab('entry')}
+              onClick={() => canAccessEntry && setActiveTab('entry')}
+              disabled={!canAccessEntry}
               className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
                 activeTab === 'entry'
                   ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                   : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              } ${!canAccessEntry ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
             >
-              <ClipboardList size={18} />
+              {canAccessEntry ? <ClipboardList size={18} /> : <Lock size={18} />}
               Audit Log Entry
             </button>
             <button
-              onClick={() => setActiveTab('approval')}
+              onClick={() => canAccessApproval && setActiveTab('approval')}
+              disabled={!canAccessApproval}
               className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
                 activeTab === 'approval'
                   ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                   : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              } ${!canAccessApproval ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
             >
-              <ClipboardCheck size={18} />
+              {canAccessApproval ? <ClipboardCheck size={18} /> : <Lock size={18} />}
               Audit Approval
             </button>
           </div>
         </div>
 
-        {activeTab === 'entry' && (
+        {activeTab === 'none' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-600">
+            <Lock className="mx-auto mb-3 text-gray-400" size={32} />
+            <p className="text-sm font-medium">You do not have permission to access audit logs.</p>
+          </div>
+        )}
+
+        {activeTab === 'entry' && canAccessEntry && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -509,7 +559,7 @@ const groupLogsByBatch = (logs = []) => {
           </div>
         )}
 
-        {activeTab === 'approval' && (
+        {activeTab === 'approval' && canAccessApproval && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

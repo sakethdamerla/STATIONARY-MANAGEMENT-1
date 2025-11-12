@@ -490,7 +490,7 @@ function App() {
                 <Route 
                   path="/audit-logs" 
                   element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermissions={['manage-stock', 'transactions']}>
+                    <ProtectedRoute currentUser={currentUser} requiredPermissions={['audit-log-entry', 'audit-log-approval', 'audit-logs']}>
                       <AuditLogs />
                     </ProtectedRoute>
                   } 

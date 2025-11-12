@@ -12,9 +12,43 @@ const SIDEBAR_ITEMS = [
   { path: '/manage-stock', label: 'Manage Stock', key: 'manage-stock' },
   { path: '/transactions', label: 'Reports', key: 'transactions' },
   { path: '/student-due', label: 'Student Due', key: 'student-due' },
-  { path: '/audit-logs', label: 'Audit Logs', key: 'audit-logs' },
+  {
+    path: '/audit-logs',
+    label: 'Audit Logs',
+    key: 'audit-logs',
+    children: [
+      { label: 'Audit Log Entry', key: 'audit-log-entry' },
+      { label: 'Audit Approval', key: 'audit-log-approval' },
+    ],
+  },
   { path: '/settings', label: 'Settings', key: 'settings' },
 ];
+
+const PERMISSION_LABELS = SIDEBAR_ITEMS.reduce((acc, item) => {
+  if (item.children) {
+    item.children.forEach(child => {
+      acc[child.key] = child.label;
+    });
+  } else {
+    acc[item.key] = item.label;
+  }
+  return acc;
+}, {});
+
+const normalizePermissions = (perms = []) => {
+  const list = Array.isArray(perms) ? perms.slice() : [];
+  const hasLegacyAudit = list.includes('audit-logs');
+  const withoutLegacy = list.filter((perm) => perm && perm !== 'audit-logs');
+  if (hasLegacyAudit) {
+    if (!withoutLegacy.includes('audit-log-entry')) {
+      withoutLegacy.push('audit-log-entry');
+    }
+    if (!withoutLegacy.includes('audit-log-approval')) {
+      withoutLegacy.push('audit-log-approval');
+    }
+  }
+  return Array.from(new Set(withoutLegacy));
+};
 
 // A simple modal component for creating/editing sub-admins
 const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
@@ -28,7 +62,8 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
       setName(subAdmin?.name || '');
       setRole(subAdmin?.role || 'Editor');
       setPassword(''); // Always clear password field when modal opens
-      setPermissions(subAdmin?.permissions || []);
+      const sourcePerms = Array.isArray(subAdmin?.permissions) ? subAdmin.permissions : [];
+      setPermissions(normalizePermissions(sourcePerms));
     }
   }, [isOpen, subAdmin]);
 
@@ -50,7 +85,14 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
     }
     // Set default role for new sub-admins and only include password if it has been set
     const submissionRole = subAdmin ? role : 'Editor';
-    onSave({ ...subAdmin, name, role: submissionRole, permissions, ...(password && { password }) });
+    const cleanedPermissions = normalizePermissions(permissions);
+    onSave({
+      ...subAdmin,
+      name,
+      role: submissionRole,
+      permissions: cleanedPermissions,
+      ...(password && { password }),
+    });
     onClose();
   };
 
@@ -93,21 +135,53 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-3">Permissions</label>
             <p className="text-xs text-gray-500 mb-4">Select which features this sub-admin can access:</p>
-            <div className="grid grid-cols-3 gap-3 max-h-64 overflow-y-auto p-3 bg-indigo-50 rounded-xl border border-indigo-200">
-              {SIDEBAR_ITEMS.map((item) => (
-                <label
-                  key={item.key}
-                  className="flex items-center gap-2 p-3 bg-white rounded-lg border border-indigo-200 hover:bg-indigo-50 hover:border-indigo-400 cursor-pointer transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={permissions.includes(item.key)}
-                    onChange={() => handlePermissionToggle(item.key)}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
-                  />
-                  <span className="text-sm font-medium text-gray-700">{item.label}</span>
-                </label>
-              ))}
+            <div className="space-y-4 max-h-64 overflow-y-auto p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+              {SIDEBAR_ITEMS.map((item) => {
+                if (item.children) {
+                  const anyChildSelected = item.children.some((child) => permissions.includes(child.key));
+                  return (
+                    <div key={item.key} className="bg-white rounded-xl border border-indigo-200 p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-gray-800">{item.label}</span>
+                        {!anyChildSelected && (
+                          <span className="text-[11px] text-amber-600">No access selected</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {item.children.map((child) => (
+                          <label
+                            key={child.key}
+                            className="flex items-center gap-2 p-3 bg-indigo-50/40 rounded-lg border border-indigo-200 hover:bg-indigo-50 cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={permissions.includes(child.key)}
+                              onChange={() => handlePermissionToggle(child.key)}
+                              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
+                            />
+                            <span className="text-sm font-medium text-gray-700">{child.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <label
+                    key={item.key}
+                    className="flex items-center gap-2 p-3 bg-white rounded-lg border border-indigo-200 hover:bg-indigo-50 hover:border-indigo-400 cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={permissions.includes(item.key)}
+                      onChange={() => handlePermissionToggle(item.key)}
+                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                  </label>
+                );
+              })}
             </div>
             {permissions.length === 0 && (
               <p className="text-xs text-amber-600 mt-2">⚠️ No permissions selected. Sub-admin will have limited access.</p>
@@ -118,7 +192,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
             <button type="button" onClick={onClose} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors duration-200">
               Cancel
             </button>
-            <button type="submit" className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl font-medium hover:from-indigo-600 hover:to-indigo-700 transform hover:scale-105 transition-all duration-200 shadow-lg">
+            <button type="submit" className="px-6 py-3 bg-blue-700 text-white rounded-xl font-medium hover:from-indigo-600 hover:to-indigo-700 transform hover:scale-105 transition-all duration-200 shadow-lg">
               {subAdmin ? 'Update Sub-Admin' : 'Create Sub-Admin'}
             </button>
           </div>
@@ -148,7 +222,13 @@ const SubAdminManagement = ({ currentUser }) => {
           throw new Error('Unexpected response from server');
         }
         const data = await response.json();
-        setSubAdmins((data || []).map(sa => ({ ...sa, id: sa._id })));
+        setSubAdmins(
+          (data || []).map(sa => ({
+            ...sa,
+            id: sa._id,
+            permissions: normalizePermissions(sa.permissions),
+          }))
+        );
       } catch (error) {
         console.error("Failed to fetch sub-admins:", error);
       }
@@ -198,7 +278,11 @@ const SubAdminManagement = ({ currentUser }) => {
       }
 
       const savedSubAdmin = await response.json();
-      const formattedAdmin = { ...savedSubAdmin, id: savedSubAdmin._id };
+      const formattedAdmin = {
+        ...savedSubAdmin,
+        id: savedSubAdmin._id,
+        permissions: normalizePermissions(savedSubAdmin.permissions),
+      };
 
       setSubAdmins(prev => isUpdating
         ? prev.map(sa => sa.id === formattedAdmin.id ? formattedAdmin : sa)
@@ -215,7 +299,7 @@ const SubAdminManagement = ({ currentUser }) => {
         <div className="container mx-auto max-w-6xl">
           <div className="flex justify-between items-center mb-8">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg">
+              <div className="p-3 bg-blue-600 rounded-xl shadow-lg">
                 <Users size={32} className="text-white" />
               </div>
               <div>
@@ -228,14 +312,14 @@ const SubAdminManagement = ({ currentUser }) => {
           </div>
 
           {subAdmins.length === 0 ? (
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl shadow-lg p-12 text-center">
+            <div className="bg-blue-600 rounded-2xl shadow-lg p-12 text-center">
               <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
                 <Users size={48} className="text-white" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">No Sub-Admins Yet</h3>
               <p className="text-indigo-100 mb-6">Get started by creating your first sub-admin to help manage the system.</p>
               {isSuperAdmin && (
-                <button onClick={handleCreate} className="bg-white text-indigo-600 px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 inline-flex items-center gap-2">
+                <button onClick={handleCreate} className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 inline-flex items-center gap-2">
                   <Plus size={20} />
                   Create Your First Sub-Admin
                 </button>
@@ -248,7 +332,7 @@ const SubAdminManagement = ({ currentUser }) => {
                   All Sub-Admins ({subAdmins.length})
                 </h2>
                 {isSuperAdmin && (
-                  <button onClick={handleCreate} className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-6 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 inline-flex items-center gap-2">
+                  <button onClick={handleCreate} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 inline-flex items-center gap-2">
                     <Plus size={18} />
                     Create Sub-Admin
                   </button>
@@ -259,7 +343,7 @@ const SubAdminManagement = ({ currentUser }) => {
                   <div key={subAdmin.id} className={`p-6 hover:bg-indigo-50/50 transition-colors duration-200 ${index === 0 ? 'border-t-0' : ''}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+                        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-md">
                           <span className="text-white font-bold text-lg">
                             {subAdmin.name.charAt(0).toUpperCase()}
                           </span>
@@ -267,13 +351,13 @@ const SubAdminManagement = ({ currentUser }) => {
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">{subAdmin.name}</h3>
                           <p className="text-sm text-gray-500">Sub-Administrator</p>
-                          {subAdmin.permissions && subAdmin.permissions.length > 0 && (
+                          {Array.isArray(subAdmin.permissions) && subAdmin.permissions.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1">
                               {subAdmin.permissions.slice(0, 3).map((perm) => {
-                                const item = SIDEBAR_ITEMS.find(i => i.key === perm);
-                                return item ? (
-                                  <span key={perm} className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">
-                                    {item.label}
+                                const label = PERMISSION_LABELS[perm];
+                                return label ? (
+                                  <span key={perm} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                                    {label}
                                   </span>
                                 ) : null;
                               })}

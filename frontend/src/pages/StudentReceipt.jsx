@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { Printer, X, Download, Save, Plus, Minus, Package, CreditCard, Receipt, Loader2 } from 'lucide-react';
+import { Printer, X, Download, Save, Plus, Minus, Package, CreditCard, Receipt, Loader2, Search } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { useReactToPrint } from 'react-to-print';
 import jsPDF from 'jspdf';
@@ -20,6 +20,7 @@ const StudentReceiptModal = ({
   onProductsUpdated,
   onTransactionQueued,
   isOnline: isOnlineProp,
+  mode = 'mapped',
 }) => {
   const receiptRef = useRef(null);
   const [selectedItems, setSelectedItems] = useState({});
@@ -34,16 +35,22 @@ const StudentReceiptModal = ({
     receiptHeader: 'PYDAH GROUP OF INSTITUTIONS',
     receiptSubheader: 'Stationery Management System',
   });
+  const [itemSearch, setItemSearch] = useState('');
   const resolvedOnlineStatus = useOnlineStatus();
   const isOnline = typeof isOnlineProp === 'boolean' ? isOnlineProp : resolvedOnlineStatus;
 
   // Prefill items when prefilledItems prop is provided
   useEffect(() => {
+    setItemSearch('');
+    if (mode === 'addon') {
+      setSelectedItems({});
+      return;
+    }
+
     if (prefilledItems && prefilledItems.length > 0) {
       const initialItems = {};
       prefilledItems.forEach(product => {
         if (product && product._id) {
-          // For sets, default to 1; for regular items, default to 1 if stock > 0
           if (product.isSet) {
             initialItems[product._id] = 1;
           } else if (product.stock > 0) {
@@ -52,8 +59,10 @@ const StudentReceiptModal = ({
         }
       });
       setSelectedItems(initialItems);
+    } else {
+      setSelectedItems({});
     }
-  }, [prefilledItems]);
+  }, [prefilledItems, mode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -181,6 +190,38 @@ const StudentReceiptModal = ({
       return true;
     });
   }, [products, student.course, student.year, prefilledItems]);
+
+  const filteredItems = useMemo(() => {
+    const term = itemSearch.trim().toLowerCase();
+    if (!term) return visibleItems;
+
+    return visibleItems.filter((item) => {
+      const nameMatch = item.name?.toLowerCase().includes(term);
+      const descriptionMatch = item.description?.toLowerCase().includes(term);
+      const courseMatch = item.forCourse?.toLowerCase().includes(term);
+      return Boolean(nameMatch || descriptionMatch || courseMatch);
+    });
+  }, [itemSearch, visibleItems]);
+
+const displayItems = useMemo(() => {
+  if (mode !== 'addon' || itemSearch.trim()) {
+    return filteredItems;
+  }
+
+  const selectedOnly = filteredItems.filter((item) => selectedItems[item._id]);
+  if (selectedOnly.length > 0) {
+    return selectedOnly;
+  }
+
+  return filteredItems.slice(0, 3);
+}, [filteredItems, itemSearch, mode, selectedItems]);
+
+const hasHiddenItems = useMemo(() => {
+  if (mode !== 'addon' || itemSearch.trim()) return false;
+  const selectedOnly = filteredItems.filter((item) => selectedItems[item._id]);
+  if (selectedOnly.length > 0) return false;
+  return filteredItems.length > displayItems.length;
+}, [filteredItems, displayItems, itemSearch, mode, selectedItems]);
 
   const transactionItems = useMemo(() => {
     return Object.entries(selectedItems)
@@ -410,34 +451,52 @@ const StudentReceiptModal = ({
         )}
 
         {/* Content - Split into two columns */}
-        <div className="flex-1 bg-gradient-to-br from-blue-50 via-white to-blue-100" ref={receiptRef}>
+        <div className="flex-1  " ref={receiptRef}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
             {/* Left Column - Items Selection & Payment */}
             <div className="space-y-4">
               {/* Items Selection Section */}
               <div className="no-print">
-                <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                  <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <Package size={14} className="text-white" />
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
+                  <h3 className="text-sm font-semibold text-black flex items-center gap-4">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <Package size={14} className="text-white" />
+                    </div>
+                    Select Items
+                  </h3>
+                  <div className="relative w-full sm:max-w-xs">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 " />
+                    <input
+                      value={itemSearch}
+                      onChange={(e) => setItemSearch(e.target.value)}
+                      type="text"
+                      placeholder={mode === 'addon' ? 'Search add-on items...' : 'Search items...'}
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white "
+                    />
                   </div>
-                  Select Items
-                </h3>
+                </div>
                 {visibleItems.length === 0 ? (
                   <div className="text-center py-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
-                    <p className="text-xs text-gray-500">No items available for this course/year</p>
+                    <p className="text-xs text-gray-500">
+                      {mode === 'addon' ? 'No add-on items configured yet.' : 'No items available for this course/year.'}
+                    </p>
+                  </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="text-center py-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                    <p className="text-xs text-gray-500">No items match your search.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                    {visibleItems.map(item => {
+                    {displayItems.map(item => {
                       const quantity = selectedItems[item._id] || 0;
                       const isSelected = quantity > 0;
                       const isSet = item.isSet || false;
-                  return (
-                        <div 
-                          key={item._id} 
+                      return (
+                        <div
+                          key={item._id}
                           className={`flex items-center justify-between gap-2 p-3 rounded-xl border-2 transition-all shadow-sm ${
-                            isSelected 
-                              ? 'border-blue-500 bg-blue-50' 
+                            isSelected
+                              ? 'border-blue-500 bg-blue-50'
                               : 'border-blue-100 bg-white hover:border-blue-300'
                           } ${isSet ? 'border-indigo-300 bg-indigo-50/60' : ''}`}
                         >
@@ -453,14 +512,17 @@ const StudentReceiptModal = ({
                                   </span>
                                 )}
                               </div>
-                              <span className="font-semibold text-blue-700 text-xs whitespace-nowrap ml-2">
+                              <span className="font-semibold  text-xs whitespace-nowrap ml-2">
                                 ₹{item.price?.toFixed(2) || '0.00'}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
                               {!isSet && (
                                 <span className="text-xs text-blue-600 font-medium">
-                                  Stock: <span className={item.stock <= 5 ? 'text-red-600 font-semibold' : item.stock <= 10 ? 'text-amber-600 font-semibold' : 'text-blue-800'}>{item.stock || 0}</span>
+                                  Stock:{' '}
+                                  <span className={item.stock <= 5 ? 'text-red-600 font-semibold' : item.stock <= 10 ? 'text-amber-600 font-semibold' : 'text-blue-800'}>
+                                    {item.stock || 0}
+                                  </span>
                                 </span>
                               )}
                               {isSet && (
@@ -469,7 +531,7 @@ const StudentReceiptModal = ({
                                 </span>
                               )}
                               {isSelected && (
-                                <span className="font-semibold text-blue-900 text-xs">
+                                <span className="font-semibold  text-xs">
                                   Total: ₹{(quantity * item.price).toFixed(2)}
                                 </span>
                               )}
@@ -477,8 +539,10 @@ const StudentReceiptModal = ({
                             {isSet && item.setItems?.length > 0 && (
                               <ul className="mt-2 space-y-1">
                                 {item.setItems.map(setItem => (
-                                  <li key={`${item._id}-${setItem.product?._id || setItem.product || setItem.productNameSnapshot}`}
-                                      className="text-[11px] text-indigo-700 flex justify-between">
+                                  <li
+                                    key={`${item._id}-${setItem.product?._id || setItem.product || setItem.productNameSnapshot}`}
+                                    className="text-[11px] text-indigo-700 flex justify-between"
+                                  >
                                     <span className="truncate max-w-[160px]">
                                       {setItem?.product?.name || setItem?.productNameSnapshot || 'Unknown item'}
                                     </span>
@@ -490,7 +554,6 @@ const StudentReceiptModal = ({
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
                             {isSet ? (
-                              // For sets, show fixed quantity (always 1) with toggle
                               <div className="flex items-center">
                                 <button
                                   type="button"
@@ -512,7 +575,6 @@ const StudentReceiptModal = ({
                                 </button>
                               </div>
                             ) : (
-                              // For regular items, show quantity controls
                               <div className="flex items-center border border-blue-200 rounded-md bg-white">
                                 <button
                                   type="button"
@@ -528,7 +590,7 @@ const StudentReceiptModal = ({
                                   max={item.stock || 0}
                                   value={quantity}
                                   onChange={(e) => {
-                                    const val = Math.max(0, Math.min(parseInt(e.target.value) || 0, item.stock || 0));
+                                    const val = Math.max(0, Math.min(parseInt(e.target.value, 10) || 0, item.stock || 0));
                                     if (val === 0) {
                                       const { [item._id]: removed, ...rest } = selectedItems;
                                       setSelectedItems(rest);
@@ -554,12 +616,17 @@ const StudentReceiptModal = ({
                     })}
                   </div>
                 )}
+                {hasHiddenItems && (
+                  <p className="mt-2 text-[11px] ">
+                    Showing the first {displayItems.length} add-on items. Use the search to find others.
+                  </p>
+                )}
               </div>
 
               {/* Payment Section */}
               {transactionItems.length > 0 && (
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 shadow-sm no-print">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <h3 className="text-sm font-semibold  mb-3 flex items-center gap-2">
                     <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
                       <CreditCard size={14} className="text-white" />
                     </div>
@@ -569,7 +636,7 @@ const StudentReceiptModal = ({
                   <div className="grid grid-cols-2 gap-3">
                     {/* Payment Method Toggle */}
                     <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-2">Payment Method</label>
+                      <label className="block text-xs font-medium mb-2">Payment Method</label>
                       <div className="relative inline-flex items-center bg-white border border-blue-200 rounded-lg p-1 w-full">
                         <button
                           type="button"
@@ -598,7 +665,7 @@ const StudentReceiptModal = ({
 
                     {/* Payment Status */}
                     <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-2">Payment Status</label>
+                      <label className="block text-xs font-medium  mb-2">Payment Status</label>
                       <div className="flex items-center gap-2 p-2.5 bg-white rounded-lg border border-blue-200 h-[42px]">
                       <input
                         type="checkbox"
@@ -607,7 +674,7 @@ const StudentReceiptModal = ({
                           onChange={(e) => setIsPaid(e.target.checked)}
                           className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                         />
-                        <label htmlFor="paid-checkbox" className="font-medium text-blue-800 cursor-pointer text-xs">
+                        <label htmlFor="paid-checkbox" className="font-medium  cursor-pointer text-xs">
                           Mark as Paid
                         </label>
                       </div>
@@ -616,14 +683,14 @@ const StudentReceiptModal = ({
 
                   {/* Remarks */}
                   <div className="mt-3 col-span-2">
-                    <label className="block text-xs font-medium text-blue-700 mb-1.5">
+                    <label className="block text-xs font-medium mb-1.5">
                       Remarks (Optional)
                     </label>
                     <textarea
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
                       placeholder="Add any remarks..."
-                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-blue-900 placeholder-blue-300"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       rows={2}
                     />
               </div>
@@ -635,7 +702,7 @@ const StudentReceiptModal = ({
             {(transactionItems.length > 0 || savedTransactionItems.length > 0) && (
               <div>
                 <div className="bg-white rounded-xl border border-blue-100 p-4 shadow sticky top-4">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <h3 className="text-sm font-semibold  mb-3 flex items-center gap-2">
                     <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
                       <Receipt size={14} className="text-white" />
                     </div>
@@ -645,7 +712,7 @@ const StudentReceiptModal = ({
               {/* Receipt Items Section - For printing */}
               <div className="space-y-3">
                     <div className="border-b border-gray-200 pb-2">
-                      <h4 className="text-xs font-semibold text-blue-600 mb-2">Items Issued</h4>
+                      <h4 className="text-xs font-semibold  mb-2">Items Issued</h4>
                       <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
                         {(transactionItems.length > 0 ? transactionItems : savedTransactionItems).map((item, idx) => (
                           <div key={idx} className="flex justify-between items-center py-1.5 px-2 bg-gray-50 rounded-lg text-xs">
