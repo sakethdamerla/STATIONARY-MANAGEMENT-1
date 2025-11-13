@@ -715,22 +715,27 @@ const hasHiddenItems = useMemo(() => {
                       <h4 className="text-xs font-semibold  mb-2">Items Issued</h4>
                       <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
                         {(transactionItems.length > 0 ? transactionItems : savedTransactionItems).map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center py-1.5 px-2 bg-gray-50 rounded-lg text-xs">
-                            <div className="flex-1 min-w-0">
-                              <span className="font-medium text-gray-900 text-xs truncate block">{item.name}</span>
-                              <span className="text-gray-500 text-xs">× {item.quantity}</span>
-                              {item.isSet && item.setComponents?.length > 0 && (
-                                <ul className="mt-1 space-y-1">
+                          <div key={idx} className="flex flex-col py-1.5 px-2 bg-gray-50 rounded-lg text-xs">
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium text-gray-900 text-xs truncate block">{item.name}</span>
+                                <span className="text-gray-500 text-xs">× {item.quantity}</span>
+                              </div>
+                              <span className="font-semibold text-gray-900 text-xs ml-2 whitespace-nowrap">₹{item.total.toFixed(2)}</span>
+                            </div>
+                            {item.isSet && item.setComponents?.length > 0 && (
+                              <div className="mt-1 bg-white rounded-lg border border-gray-200 p-2">
+                                <p className="text-[10px] font-semibold text-gray-600 mb-1">Includes:</p>
+                                <ul className="space-y-1">
                                   {item.setComponents.map((component, componentIdx) => (
-                                    <li key={`${item.name}-component-${componentIdx}`} className="flex justify-between text-[10px] text-indigo-700">
+                                    <li key={`${item.name}-component-list-${componentIdx}`} className="flex justify-between text-[10px] text-gray-600">
                                       <span className="truncate max-w-[140px]">{component.name}</span>
                                       <span className="font-semibold">× {component.quantity}</span>
                                     </li>
                                   ))}
                                 </ul>
-                              )}
-                            </div>
-                            <span className="font-semibold text-gray-900 text-xs ml-2 whitespace-nowrap">₹{item.total.toFixed(2)}</span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

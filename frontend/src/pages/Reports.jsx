@@ -38,6 +38,7 @@ const Reports = () => {
     endDate: getTodayDate(),
     includeItems: false,
     includeSummary: true,
+    onlyStatistics: false,
     // For stock report
     productCategory: '',
     // For vendor purchase report
@@ -233,7 +234,11 @@ const Reports = () => {
     let yPos = 34;
 
     // Report Info Section
-    if (reportFilters.includeSummary && transactions.length > 0) {
+    const showStats =
+      transactions.length > 0 &&
+      (reportFilters.includeSummary || reportFilters.onlyStatistics);
+
+    if (showStats) {
       const totalAmount = transactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
       const paidCount = transactions.filter(t => t.isPaid).length;
       const paidAmount = transactions.filter(t => t.isPaid).reduce((sum, t) => sum + (t.totalAmount || 0), 0);
@@ -253,7 +258,7 @@ const Reports = () => {
     }
 
     // Transactions Table Header
-    if (transactions.length > 0) {
+    if (!reportFilters.onlyStatistics && transactions.length > 0) {
       pdf.setFontSize(11);
       pdf.setFont(undefined, 'bold');
       pdf.setFillColor(240, 240, 240);
@@ -388,7 +393,7 @@ const Reports = () => {
           }
         });
       }
-    } else {
+    } else if (!showStats) {
       pdf.setFontSize(10);
       pdf.text('No transactions found for the selected filters.', 20, yPos);
     }
@@ -1395,6 +1400,25 @@ const Reports = () => {
                           />
                           <label htmlFor="includeSummary" className="text-sm font-medium text-gray-700 cursor-pointer">
                             Include summary statistics
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="onlyStatistics"
+                            checked={reportFilters.onlyStatistics}
+                            onChange={(e) =>
+                              setReportFilters({
+                                ...reportFilters,
+                                onlyStatistics: e.target.checked,
+                                includeSummary: e.target.checked ? true : reportFilters.includeSummary,
+                                includeItems: e.target.checked ? false : reportFilters.includeItems,
+                              })
+                            }
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <label htmlFor="onlyStatistics" className="text-sm font-medium text-gray-700 cursor-pointer">
+                            Generate statistics only (no detailed tables)
                           </label>
                         </div>
                       </div>

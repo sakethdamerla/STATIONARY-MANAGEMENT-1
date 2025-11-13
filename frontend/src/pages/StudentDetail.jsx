@@ -18,7 +18,7 @@ const StudentDetail = ({
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
-  const [transactions, setTransactions] = useState(() => []);
+  const [rawTransactions, setRawTransactions] = useState([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [prefillProducts, setPrefillProducts] = useState([]);
   const [transactionMode, setTransactionMode] = useState('mapped');
@@ -56,7 +56,7 @@ const StudentDetail = ({
       const response = await fetch(apiUrl(`/api/transactions/student/${studentId}`));
       if (response.ok) {
         const data = await response.json();
-        setTransactions(data);
+        setRawTransactions(data || []);
       }
     } catch (error) {
       console.error('Error fetching transactions:', error);
@@ -109,6 +109,58 @@ const StudentDetail = ({
   const mappedProducts = visibleItems.filter((product) => !isAddOnProduct(product));
   const addOnProducts = visibleItems.filter(isAddOnProduct);
 
+  const productMap = useMemo(() => {
+    const map = new Map();
+    (products || []).forEach((product) => {
+      map.set(String(product._id), product);
+    });
+    return map;
+  }, [products]);
+
+  const enrichItems = useCallback(
+    (items = []) =>
+      items.map((item) => {
+        const productId =
+          item.productId?._id ||
+          item.product?._id ||
+          item.productId ||
+          item?._id;
+        const product = productMap.get(String(productId));
+        const setComponents =
+          product && product.isSet
+            ? (product.setItems || []).map((setItem) => ({
+                name:
+                  setItem?.product?.name ||
+                  setItem?.productNameSnapshot ||
+                  'Unknown item',
+                quantity: Number(setItem?.quantity) || 1,
+              }))
+            : Array.isArray(item.setComponents)
+            ? item.setComponents
+            : [];
+
+        return {
+          ...item,
+          isSet: Boolean(product?.isSet || item.isSet),
+          setComponents,
+        };
+      }),
+    [productMap]
+  );
+
+  const enrichTransaction = useCallback(
+    (transaction) => ({
+      ...transaction,
+      items: enrichItems(transaction?.items || []),
+    }),
+    [enrichItems]
+  );
+
+  const transactions = useMemo(
+    () => rawTransactions.map(enrichTransaction),
+    [rawTransactions, enrichTransaction]
+  );
+
   const relevantItems = mappedProducts.map((product) => {
     const key = product.name?.toLowerCase().replace(/\s+/g, '_');
     const received = Boolean(student.items && key && student.items[key]);
@@ -135,7 +187,7 @@ const StudentDetail = ({
     return (pendingTransactions || [])
       .filter((entry) => String(entry?.payload?.studentId) === currentStudentId)
       .map((entry) => {
-        const items = entry?.payload?.items || [];
+        const items = enrichItems(entry?.payload?.items || []);
         const totalAmount = items.reduce((sum, item) => {
           const total = Number(item?.total);
           if (Number.isFinite(total)) return sum + total;
@@ -153,7 +205,7 @@ const StudentDetail = ({
           isPending: true,
         };
       });
-  }, [pendingTransactions, currentStudentId]);
+  }, [pendingTransactions, currentStudentId, enrichItems]);
 
   useEffect(() => {
     if (!isOnline) return;
@@ -229,9 +281,9 @@ const StudentDetail = ({
         <header className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-2xl shadow-xl p-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
             <div>
-              <p className="text-xs uppercase tracking-wider text-blue-100">Student Profile</p>
-              <h1 className="text-2xl font-semibold text-blue-100">{student.name}</h1>
-              <p className="text-sm text-blue-100/80 mt-1">{student.course?.toUpperCase()} • Year {student.year}{student.branch ? ` • ${student.branch}` : ''}</p>
+              <p className="text-xs uppercase tracking-wider text-white">Student Profile</p>
+              <h1 className="text-2xl font-semibold text-white">{student.name}</h1>
+              <p className="text-sm text-white/80 mt-1">{student.course?.toUpperCase()} • Year {student.year}{student.branch ? ` • ${student.branch}` : ''}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 self-end lg:self-center">
@@ -275,28 +327,28 @@ const StudentDetail = ({
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-blue-900">Student Snapshot</h3>
-                <p className="text-xs text-blue-500">Key academic details</p>
+                <h3 className="text-sm font-semibold ">Student Snapshot</h3>
+                <p className="text-xs text-gray-500">Key academic details</p>
               </div>
             </div>
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-1">
-                  <p className="text-xs text-blue-500 uppercase tracking-wide">Student ID</p>
-                  <p className="text-sm font-medium text-blue-900">{student.studentId}</p>
+                  <p className="  uppercase tracking-wide">Student ID</p>
+                  <p className="text-sm font-medium text-gray-500">{student.studentId}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-blue-500 uppercase tracking-wide">Course</p>
-                  <p className="text-sm font-medium text-blue-900">{student.course.toUpperCase()}</p>
+                  <p className=" uppercase tracking-wide">Course</p>
+                  <p className="text-sm font-medium text-gray-500">{student.course.toUpperCase()}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-blue-500 uppercase tracking-wide">Year</p>
-                  <p className="text-sm font-medium text-blue-900">Year {student.year}</p>
+                  <p className=" uppercase tracking-wide">Year</p>
+                  <p className="text-sm font-medium text-gray-500">Year {student.year}</p>
                 </div>
                 {student.branch && (
                   <div className="space-y-1">
-                    <p className="text-xs text-blue-500 uppercase tracking-wide">Branch</p>
-                    <p className="text-sm font-medium text-blue-900">{student.branch}</p>
+                    <p className=" uppercase tracking-wide">Branch</p>
+                    <p className="text-sm font-medium text-gray-500">{student.branch}</p>
                   </div>
                 )}
               </div>
@@ -313,11 +365,11 @@ const StudentDetail = ({
                     <Package size={18} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-blue-900">Stationery Items</h3>
-                    <p className="text-xs text-blue-500">Mapped kit items and add-ons</p>
+                    <h3 className="text-sm font-semibold text-gray-900">Stationery Items</h3>
+                    <p className="text-xs text-gray-500">Mapped kit items and add-ons</p>
                   </div>
                 </div>
-                <div className="text-xs text-blue-600 flex items-center gap-3">
+                <div className="text-xs text-gray-600 flex items-center gap-3">
                   <span>Mapped: {relevantItems.length}</span>
                   <span>Issued: {receivedCount}</span>
                   <span>Pending: {pendingItems.length}</span>
@@ -333,7 +385,7 @@ const StudentDetail = ({
                 ) : (
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-semibold text-blue-500 uppercase tracking-wider">Pending Allocation</h4>
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Allocation</h4>
                       {pendingItems.length > 0 && (
                         <button
                           onClick={() => handleOpenTransaction(pendingItems.map(({ product }) => product), 'mapped')}
@@ -346,7 +398,7 @@ const StudentDetail = ({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {pendingItems.length === 0 ? (
-                        <p className="text-sm text-blue-600/70">All mapped items have been issued.</p>
+                        <p className="text-sm text-gray-600/70">All mapped items have been issued.</p>
                       ) : (
                         pendingItems.map(({ product }) => (
                           <div
@@ -410,9 +462,9 @@ const StudentDetail = ({
                 <div className="w-8 h-8 bg-blue-600/10 text-blue-600 rounded-lg flex items-center justify-center">
                   <History className="w-5 h-5" />
                 </div>
-                <h3 className="font-semibold text-blue-900">Transaction History</h3>
+                <h3 className="font-semibold text-gray-800">Transaction History</h3>
                 {displayTransactions.length > 0 && (
-                  <span className="ml-auto text-xs text-blue-700 bg-blue-100 px-3 py-1 rounded-full">
+                  <span className="ml-auto text-xs text-gray-700 bg-blue-100 px-3 py-1 rounded-full">
                     {displayTransactions.length} {displayTransactions.length === 1 ? 'transaction' : 'transactions'}
                   </span>
                 )}
@@ -426,7 +478,7 @@ const StudentDetail = ({
               ) : displayTransactions.length === 0 ? (
                 <div className="text-center py-12">
                   <History className="w-10 h-10 text-blue-200 mx-auto mb-2" />
-                  <p className="text-sm text-blue-500">No transactions found for this student.</p>
+                  <p className="text-sm text-gray-500">No transactions found for this student.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -441,12 +493,12 @@ const StudentDetail = ({
                       return (
                         <div key={transaction._id}>
                           <div
-                            className="border border-blue-100 rounded-lg p-4 bg-blue-50/60 hover:bg-blue-50 transition-colors"
+                            className="border border-gray-200 rounded-lg p-4  hover:bg-blue-50 transition-colors"
                           >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                  <span className="text-xs font-semibold text-blue-900 truncate">
+                                  <span className="text-xs font-semibold text-gray-500 truncate">
                                     {transaction.transactionId}
                                   </span>
                                   {transaction.isPending && (
@@ -467,7 +519,7 @@ const StudentDetail = ({
                                     {transaction.paymentMethod === 'cash' ? 'Cash' : 'Online'}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-3 text-xs text-blue-700">
+                                <div className="flex items-center gap-3 text-xs text-gray-700">
                                   <div className="flex items-center gap-1">
                                     <Calendar size={12} />
                                     <span>
@@ -489,7 +541,7 @@ const StudentDetail = ({
                               <div className="ml-4 flex items-center gap-2">
                                 <button
                                   onClick={() => triggerPrint()}
-                                  className="px-3 py-1.5 bg-white text-blue-700 hover:bg-blue-50 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors no-print border border-blue-200"
+                                  className="px-3 py-1.5 bg-blue-900 text-white hover:bg-blue-800 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors no-print border border-blue-200"
                                   title="Print Receipt"
                                 >
                                   <Printer size={14} />
@@ -506,18 +558,35 @@ const StudentDetail = ({
 
                             {/* Transaction Items - Collapsible or compact view */}
                             {transaction.items && transaction.items.length > 0 && (
-                              <div className="mt-2 pt-2 border-t border-blue-100">
-                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-blue-800">
-                                  {transaction.items.map((item, idx) => (
-                                    <div key={idx} className="text-xs">
-                                      <span className="font-medium">{item.name}</span>
-                                      <span className=""> ×{item.quantity}</span>
-                                      <span className="font-semibold ml-1">
-                                        ₹{Number(item.total).toFixed(2)}
-                                      </span>
+                              <div className="mt-2 pt-2 border-t border-blue-100 space-y-2">
+                                {transaction.items.map((item, idx) => (
+                                  <div key={idx} className="text-xs text-blue-800 bg-white/70 border border-blue-100 rounded-lg px-3 py-2">
+                                    <div className="flex items-center justify-between">
+                                      <div className="font-medium">{item.name}</div>
+                                      <div className="font-semibold">
+                                        ×{item.quantity} • ₹{Number(item.total).toFixed(2)}
+                                      </div>
                                     </div>
-                                  ))}
-                                </div>
+                                    {item.isSet && item.setComponents?.length > 0 && (
+                                      <div className="mt-1 border-t border-blue-100 pt-1">
+                                        <p className="text-[11px] font-semibold text-blue-600 mb-1">
+                                          Includes:
+                                        </p>
+                                        <ul className="space-y-0.5">
+                                          {item.setComponents.map((component, componentIdx) => (
+                                            <li
+                                              key={`${item.name}-component-inline-${componentIdx}`}
+                                              className="flex justify-between text-[11px] text-blue-700"
+                                            >
+                                              <span className="truncate max-w-[200px]">{component.name}</span>
+                                              <span className="font-semibold">× {component.quantity}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
                             )}
 
@@ -616,7 +685,19 @@ const StudentDetail = ({
                                 <tbody>
                                   {transaction.items && transaction.items.map((item, idx) => (
                                     <tr key={idx}>
-                                      <td>{item.name}</td>
+                                      <td>
+                                        <span style={{ display: 'block', fontWeight: 600 }}>{item.name}</span>
+                                        {item.isSet && item.setComponents?.length > 0 && (
+                                          <ul style={{ margin: '6px 0 0', paddingLeft: '12px', fontSize: '11px', color: '#4b5563' }}>
+                                            {item.setComponents.map((component, componentIdx) => (
+                                              <li key={`${item.name}-component-print-${componentIdx}`} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>{component.name}</span>
+                                                <span style={{ marginLeft: '8px', fontWeight: 600 }}>× {component.quantity}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </td>
                                       <td style={{ textAlign: 'center' }}>{item.quantity}</td>
                                       <td style={{ textAlign: 'right' }}>₹{Number(item.price).toFixed(2)}</td>
                                       <td style={{ textAlign: 'right', fontWeight: '600' }}>₹{Number(item.total).toFixed(2)}</td>

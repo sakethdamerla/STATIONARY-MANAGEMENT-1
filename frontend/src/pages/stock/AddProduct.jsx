@@ -12,7 +12,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  const [viewMode, setViewMode] = useState('cards');
+  const [viewMode, setViewMode] = useState('table');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -28,6 +28,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [setItemToAdd, setSetItemToAdd] = useState('');
+  const [productTypeFilter, setProductTypeFilter] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -63,6 +64,11 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
           return false;
         }
       }
+
+      if (productTypeFilter) {
+        if (productTypeFilter === 'single' && p.isSet) return false;
+        if (productTypeFilter === 'set' && !p.isSet) return false;
+      }
       
       // Search filter
       if (searchQuery) {
@@ -74,7 +80,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
       
       return true;
     });
-  }, [products, selectedCourse, selectedYear, searchQuery]);
+  }, [products, selectedCourse, selectedYear, searchQuery, productTypeFilter]);
 
   const availableSetProducts = useMemo(() => {
     const selectedIds = new Set((formData.setItems || []).map(item => item.productId));
@@ -441,7 +447,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -480,6 +486,19 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
               {(config?.courses?.find(c => c.name === selectedCourse)?.years || []).map(y => (
                 <option key={y} value={y}>Year {y}</option>
               ))}
+            </select>
+          </div>
+
+          {/* Product Type Filter */}
+          <div>
+            <select
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+              value={productTypeFilter}
+              onChange={(e) => setProductTypeFilter(e.target.value)}
+            >
+              <option value="">All Product Types</option>
+              <option value="single">Single Products</option>
+              <option value="set">Set / Kit Products</option>
             </select>
           </div>
         </div>
