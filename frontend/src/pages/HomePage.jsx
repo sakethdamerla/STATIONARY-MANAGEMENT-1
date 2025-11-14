@@ -28,8 +28,13 @@ const HomePage = () => {
         if (!res.ok) return;
         const data = await res.json();
         if (!isMounted) return;
-        const header = typeof data.receiptHeader === 'string' ? data.receiptHeader.trim() : '';
-        const subheader = typeof data.receiptSubheader === 'string' ? data.receiptSubheader.trim() : '';
+        // Use appName/appSubheader for application branding, fallback to receipt fields for backward compatibility
+        const header = typeof data.appName === 'string' && data.appName.trim() 
+          ? data.appName.trim() 
+          : (typeof data.receiptHeader === 'string' ? data.receiptHeader.trim() : '');
+        const subheader = typeof data.appSubheader === 'string' && data.appSubheader.trim()
+          ? data.appSubheader.trim()
+          : (typeof data.receiptSubheader === 'string' ? data.receiptSubheader.trim() : '');
         setBranding({
           header,
           subheader,

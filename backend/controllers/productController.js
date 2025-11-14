@@ -63,6 +63,16 @@ const createProduct = async (req, res) => {
       parsedYears = parsedYear === 0 ? [] : [parsedYear]; // 0 means all years (empty array)
     }
   }
+
+  // Handle branch array - if branch is provided as array, use it; otherwise handle string for backward compatibility
+  let parsedBranches = [];
+  if (branch !== undefined && branch !== null) {
+    if (Array.isArray(branch)) {
+      parsedBranches = branch.filter(b => typeof b === 'string' && b.trim().length > 0).map(b => b.trim());
+    } else if (typeof branch === 'string' && branch.trim().length > 0) {
+      parsedBranches = [branch.trim()]; // Convert single string to array for backward compatibility
+    }
+  }
   
   // sanitize numeric fields
   const parsedPrice = price !== undefined && price !== null && price !== '' ? Number(price) : 0;
@@ -88,7 +98,7 @@ const createProduct = async (req, res) => {
       stock: parsedStock,
       imageUrl,
       forCourse: forCourse || '',
-      branch: branch || '',
+      branch: parsedBranches,
       years: parsedYears,
       year: parsedYears.length === 1 ? parsedYears[0] : (parsedYears.length === 0 ? 0 : parsedYears[0]), // Backward compatibility
       remarks: remarks || '',
@@ -176,6 +186,18 @@ const updateProduct = async (req, res) => {
     }
   }
 
+  // Handle branch array - if branch is provided as array, use it; otherwise handle string for backward compatibility
+  let parsedBranches = undefined;
+  if (branch !== undefined && branch !== null) {
+    if (Array.isArray(branch)) {
+      parsedBranches = branch.filter(b => typeof b === 'string' && b.trim().length > 0).map(b => b.trim());
+    } else if (typeof branch === 'string' && branch.trim().length > 0) {
+      parsedBranches = [branch.trim()]; // Convert single string to array for backward compatibility
+    } else {
+      parsedBranches = []; // Empty array if branch is empty string or null
+    }
+  }
+
     // Track price change before updating
     const oldPrice = product.price;
     const newPrice = price !== undefined && price !== null && price !== '' ? Number(price) : product.price;
@@ -202,7 +224,9 @@ const updateProduct = async (req, res) => {
     product.stock = stock ?? product.stock;
     product.imageUrl = imageUrl ?? product.imageUrl;
     product.forCourse = forCourse ?? product.forCourse;
-    product.branch = branch ?? product.branch;
+    if (parsedBranches !== undefined) {
+      product.branch = parsedBranches;
+    }
     if (parsedYears !== undefined) {
       product.years = parsedYears;
       product.year = parsedYears.length === 1 ? parsedYears[0] : (parsedYears.length === 0 ? 0 : parsedYears[0]); // Backward compatibility

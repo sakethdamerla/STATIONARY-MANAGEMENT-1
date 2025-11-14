@@ -102,6 +102,17 @@ const StudentDetail = ({
     }
     // If product has no years specified (empty array), it applies to all years (for that course)
 
+    // Branch filter: if product has branches, student's branch must be in the array
+    const productBranches = Array.isArray(p.branch) 
+      ? p.branch 
+      : (p.branch ? [p.branch] : []);
+    if (productBranches.length > 0) {
+      const studentBranchNormalized = normalizeCourse(student?.branch || '');
+      const normalizedProductBranches = productBranches.map(b => normalizeCourse(b));
+      if (!normalizedProductBranches.includes(studentBranchNormalized)) return false;
+    }
+    // If product has no branches specified (empty array), it applies to all branches (for that course)
+
     return true;
   });
 

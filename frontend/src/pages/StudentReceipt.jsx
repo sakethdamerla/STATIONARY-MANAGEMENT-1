@@ -68,7 +68,13 @@ const StudentReceiptModal = ({
     let isMounted = true;
     const fetchSettings = async () => {
       try {
-        const response = await fetch(apiUrl('/api/settings'));
+        // Get course-specific receipt headers if student has a course
+        const course = student?.course;
+        const url = course 
+          ? apiUrl(`/api/settings?course=${encodeURIComponent(course)}`)
+          : apiUrl('/api/settings');
+        
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           if (isMounted) {
@@ -80,14 +86,23 @@ const StudentReceiptModal = ({
         }
       } catch (error) {
         console.warn('Could not load receipt settings:', error.message || error);
+        // Fallback to defaults
+        if (isMounted) {
+          setReceiptConfig({
+            receiptHeader: 'PYDAH COLLEGE OF ENGINEERING',
+            receiptSubheader: 'Stationery Management System',
+          });
+        }
       }
     };
 
-    fetchSettings();
+    if (student) {
+      fetchSettings();
+    }
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [student?.course]); // Re-fetch when student course changes
 
   const triggerPrint = useReactToPrint({
     contentRef: receiptRef,

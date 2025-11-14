@@ -1,34 +1,78 @@
 import { useEffect, useState } from 'react';
-import { Save, RefreshCcw } from 'lucide-react';
+import { Save, Settings as SettingsIcon, ChevronDown, ChevronUp, Receipt, GraduationCap, Monitor } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 
 const defaultSettings = {
+  appName: 'PYDAH COLLEGE OF ENGINEERING',
+  appSubheader: 'Stationery Management System',
   receiptHeader: 'PYDAH COLLEGE OF ENGINEERING',
   receiptSubheader: 'Stationery Management System',
 };
 
 const Settings = () => {
-  const [form, setForm] = useState(defaultSettings);
+  const [config, setConfig] = useState(null);
+  const [appForm, setAppForm] = useState({
+    appName: defaultSettings.appName,
+    appSubheader: defaultSettings.appSubheader,
+  });
+  const [receiptForm, setReceiptForm] = useState({
+    receiptHeader: defaultSettings.receiptHeader,
+    receiptSubheader: defaultSettings.receiptSubheader,
+  });
+  const [courseForms, setCourseForms] = useState({});
+  const [expandedCourses, setExpandedCourses] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
-    const fetchSettings = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch(apiUrl('/api/settings'));
-        if (response.ok) {
-          const data = await response.json();
+        // Fetch global settings and academic config
+        const [settingsRes, configRes] = await Promise.all([
+          fetch(apiUrl('/api/settings')),
+          fetch(apiUrl('/api/config/academic'))
+        ]);
+
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
           if (isMounted) {
-            setForm({
-              receiptHeader: data.receiptHeader || defaultSettings.receiptHeader,
-              receiptSubheader: data.receiptSubheader || defaultSettings.receiptSubheader,
+            // App branding settings
+            setAppForm({
+              appName: settingsData.appName || settingsData.receiptHeader || defaultSettings.appName,
+              appSubheader: settingsData.appSubheader || settingsData.receiptSubheader || defaultSettings.appSubheader,
+            });
+            // Receipt settings
+            setReceiptForm({
+              receiptHeader: settingsData.receiptHeader || defaultSettings.receiptHeader,
+              receiptSubheader: settingsData.receiptSubheader || defaultSettings.receiptSubheader,
             });
           }
         }
+
+        if (configRes.ok) {
+          const configData = await configRes.json();
+          if (isMounted) {
+            setConfig(configData);
+            // Initialize course forms with their receipt headers
+            const forms = {};
+            if (configData.courses && Array.isArray(configData.courses)) {
+              configData.courses.forEach(course => {
+                const courseId = course._id || course.name || String(course);
+                if (courseId) {
+                  forms[courseId] = {
+                    receiptHeader: course.receiptHeader || '',
+                    receiptSubheader: course.receiptSubheader || '',
+                  };
+                }
+              });
+            }
+            setCourseForms(forms);
+          }
+        }
       } catch (error) {
-        console.warn('Failed to load receipt settings:', error.message || error);
+        console.warn('Failed to load settings:', error.message || error);
         if (isMounted) {
           setFeedback({ type: 'error', message: 'Could not load current settings. Please try again later.' });
         }
@@ -37,23 +81,41 @@ const Settings = () => {
       }
     };
 
-    fetchSettings();
+    fetchData();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const handleChange = (evt) => {
+  const handleAppChange = (evt) => {
     const { name, value } = evt.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setAppForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleReset = () => {
-    setForm(defaultSettings);
-    setFeedback(null);
+  const handleReceiptChange = (evt) => {
+    const { name, value } = evt.target;
+    setReceiptForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (evt) => {
+  const handleCourseChange = (courseId, evt) => {
+    const { name, value } = evt.target;
+    setCourseForms(prev => ({
+      ...prev,
+      [courseId]: {
+        ...prev[courseId],
+        [name]: value,
+      },
+    }));
+  };
+
+  const toggleCourseExpand = (courseId) => {
+    setExpandedCourses(prev => ({
+      ...prev,
+      [courseId]: !prev[courseId],
+    }));
+  };
+
+  const handleAppSubmit = async (evt) => {
     evt.preventDefault();
     setSaving(true);
     setFeedback(null);
@@ -62,7 +124,10 @@ const Settings = () => {
       const response = await fetch(apiUrl('/api/settings'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          appName: appForm.appName,
+          appSubheader: appForm.appSubheader,
+        }),
       });
 
       if (!response.ok) {
@@ -71,7 +136,41 @@ const Settings = () => {
       }
 
       const data = await response.json();
-      setForm({
+      setAppForm({
+        appName: data.appName || data.receiptHeader || defaultSettings.appName,
+        appSubheader: data.appSubheader || data.receiptSubheader || defaultSettings.appSubheader,
+      });
+      setFeedback({ type: 'success', message: 'Application branding updated successfully.' });
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      setFeedback({ type: 'error', message: error.message || 'Failed to update settings.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReceiptSubmit = async (evt) => {
+    evt.preventDefault();
+    setSaving(true);
+    setFeedback(null);
+
+    try {
+      const response = await fetch(apiUrl('/api/settings'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          receiptHeader: receiptForm.receiptHeader,
+          receiptSubheader: receiptForm.receiptSubheader,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to update settings');
+      }
+
+      const data = await response.json();
+      setReceiptForm({
         receiptHeader: data.receiptHeader || defaultSettings.receiptHeader,
         receiptSubheader: data.receiptSubheader || defaultSettings.receiptSubheader,
       });
@@ -79,6 +178,52 @@ const Settings = () => {
     } catch (error) {
       console.error('Error updating settings:', error);
       setFeedback({ type: 'error', message: error.message || 'Failed to update settings.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCourseSubmit = async (courseId, evt) => {
+    evt.preventDefault();
+    setSaving(true);
+    setFeedback(null);
+
+    try {
+      const courseForm = courseForms[courseId];
+      if (!config || !config.courses) {
+        throw new Error('Course configuration not loaded');
+      }
+
+      // Update the course in the config
+      const updatedCourses = config.courses.map(course => {
+        const id = course._id || course.name;
+        if (String(id) === String(courseId)) {
+          return {
+            ...course,
+            receiptHeader: courseForm.receiptHeader || '',
+            receiptSubheader: courseForm.receiptSubheader || '',
+          };
+        }
+        return course;
+      });
+
+      const response = await fetch(apiUrl('/api/config/academic'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courses: updatedCourses }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to update course settings');
+      }
+
+      const data = await response.json();
+      setConfig(data);
+      setFeedback({ type: 'success', message: 'Course receipt settings updated successfully.' });
+    } catch (error) {
+      console.error('Error updating course settings:', error);
+      setFeedback({ type: 'error', message: error.message || 'Failed to update course settings.' });
     } finally {
       setSaving(false);
     }
@@ -97,90 +242,286 @@ const Settings = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <header className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600">Configure the text that appears on receipt headers.</p>
-        </header>
-
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-6">
-          <div className="space-y-2">
-            <label htmlFor="receiptHeader" className="text-sm font-semibold text-gray-800">
-              Receipt Header Title
-            </label>
-            <input
-              id="receiptHeader"
-              name="receiptHeader"
-              type="text"
-              value={form.receiptHeader}
-              onChange={handleChange}
-              maxLength={120}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter the main title for receipt headers"
-              required
-            />
-            <p className="text-xs text-gray-500">This appears in the top line of receipts and PDF reports.</p>
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+            <SettingsIcon className="text-white" size={24} />
           </div>
-
-          <div className="space-y-2">
-            <label htmlFor="receiptSubheader" className="text-sm font-semibold text-gray-800">
-              Receipt Subheader
-            </label>
-            <input
-              id="receiptSubheader"
-              name="receiptSubheader"
-              type="text"
-              value={form.receiptSubheader}
-              onChange={handleChange}
-              maxLength={160}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter the subtitle that appears below the header"
-            />
-            <p className="text-xs text-gray-500">Optional line shown beneath the main title.</p>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Application Settings</h1>
+            <p className="text-gray-600 mt-1">Configure application branding and receipt headers</p>
           </div>
+        </div>
 
-          {feedback && (
-            <div
-              className={`px-4 py-3 rounded-lg text-sm font-medium border ${
-                feedback.type === 'success'
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-red-50 border-red-200 text-red-700'
-              }`}
-            >
-              {feedback.message}
+        {/* Application Branding Settings */}
+        <form onSubmit={handleAppSubmit} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <Monitor className="text-indigo-600" size={20} />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Application Branding</h2>
+                <p className="text-sm text-gray-600">Used on HomePage, Login, and throughout the application</p>
+              </div>
             </div>
-          )}
+          </div>
+          
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <label htmlFor="appName" className="block text-sm font-semibold text-gray-700">
+                  Application Name
+                </label>
+                <input
+                  id="appName"
+                  name="appName"
+                  type="text"
+                  value={appForm.appName}
+                  onChange={handleAppChange}
+                  maxLength={120}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  placeholder="e.g., PYDAH COLLEGE OF ENGINEERING"
+                  required
+                />
+                <p className="text-xs text-gray-500">Main title displayed on HomePage and Login</p>
+              </div>
 
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200 transition"
-            >
-              <RefreshCcw size={16} />
-              Reset Defaults
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Save size={16} />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+              <div className="space-y-2">
+                <label htmlFor="appSubheader" className="block text-sm font-semibold text-gray-700">
+                  Application Subheader
+                </label>
+                <input
+                  id="appSubheader"
+                  name="appSubheader"
+                  type="text"
+                  value={appForm.appSubheader}
+                  onChange={handleAppChange}
+                  maxLength={160}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  placeholder="e.g., Stationery Management System"
+                />
+                <p className="text-xs text-gray-500">Optional subtitle below the app name</p>
+              </div>
+            </div>
+
+            {feedback && feedback.message.includes('Application') && (
+              <div
+                className={`px-4 py-3 rounded-lg text-sm font-medium border ${
+                  feedback.type === 'success'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+              >
+                <Save size={16} />
+                {saving ? 'Saving...' : 'Save App Settings'}
+              </button>
+            </div>
           </div>
         </form>
 
-        <section className="bg-white border border-blue-100 rounded-2xl shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-blue-900 mb-3">Preview</h2>
-          <div className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-xl p-6 text-center space-y-1">
-            <p className="text-lg font-bold">{form.receiptHeader}</p>
-            <p className="text-xs text-blue-100">{form.receiptSubheader || '—'}</p>
+        {/* Receipt Settings */}
+        <form onSubmit={handleReceiptSubmit} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Receipt className="text-blue-600" size={20} />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Global Receipt Settings</h2>
+                <p className="text-sm text-gray-600">Default headers used on receipts and PDF reports</p>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-gray-500 mt-3">
-            Receipts and generated PDF reports will reflect these values.
-          </p>
-        </section>
+          
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <label htmlFor="receiptHeader" className="block text-sm font-semibold text-gray-700">
+                  Receipt Header
+                </label>
+                <input
+                  id="receiptHeader"
+                  name="receiptHeader"
+                  type="text"
+                  value={receiptForm.receiptHeader}
+                  onChange={handleReceiptChange}
+                  maxLength={120}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  placeholder="e.g., PYDAH COLLEGE OF ENGINEERING"
+                  required
+                />
+                <p className="text-xs text-gray-500">Main title displayed on all receipts</p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="receiptSubheader" className="block text-sm font-semibold text-gray-700">
+                  Receipt Subheader
+                </label>
+                <input
+                  id="receiptSubheader"
+                  name="receiptSubheader"
+                  type="text"
+                  value={receiptForm.receiptSubheader}
+                  onChange={handleReceiptChange}
+                  maxLength={160}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  placeholder="e.g., Stationery Management System"
+                />
+                <p className="text-xs text-gray-500">Optional subtitle below the header</p>
+              </div>
+            </div>
+
+            {feedback && feedback.message.includes('Receipt') && (
+              <div
+                className={`px-4 py-3 rounded-lg text-sm font-medium border ${
+                  feedback.type === 'success'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}
+              >
+                {feedback.message}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+              >
+                <Save size={16} />
+                {saving ? 'Saving...' : 'Save Receipt Settings'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Course-Specific Settings */}
+        {config && config.courses && config.courses.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <GraduationCap className="text-purple-600" size={20} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Course-Specific Settings</h2>
+                  <p className="text-sm text-gray-600">Override global settings for specific courses</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-3">
+              {config.courses.map(course => {
+                const courseId = course._id || course.name || String(course);
+                const isExpanded = expandedCourses[courseId];
+                const courseForm = courseForms[courseId] || { receiptHeader: '', receiptSubheader: '' };
+                const hasCustomSettings = (courseForm.receiptHeader && courseForm.receiptHeader.trim()) || (courseForm.receiptSubheader && courseForm.receiptSubheader.trim());
+                const courseDisplayName = course.displayName || course.name || 'Unnamed Course';
+
+                return (
+                  <div key={courseId} className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50/50">
+                    <button
+                      type="button"
+                      onClick={() => toggleCourseExpand(courseId)}
+                      className="w-full px-4 py-3 hover:bg-gray-100 transition-colors flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${hasCustomSettings ? 'bg-green-500' : 'bg-gray-300'}`} />
+                        <div className="text-left">
+                          <span className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
+                            {courseDisplayName}
+                          </span>
+                          {hasCustomSettings && (
+                            <span className="ml-2 text-xs text-green-600 font-medium">(Custom)</span>
+                          )}
+                        </div>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronUp size={18} className="text-gray-400 group-hover:text-purple-600 transition-colors" />
+                      ) : (
+                        <ChevronDown size={18} className="text-gray-400 group-hover:text-purple-600 transition-colors" />
+                      )}
+                    </button>
+
+                    {isExpanded && (
+                      <form onSubmit={(e) => handleCourseSubmit(courseId, e)} className="p-5 space-y-4 bg-white border-t border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="block text-sm font-semibold text-gray-700">
+                              Receipt Header
+                            </label>
+                            <input
+                              name="receiptHeader"
+                              type="text"
+                              value={courseForm.receiptHeader}
+                              onChange={(e) => handleCourseChange(courseId, e)}
+                              maxLength={120}
+                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                              placeholder="Leave empty for global"
+                            />
+                            <p className="text-xs text-gray-500">Uses global if empty</p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-sm font-semibold text-gray-700">
+                              Receipt Subheader
+                            </label>
+                            <input
+                              name="receiptSubheader"
+                              type="text"
+                              value={courseForm.receiptSubheader}
+                              onChange={(e) => handleCourseChange(courseId, e)}
+                              maxLength={160}
+                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                              placeholder="Leave empty for global"
+                            />
+                            <p className="text-xs text-gray-500">Uses global if empty</p>
+                          </div>
+                        </div>
+
+                        {feedback && feedback.message.includes('Course') && (
+                          <div
+                            className={`px-4 py-3 rounded-lg text-sm font-medium border ${
+                              feedback.type === 'success'
+                                ? 'bg-green-50 border-green-200 text-green-700'
+                                : 'bg-red-50 border-red-200 text-red-700'
+                            }`}
+                          >
+                            {feedback.message}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={saving}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+                          >
+                            <Save size={14} />
+                            {saving ? 'Saving...' : 'Save Settings'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

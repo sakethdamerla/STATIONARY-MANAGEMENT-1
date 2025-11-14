@@ -27,6 +27,8 @@ const upsertAcademicConfig = asyncHandler(async (req, res) => {
     displayName: String(c.displayName || c.name || '').trim(),
     years: Array.from(new Set((c.years || []).map(Number))).filter(Boolean).sort((a, b) => a - b),
     branches: Array.from(new Set((c.branches || []).map(String))),
+    receiptHeader: String(c.receiptHeader || '').trim(),
+    receiptSubheader: String(c.receiptSubheader || '').trim(),
   }));
   await cfg.save();
   res.json(cfg);
@@ -56,11 +58,14 @@ const createCourse = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('Course already exists');
   }
+  const { receiptHeader = '', receiptSubheader = '' } = req.body || {};
   cfg.courses.push({
     name: normalizedCode,
     displayName: normalizedName,
     years: Array.from(new Set((years || []).map(Number))).filter(Boolean).sort((a, b) => a - b),
     branches: Array.from(new Set((branches || []).map(String))),
+    receiptHeader: String(receiptHeader).trim(),
+    receiptSubheader: String(receiptSubheader).trim(),
   });
   await cfg.save();
   const saved = cfg.courses[cfg.courses.length - 1];

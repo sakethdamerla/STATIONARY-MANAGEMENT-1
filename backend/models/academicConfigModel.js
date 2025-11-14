@@ -6,6 +6,17 @@ const courseSchema = new mongoose.Schema(
     displayName: { type: String, required: true, trim: true },
     years: { type: [Number], default: [1] },
     branches: { type: [String], default: [] },
+    // Course-specific receipt header settings
+    receiptHeader: { 
+      type: String, 
+      trim: true,
+      default: '' 
+    },
+    receiptSubheader: { 
+      type: String, 
+      trim: true,
+      default: '' 
+    },
   },
   { _id: true }
 );

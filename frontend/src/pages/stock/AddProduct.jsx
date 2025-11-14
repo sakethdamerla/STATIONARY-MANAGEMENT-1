@@ -21,6 +21,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
     remarks: '',
     forCourse: selectedCourse || '',
     years: [],
+    branch: [],
     isSet: false,
     setItems: [],
     lowStockThreshold: 10,
@@ -136,6 +137,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         remarks: selectedProduct.remarks || '',
         forCourse: selectedProduct.forCourse || '',
         years: productYears,
+        branch: Array.isArray(selectedProduct.branch) ? selectedProduct.branch : (selectedProduct.branch ? [selectedProduct.branch] : []),
         isSet: Boolean(selectedProduct.isSet),
         setItems: (selectedProduct.setItems || []).map(item => ({
           productId: item?.product?._id || item?.product || '',
@@ -159,6 +161,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         remarks: '',
         forCourse: selectedCourse || '',
         years: selectedYear ? [Number(selectedYear)] : [],
+        branch: [],
         isSet: false,
         setItems: [],
         lowStockThreshold: 10,
@@ -187,6 +190,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
       };
       if (name === 'forCourse') {
         newData.years = [];
+        newData.branch = []; // Reset branches when course changes
       }
       return newData;
     });
@@ -208,6 +212,25 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
       return {
         ...prev,
         years: newYears
+      };
+    });
+  };
+
+  const handleBranchToggle = (branch) => {
+    setFormData(prev => {
+      const currentBranches = prev.branch || [];
+      const isSelected = currentBranches.includes(branch);
+      
+      let newBranches;
+      if (isSelected) {
+        newBranches = currentBranches.filter(b => b !== branch);
+      } else {
+        newBranches = [...currentBranches, branch].sort((a, b) => a.localeCompare(b));
+      }
+      
+      return {
+        ...prev,
+        branch: newBranches
       };
     });
   };
@@ -331,6 +354,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             remarks: formData.remarks || '',
             forCourse: formData.forCourse || undefined,
             years: formData.years || [],
+            branch: Array.isArray(formData.branch) && formData.branch.length > 0 ? formData.branch : undefined,
             isSet: formData.isSet || undefined,
             setItems: formData.isSet
               ? (formData.setItems || []).map(item => ({
@@ -1115,6 +1139,56 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         </div>
                       )}
                     </div>
+
+                    {/* Branches */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Branches</label>
+                      {isEditing ? (
+                        <div className="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                          <div className="flex flex-wrap gap-3">
+                            {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).map(branch => {
+                              const isChecked = (formData.branch || []).includes(branch);
+                              return (
+                                <label
+                                  key={branch}
+                                  className="flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer transition-all hover:border-blue-400"
+                                  style={{
+                                    borderColor: isChecked ? '#3b82f6' : '#d1d5db',
+                                    backgroundColor: isChecked ? '#eff6ff' : 'white'
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleBranchToggle(branch)}
+                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="font-medium text-gray-700">{branch}</span>
+                                </label>
+                              );
+                            })}
+                            {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).length === 0 && (
+                              <p className="text-sm text-gray-500">Select a course to see available branches</p>
+                            )}
+                          </div>
+                          {(formData.branch || []).length === 0 && (
+                            <p className="text-xs text-gray-500 mt-2">No branches selected - product applies to all branches</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 border border-gray-300 rounded-lg p-3">
+                          {(() => {
+                            const productBranches = Array.isArray(selectedProduct.branch) 
+                              ? selectedProduct.branch 
+                              : (selectedProduct.branch ? [selectedProduct.branch] : []);
+                            const branchesDisplay = productBranches.length === 0 
+                              ? 'All Branches' 
+                              : productBranches.sort((a, b) => a.localeCompare(b)).join(', ');
+                            return <p className="text-gray-700 font-medium">{branchesDisplay}</p>;
+                          })()}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1407,7 +1481,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                     <section className="bg-white/90 backdrop-blur border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                       <div className="px-5 py-4 border-b border-gray-100">
                         <h3 className="text-lg font-semibold text-gray-900">Applicability</h3>
-                        <p className="text-sm text-gray-500">Control which courses and academic years can see this product.</p>
+                        <p className="text-sm text-gray-500">Control which courses, branches, and academic years can see this product.</p>
                       </div>
                       <div className="px-5 py-4 space-y-4">
                     <div>
@@ -1454,6 +1528,36 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         )}
                       </div>
                     </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Branches</label>
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5">
+                        <div className="flex flex-wrap gap-2.5">
+                          {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).map(branch => {
+                            const isChecked = (formData.branch || []).includes(branch);
+                            return (
+                              <label
+                                key={branch}
+                                className={`flex items-center gap-2 px-3.5 py-1.5 border-2 rounded-lg cursor-pointer transition-all ${isChecked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleBranchToggle(branch)}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <span className="font-medium text-sm">{branch}</span>
+                              </label>
+                            );
+                          })}
+                          {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).length === 0 && (
+                            <p className="text-sm text-gray-500">Select a course to see available branches.</p>
+                          )}
+                        </div>
+                        {(formData.branch || []).length === 0 && (
+                          <p className="text-xs text-gray-500 mt-2">No branches selected — the product will be visible to all branches.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                     </section>
                 </div>
@@ -1481,6 +1585,10 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         <div>
                           <p className="text-blue-100">Years</p>
                           <p className="text-sm font-semibold">{(formData.years || []).length > 0 ? formData.years.sort((a,b) => a - b).map(y => `Y${y}`).join(', ') : 'All Years'}</p>
+                        </div>
+                        <div>
+                          <p className="text-blue-100">Branches</p>
+                          <p className="text-sm font-semibold">{(formData.branch || []).length > 0 ? formData.branch.sort((a,b) => a.localeCompare(b)).join(', ') : 'All Branches'}</p>
                         </div>
                         {!formData.isSet && (
                           <div className="col-span-2">

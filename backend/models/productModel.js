@@ -49,11 +49,16 @@ const productSchema = new mongoose.Schema(
       max: 10,
       default: 0,
     },
-    // Optional branch applicability (e.g., CSE, ECE)
+    // Optional branch applicability (e.g., CSE, ECE) - array for multiple branches
     branch: {
-      type: String,
-      trim: true,
-      default: '',
+      type: [String],
+      default: [],
+      validate: {
+        validator: function(v) {
+          return Array.isArray(v) && v.every(b => typeof b === 'string' && b.trim().length > 0);
+        },
+        message: 'Branch must be an array of non-empty strings'
+      }
     },
     stock: {
       type: Number,

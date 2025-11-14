@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Eye, Users, ClipboardList, Building2, AlertCircle, Download } from 'lucide-react';
+import { Search, Eye, Users, ClipboardList, Building2, AlertCircle, Download, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 
 const normalizeValue = (value) => {
@@ -34,30 +34,42 @@ const StudentDue = () => {
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [products, setProducts] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState('');
-  const [dueFilters, setDueFilters] = useState({ search: '', course: '', year: '' });
+  const [studentsError, setStudentsError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [dueFilters, setDueFilters] = useState({ search: '', course: '', year: '', branch: '' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   useEffect(() => {
     fetchStudents();
     fetchProducts();
   }, []);
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
+      setStudentsLoading(true);
+      setStudentsError('');
       const response = await fetch(apiUrl('/api/users'));
       if (response.ok) {
         const data = await response.json();
         setStudents(Array.isArray(data) ? data : []);
         const uniqueCourses = Array.from(new Set((data || []).map(s => s.course))).filter(Boolean);
         setCourses(uniqueCourses);
+      } else {
+        throw new Error('Failed to fetch students');
       }
     } catch (error) {
       console.error('Error fetching students:', error);
+      setStudentsError(error.message || 'Failed to load students');
+    } finally {
+      setStudentsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setProductsLoading(true);
       setProductsError('');
@@ -73,7 +85,18 @@ const StudentDue = () => {
     } finally {
       setProductsLoading(false);
     }
-  };
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchStudents(), fetchProducts()]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchStudents, fetchProducts]);
 
   const courseOptions = useMemo(() => {
     return [...courses].filter(Boolean).sort((a, b) => a.localeCompare(b));
@@ -90,48 +113,124 @@ const StudentDue = () => {
     return Array.from(years).sort((a, b) => a - b);
   }, [students]);
 
+  const branchOptions = useMemo(() => {
+    if (!dueFilters.course) {
+      // If no course selected, show all branches from all students
+      const branches = new Set();
+      students.forEach(student => {
+        if (student.branch && student.branch.trim()) {
+          branches.add(student.branch.trim());
+        }
+      });
+      return Array.from(branches).sort((a, b) => a.localeCompare(b));
+    }
+    
+    // Filter branches by selected course
+    const courseNormalized = normalizeValue(dueFilters.course);
+    const branches = new Set();
+    students.forEach(student => {
+      if (normalizeValue(student.course) === courseNormalized && student.branch && student.branch.trim()) {
+        branches.add(student.branch.trim());
+      }
+    });
+    return Array.from(branches).sort((a, b) => a.localeCompare(b));
+  }, [students, dueFilters.course]);
+
+  // Pre-normalize and precompute product data for performance
+  const normalizedProducts = useMemo(() => {
+    return products.map(product => ({
+      ...product,
+      _normalizedCourse: normalizeValue(product.forCourse),
+      _normalizedBranches: (Array.isArray(product.branch) 
+        ? product.branch 
+        : (product.branch ? [product.branch] : [])).map(b => normalizeValue(b)),
+      _years: getProductYears(product),
+      _key: getItemKey(product.name),
+    }));
+  }, [products]);
+
+  // Pre-normalize student data
+  const normalizedStudents = useMemo(() => {
+    return students.map(student => ({
+      ...student,
+      _normalizedCourse: normalizeValue(student.course),
+      _normalizedBranch: normalizeValue(student.branch),
+      _year: Number(student.year),
+      _itemsMap: student.items || {},
+    }));
+  }, [students]);
+
   const dueStudents = useMemo(() => {
-    if (!students.length || !products.length) return [];
+    if (!normalizedStudents.length || !normalizedProducts.length) return [];
 
-    const records = students.map(student => {
-      const studentCourse = normalizeValue(student.course);
-      const studentYear = Number(student.year);
-      const studentBranch = normalizeValue(student.branch);
+    const records = [];
+    
+    // Optimize: group products by course first to reduce iterations
+    const productsByCourse = new Map();
+    normalizedProducts.forEach(product => {
+      if (!product._normalizedCourse) return;
+      if (!productsByCourse.has(product._normalizedCourse)) {
+        productsByCourse.set(product._normalizedCourse, []);
+      }
+      productsByCourse.get(product._normalizedCourse).push(product);
+    });
 
-      const mappedProducts = products.filter(product => {
-        const productCourse = normalizeValue(product.forCourse);
-        if (!productCourse) return false;
-        if (productCourse !== studentCourse) return false;
+    for (const student of normalizedStudents) {
+      // Early exit if student has no course
+      if (!student._normalizedCourse) continue;
 
-        const productBranch = normalizeValue(product.branch);
-        if (productBranch && productBranch !== studentBranch) return false;
+      // Get products for this course only (reduces filter iterations)
+      const courseProducts = productsByCourse.get(student._normalizedCourse) || [];
+      if (!courseProducts.length) continue;
 
-        const productYears = getProductYears(product);
-        if (productYears.length > 0 && !productYears.includes(studentYear)) return false;
+      // Filter products matching student's year and branch
+      const mappedProducts = [];
+      for (const product of courseProducts) {
+        // Year filter
+        if (product._years.length > 0 && !product._years.includes(student._year)) {
+          continue;
+        }
 
-        return true;
-      });
+        // Branch filter
+        if (product._normalizedBranches.length > 0) {
+          if (!product._normalizedBranches.includes(student._normalizedBranch)) {
+            continue;
+          }
+        }
 
-      if (!mappedProducts.length) {
-        return null;
+        mappedProducts.push(product);
       }
 
-      const itemsMap = student.items || {};
-      const pendingItems = mappedProducts.filter(product => {
-        const key = getItemKey(product.name);
-        return !itemsMap[key];
-      });
+      if (!mappedProducts.length) continue;
 
-      if (!pendingItems.length) {
-        return null;
+      // Find pending items
+      const pendingItems = [];
+      for (const product of mappedProducts) {
+        if (!student._itemsMap[product._key]) {
+          pendingItems.push(product);
+        }
       }
 
+      if (!pendingItems.length) continue;
+
+      // Calculate values
       const issuedCount = mappedProducts.length - pendingItems.length;
-      const mappedValue = mappedProducts.reduce((sum, product) => sum + (Number(product.price) || 0), 0);
-      const pendingValue = pendingItems.reduce((sum, product) => sum + (Number(product.price) || 0), 0);
+      let mappedValue = 0;
+      let pendingValue = 0;
+      
+      for (const product of mappedProducts) {
+        const price = Number(product.price) || 0;
+        mappedValue += price;
+      }
+      
+      for (const product of pendingItems) {
+        const price = Number(product.price) || 0;
+        pendingValue += price;
+      }
+      
       const issuedValue = Math.max(mappedValue - pendingValue, 0);
 
-      return {
+      records.push({
         student,
         mappedProducts,
         pendingItems,
@@ -139,9 +238,10 @@ const StudentDue = () => {
         mappedValue,
         pendingValue,
         issuedValue,
-      };
-    }).filter(Boolean);
+      });
+    }
 
+    // Sort records
     return records.sort((a, b) => {
       const courseCompare = (a.student.course || '').localeCompare(b.student.course || '');
       if (courseCompare !== 0) return courseCompare;
@@ -151,17 +251,19 @@ const StudentDue = () => {
 
       return (a.student.name || '').localeCompare(b.student.name || '');
     });
-  }, [students, products]);
+  }, [normalizedStudents, normalizedProducts]);
 
   const filteredDueStudents = useMemo(() => {
     const searchValue = dueFilters.search.trim().toLowerCase();
     const selectedCourse = normalizeValue(dueFilters.course);
     const selectedYear = Number(dueFilters.year);
+    const selectedBranch = dueFilters.branch ? normalizeValue(dueFilters.branch) : null;
 
     return dueStudents.filter(record => {
       const { student } = record;
       if (selectedCourse && normalizeValue(student.course) !== selectedCourse) return false;
       if (!Number.isNaN(selectedYear) && selectedYear > 0 && Number(student.year) !== selectedYear) return false;
+      if (selectedBranch && normalizeValue(student.branch) !== selectedBranch) return false;
 
       if (searchValue) {
         const matchesSearch =
@@ -189,6 +291,31 @@ const StudentDue = () => {
     };
   }, [filteredDueStudents]);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredDueStudents.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedDueStudents = useMemo(() => {
+    return filteredDueStudents.slice(startIndex, endIndex);
+  }, [filteredDueStudents, startIndex, endIndex]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dueFilters]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(Number(newItemsPerPage));
+    setCurrentPage(1);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -202,6 +329,14 @@ const StudentDue = () => {
               <p className="text-gray-600 mt-1">Track students who still need their mapped stationery items</p>
             </div>
           </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing || studentsLoading || productsLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+          >
+            <RefreshCw size={16} className={refreshing || studentsLoading || productsLoading ? 'animate-spin' : ''} />
+            {refreshing || studentsLoading || productsLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
@@ -260,7 +395,7 @@ const StudentDue = () => {
             <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
               <select
                 value={dueFilters.course}
-                onChange={(e) => setDueFilters({ ...dueFilters, course: e.target.value })}
+                onChange={(e) => setDueFilters({ ...dueFilters, course: e.target.value, branch: '' })}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">All Courses</option>
@@ -278,8 +413,19 @@ const StudentDue = () => {
                   <option key={year} value={String(year)}>{`Year ${year}`}</option>
                 ))}
               </select>
+              <select
+                value={dueFilters.branch}
+                onChange={(e) => setDueFilters({ ...dueFilters, branch: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={!dueFilters.course && branchOptions.length === 0}
+              >
+                <option value="">All Branches</option>
+                {branchOptions.map(branch => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
               <button
-                onClick={() => setDueFilters({ search: '', course: '', year: '' })}
+                onClick={() => setDueFilters({ search: '', course: '', year: '', branch: '' })}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
               >
                 Reset
@@ -294,29 +440,57 @@ const StudentDue = () => {
               <h3 className="text-lg font-semibold text-gray-900">Student Due Report</h3>
               <p className="text-sm text-gray-500">Students who have not yet received their mapped items</p>
             </div>
-            <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-              {filteredDueStudents.length} student{filteredDueStudents.length === 1 ? '' : 's'}
-            </span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Items per page:</label>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => handleItemsPerPageChange(e.target.value)}
+                  className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+                {filteredDueStudents.length} student{filteredDueStudents.length === 1 ? '' : 's'}
+              </span>
+            </div>
           </div>
 
-          {productsLoading ? (
+          {(studentsLoading || productsLoading) && !refreshing ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="w-8 h-8 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-              <p className="text-gray-600">Loading mapped items...</p>
+              <p className="text-gray-600">
+                {studentsLoading && productsLoading 
+                  ? 'Loading students and products...' 
+                  : studentsLoading 
+                    ? 'Loading students...' 
+                    : 'Loading products...'}
+              </p>
             </div>
-          ) : productsError ? (
+          ) : (productsError || studentsError) ? (
             <div className="p-12 text-center space-y-4">
               <AlertCircle className="mx-auto text-red-500" size={48} />
               <div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-1">Unable to load products</h4>
-                <p className="text-gray-600">{productsError}</p>
+                <h4 className="text-lg font-semibold text-gray-900 mb-1">
+                  {productsError && studentsError 
+                    ? 'Unable to load data' 
+                    : productsError 
+                      ? 'Unable to load products' 
+                      : 'Unable to load students'}
+                </h4>
+                <p className="text-gray-600">{productsError || studentsError}</p>
               </div>
               <button
-                onClick={fetchProducts}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Download size={16} />
-                Retry
+                <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                {refreshing ? 'Retrying...' : 'Retry'}
               </button>
             </div>
           ) : filteredDueStudents.length === 0 ? (
@@ -326,21 +500,22 @@ const StudentDue = () => {
               <p className="text-gray-600">Every student has received the items mapped to their course and year.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course / Year</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Items</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Amount</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Count</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredDueStudents.map(record => {
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course / Year</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Items</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Amount</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Count</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedDueStudents.map(record => {
                     const student = record.student;
                     const totalMapped = record.mappedProducts.length;
                     const pendingCount = record.pendingItems.length;
@@ -411,10 +586,100 @@ const StudentDue = () => {
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-sm text-gray-600">
+                      Showing <span className="font-semibold">{startIndex + 1}</span> to{' '}
+                      <span className="font-semibold">
+                        {Math.min(endIndex, filteredDueStudents.length)}
+                      </span>{' '}
+                      of <span className="font-semibold">{filteredDueStudents.length}</span> students
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft size={16} className="text-gray-700" />
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {/* First page */}
+                        {currentPage > 3 && (
+                          <>
+                            <button
+                              onClick={() => handlePageChange(1)}
+                              className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                              1
+                            </button>
+                            {currentPage > 4 && (
+                              <span className="px-2 text-gray-500">...</span>
+                            )}
+                          </>
+                        )}
+
+                        {/* Page numbers around current page */}
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(page => {
+                            if (page === currentPage) return true;
+                            if (page === currentPage - 1 || page === currentPage + 1) return true;
+                            if (page === 1 || page === totalPages) return true;
+                            return false;
+                          })
+                          .map(page => (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`px-3 py-1 text-sm border rounded-lg transition-colors ${
+                                page === currentPage
+                                  ? 'bg-purple-600 text-white border-purple-600'
+                                  : 'border-gray-300 hover:bg-gray-100'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ))}
+
+                        {/* Last page */}
+                        {currentPage < totalPages - 2 && (
+                          <>
+                            {currentPage < totalPages - 3 && (
+                              <span className="px-2 text-gray-500">...</span>
+                            )}
+                            <button
+                              onClick={() => handlePageChange(totalPages)}
+                              className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                              {totalPages}
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        aria-label="Next page"
+                      >
+                        <ChevronRight size={16} className="text-gray-700" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

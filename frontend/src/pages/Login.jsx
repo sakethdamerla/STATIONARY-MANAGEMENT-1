@@ -31,9 +31,14 @@ const Login = ({ onLogin }) => {
         if (!res.ok) return;
         const data = await res.json();
         if (!isMounted) return;
+        // Use appName/appSubheader for application branding, fallback to receipt fields for backward compatibility
         setBranding({
-          header: data.receiptHeader || defaultBranding.header,
-          subheader: data.receiptSubheader || defaultBranding.subheader,
+          header: (typeof data.appName === 'string' && data.appName.trim()) 
+            ? data.appName.trim() 
+            : (data.receiptHeader || defaultBranding.header),
+          subheader: (typeof data.appSubheader === 'string' && data.appSubheader.trim())
+            ? data.appSubheader.trim()
+            : (data.receiptSubheader || defaultBranding.subheader),
         });
       } catch (error) {
         console.warn('Failed to load branding settings for login:', error);
