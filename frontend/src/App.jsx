@@ -357,8 +357,36 @@ function App() {
     // The component will re-render to the public routes, and the Navigate path="*" will send them to "/" (HomePage)
   };
 
+  // Loading animation component
+  const LoadingScreen = () => (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="text-center">
+        {/* Animated Logo/Icon */}
+        <div className="relative mb-8">
+          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/30 animate-pulse">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+          </div>
+          {/* Rotating ring */}
+          <div className="absolute inset-0 w-20 h-20 mx-auto border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+        </div>
+        
+        {/* Loading text with animation */}
+        <div className="space-y-2">
+          <h3 className="text-xl font-semibold text-gray-800 animate-pulse">Loading Application</h3>
+          <div className="flex items-center justify-center gap-1">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-  <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gray-50 text-gray-600">Loading application…</div>}>
+  <Suspense fallback={<LoadingScreen />}>
     <div className={`min-h-screen bg-gray-50 ${!isOnline ? 'pt-16' : ''}`}>
       {!isOnline && (
         <div className="fixed top-2 left-0 right-0 z-[60] flex justify-center px-4 pointer-events-none">
