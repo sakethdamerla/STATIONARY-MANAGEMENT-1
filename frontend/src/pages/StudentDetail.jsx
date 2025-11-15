@@ -49,16 +49,37 @@ const StudentDetail = ({
     setAvatarFailed(false);
   }, [id, students]);
 
-  const fetchStudentTransactions = useCallback(async () => {
+  const lastFetchedStudentId = useRef(null);
+  const transactionsCache = useRef(new Map());
+
+  const fetchStudentTransactions = useCallback(async (forceRefresh = false) => {
     if (!student || (!student.id && !student._id)) return;
 
-    try {
+    const studentId = String(student.id || student._id || '');
+    
+    // If we already have cached transactions for this student and not forcing refresh, skip
+    if (!forceRefresh && lastFetchedStudentId.current === studentId && transactionsCache.current.has(studentId)) {
+      const cached = transactionsCache.current.get(studentId);
+      if (cached && cached.length >= 0) {
+        setRawTransactions(cached);
+        return;
+      }
+    }
+
+    // Only show loading if we don't have cached data
+    if (!transactionsCache.current.has(studentId)) {
       setLoadingTransactions(true);
-      const studentId = student.id || student._id;
+    }
+
+    try {
       const response = await fetch(apiUrl(`/api/transactions/student/${studentId}`));
       if (response.ok) {
         const data = await response.json();
-        setRawTransactions(data || []);
+        const transactions = data || [];
+        setRawTransactions(transactions);
+        // Cache transactions for this student
+        transactionsCache.current.set(studentId, transactions);
+        lastFetchedStudentId.current = studentId;
       }
     } catch (error) {
       console.error('Error fetching transactions:', error);
@@ -67,17 +88,35 @@ const StudentDetail = ({
     }
   }, [student]);
 
+  // Initial load - check cache first
   useEffect(() => {
-      fetchStudentTransactions();
-  }, [fetchStudentTransactions]);
+    if (!student) return;
+    const studentId = String(student.id || student._id || '');
+    
+    // Load from cache if available
+    if (transactionsCache.current.has(studentId)) {
+      const cached = transactionsCache.current.get(studentId);
+      setRawTransactions(cached || []);
+      lastFetchedStudentId.current = studentId;
+    }
+    
+    // Fetch in background if online (only if cache is stale or missing)
+    if (isOnline && (!transactionsCache.current.has(studentId) || lastFetchedStudentId.current !== studentId)) {
+      fetchStudentTransactions(false);
+    }
+  }, [student?.id, student?._id, isOnline, fetchStudentTransactions]);
 
   const currentStudentId = student ? String(student.id || student._id || '') : '';
 
+  // Only re-fetch if student actually changed and we're online
   useEffect(() => {
-    if (isOnline) {
-      fetchStudentTransactions();
+    if (isOnline && student && currentStudentId !== lastFetchedStudentId.current) {
+      // Only fetch if we don't have cached data for this student
+      if (!transactionsCache.current.has(currentStudentId)) {
+        fetchStudentTransactions(false);
+      }
     }
-  }, [isOnline, fetchStudentTransactions]);
+  }, [isOnline, currentStudentId, fetchStudentTransactions]);
 
   useEffect(() => {
     if (!componentUpdateStatus.message) return;
@@ -292,7 +331,7 @@ const StudentDetail = ({
           throw new Error(errorText || 'Failed to update transaction.');
         }
 
-        await fetchStudentTransactions();
+        await fetchStudentTransactions(true); // Force refresh after update
         await refreshProducts();
         setComponentUpdateStatus({
           type: 'success',
@@ -365,7 +404,11 @@ const StudentDetail = ({
   useEffect(() => {
     if (!isOnline) return;
     if (pendingTransactionsForStudent.length === 0 && (student?.id || student?._id)) {
-      fetchStudentTransactions();
+      // Only fetch if we don't have cached data
+      const studentId = String(student.id || student._id);
+      if (!transactionsCache.current.has(studentId)) {
+        fetchStudentTransactions(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingTransactionsForStudent.length, isOnline]);
@@ -1026,8 +1069,8 @@ const StudentDetail = ({
           onTransactionSaved={(updatedStudent) => {
             setStudent(updatedStudent);
             setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-            // Refresh transactions after saving - but keep modal open
-            fetchStudentTransactions();
+            // Force refresh transactions after saving
+            fetchStudentTransactions(true);
           }}
           onTransactionQueued={(queuedTransaction, optimisticStudent) => {
             if (onQueueTransaction) {
@@ -1035,7 +1078,8 @@ const StudentDetail = ({
             }
             setStudent(optimisticStudent);
             setStudents(prev => prev.map(s => s.id === optimisticStudent.id ? optimisticStudent : s));
-            fetchStudentTransactions();
+            // Force refresh to show new transaction
+            fetchStudentTransactions(true);
           }}
           onProductsUpdated={refreshProducts}
         />

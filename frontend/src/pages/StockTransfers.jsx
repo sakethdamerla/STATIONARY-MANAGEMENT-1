@@ -860,7 +860,7 @@ const StockTransfers = () => {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {submitting ? (
                       <>

@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Plus, Trash2, GraduationCap, Users } from 'lucide-react';
+import { ArrowLeft, Search, Plus, Trash2, GraduationCap, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import { loadJSON, saveJSON } from '../utils/storage';
@@ -17,60 +17,173 @@ const prepareStudents = (source = []) =>
     normalizedCourse: normalizeCourse(student.course),
   }));
 
+// Cache timestamp keys
+const CACHE_TIMESTAMP_KEY = 'studentsCacheTimestamp';
+const CONFIG_TIMESTAMP_KEY = 'configCacheTimestamp';
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const isCacheValid = (timestampKey) => {
+  const timestamp = loadJSON(timestampKey, null);
+  if (!timestamp) return false;
+  return Date.now() - timestamp < CACHE_TTL;
+};
+
 const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
   const navigate = useNavigate();
-  const [students, setStudents] = useState(() => {
+  const searchTimeoutRef = useRef(null);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  
+  // Load from cache first if available
+  const cachedStudents = useMemo(() => {
     if (initialStudents && initialStudents.length > 0) return prepareStudents(initialStudents);
     return prepareStudents(loadJSON('studentsCache', []));
-  });
-  const [loading, setLoading] = useState(students.length === 0);
+  }, [initialStudents]);
+
+  const [students, setStudents] = useState(cachedStudents);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [yearFilter, setYearFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50); // 50 items per page
   const [config, setConfig] = useState(() => loadJSON('configCache', null));
   const isOnline = typeof isOnlineProp === 'boolean' ? isOnlineProp : useOnlineStatus();
+  const hasInitialized = useRef(false);
+
+  // Debounce search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   useEffect(() => {
     if (initialStudents && initialStudents.length > 0) {
       setStudents(prepareStudents(initialStudents));
-      setLoading(false);
     }
   }, [initialStudents]);
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
 
-        const [configRes, studentsRes] = await Promise.all([
-          fetch(apiUrl('/api/config/academic')),
-          fetch(apiUrl('/api/users')),
-        ]);
+  // Smart fetch - only if cache is stale or missing
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    if (!isOnline && !forceRefresh) return;
 
-        if (configRes.ok) {
-          const configData = await configRes.json();
-          setConfig(configData);
-          saveJSON('configCache', configData);
+    const hasValidStudentCache = isCacheValid(CACHE_TIMESTAMP_KEY);
+    const hasValidConfigCache = isCacheValid(CONFIG_TIMESTAMP_KEY);
+
+    // If cache is valid and not forcing refresh, use cached data
+    if (!forceRefresh && hasValidStudentCache && hasValidConfigCache) {
+      // Update config if needed
+      if (!hasValidConfigCache) {
+        try {
+          const configRes = await fetch(apiUrl('/api/config/academic'));
+          if (configRes.ok) {
+            const configData = await configRes.json();
+            setConfig(configData);
+            saveJSON('configCache', configData);
+            saveJSON(CONFIG_TIMESTAMP_KEY, Date.now());
+          }
+        } catch (error) {
+          console.error('Error fetching config:', error);
         }
-
-        if (studentsRes.ok) {
-          const data = await studentsRes.json();
-          const formatted = prepareStudents(data);
-          setStudents(formatted);
-          saveJSON('studentsCache', formatted);
-        }
-      } catch (error) {
-        console.error('Error fetching students:', error);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    if (isOnline) {
-      fetchData();
-    } else {
-      setLoading(false);
+      return;
     }
-  }, [isOnline]);
+
+    // Show refreshing indicator only if we have cached data
+    if (students.length > 0 && !forceRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const promises = [];
+      
+      if (!hasValidConfigCache || forceRefresh) {
+        promises.push(
+          fetch(apiUrl('/api/config/academic'))
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data) {
+                setConfig(data);
+                saveJSON('configCache', data);
+                saveJSON(CONFIG_TIMESTAMP_KEY, Date.now());
+              }
+              return data;
+            })
+            .catch(err => {
+              console.error('Error fetching config:', err);
+              return null;
+            })
+        );
+      }
+
+      if (!hasValidStudentCache || forceRefresh) {
+        promises.push(
+          fetch(apiUrl('/api/users'))
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data) {
+                const formatted = prepareStudents(data);
+                setStudents(formatted);
+                saveJSON('studentsCache', formatted);
+                saveJSON(CACHE_TIMESTAMP_KEY, Date.now());
+              }
+              return data;
+            })
+            .catch(err => {
+              console.error('Error fetching students:', err);
+              return null;
+            })
+        );
+      }
+
+      await Promise.all(promises);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [isOnline, students.length]);
+
+  // Initial load - check cache validity
+  useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
+    // Load config from cache if valid
+    if (isCacheValid(CONFIG_TIMESTAMP_KEY)) {
+      const cachedConfig = loadJSON('configCache', null);
+      if (cachedConfig) {
+        setConfig(cachedConfig);
+      }
+    }
+
+    // Load students from cache if valid
+    if (isCacheValid(CACHE_TIMESTAMP_KEY)) {
+      const cached = loadJSON('studentsCache', []);
+      if (cached && cached.length > 0) {
+        setStudents(prepareStudents(cached));
+      }
+    }
+
+    // Fetch in background if online and cache is stale
+    if (isOnline) {
+      fetchData(false);
+    }
+  }, [isOnline, fetchData]);
 
   const getCourseDisplayName = (courseName) => {
     if (!courseName) return 'N/A';
@@ -130,27 +243,81 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
   };
 
   const filteredStudents = useMemo(() => {
+    const searchLower = debouncedSearchTerm.toLowerCase();
     return students.filter(student => {
-      const matchesSearch =
-        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !searchLower ||
+        student.name?.toLowerCase().includes(searchLower) ||
+        student.studentId?.toLowerCase().includes(searchLower);
 
       const matchesYear = yearFilter === 'all' || String(student.year) === String(yearFilter);
-      const matchesCourse = courseFilter === 'all' || student.normalizedCourse === courseFilter;
+      
+      // Course filter: compare normalized course names
+      const normalizedCourseFilter = courseFilter === 'all' ? 'all' : normalizeCourse(courseFilter);
+      const matchesCourse = normalizedCourseFilter === 'all' || student.normalizedCourse === normalizedCourseFilter;
+      
+      // Branch filter: only apply if course is selected, and match branch
+      const matchesBranch = branchFilter === 'all' || 
+        (student.branch && student.branch.trim().toLowerCase() === branchFilter.trim().toLowerCase());
 
-      return matchesSearch && matchesYear && matchesCourse;
+      return matchesSearch && matchesYear && matchesCourse && matchesBranch;
     });
-  }, [students, searchTerm, yearFilter, courseFilter]);
+  }, [students, debouncedSearchTerm, yearFilter, courseFilter, branchFilter]);
 
-  const yearOptions = Array.from(new Set(students.map(s => s.year).filter(Boolean))).sort((a, b) => a - b);
+  // Pagination
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+  const paginatedStudents = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredStudents.slice(startIndex, endIndex);
+  }, [filteredStudents, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [yearFilter, courseFilter, branchFilter, debouncedSearchTerm]);
+
+  // Get years from filtered students (based on course filter)
+  const yearOptions = useMemo(() => {
+    const filteredByCourse = courseFilter === 'all' 
+      ? students 
+      : students.filter(s => normalizeCourse(s.course) === normalizeCourse(courseFilter));
+    return Array.from(new Set(filteredByCourse.map(s => s.year).filter(Boolean))).sort((a, b) => a - b);
+  }, [students, courseFilter]);
+
+  // Get course options
   const courseOptions = config?.courses
     ? config.courses.map(c => ({ name: c.name, displayName: c.displayName }))
     : Array.from(new Set(students.map(s => s.normalizedCourse)))
         .filter(Boolean)
         .map(name => ({ name, displayName: name.toUpperCase() }));
 
+  // Get branch options based on selected course
+  const branchOptions = useMemo(() => {
+    if (courseFilter === 'all') {
+      // If no course selected, show all unique branches from all students
+      return Array.from(new Set(students.map(s => s.branch).filter(Boolean))).sort();
+    }
+    
+    // Get branches from config for the selected course
+    const normalizedFilter = normalizeCourse(courseFilter);
+    const selectedCourse = config?.courses?.find(c => normalizeCourse(c.name) === normalizedFilter);
+    
+    if (selectedCourse && selectedCourse.branches && selectedCourse.branches.length > 0) {
+      // Return branches from config
+      return selectedCourse.branches.sort();
+    }
+    
+    // Fallback: get branches from students in this course
+    const studentsInCourse = students.filter(s => normalizeCourse(s.course) === normalizedFilter);
+    return Array.from(new Set(studentsInCourse.map(s => s.branch).filter(Boolean))).sort();
+  }, [students, courseFilter, config]);
+
+  // Save to cache when students change (but not during initial load)
   useEffect(() => {
-    saveJSON('studentsCache', students);
+    if (hasInitialized.current && students.length > 0) {
+      saveJSON('studentsCache', students);
+      saveJSON(CACHE_TIMESTAMP_KEY, Date.now());
+    }
   }, [students]);
 
   if (loading) {
@@ -168,7 +335,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-6">
+          {/* <div className="flex items-center gap-3 mb-6">
             <button
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               onClick={() => navigate('/')}
@@ -176,7 +343,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
               <ArrowLeft size={16} />
               Back to Dashboard
             </button>
-          </div>
+          </div> */}
 
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-6">
             <div className="flex items-center gap-4">
@@ -185,7 +352,11 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Student Dashboard</h1>
-                <p className="text-gray-600 mt-1">{students.length} {students.length === 1 ? 'student' : 'students'} enrolled across all courses</p>
+                <p className="text-gray-600 mt-1">
+                  {searchTerm || courseFilter !== 'all' || yearFilter !== 'all' || branchFilter !== 'all'
+                    ? `${filteredStudents.length} ${filteredStudents.length === 1 ? 'student' : 'students'} found`
+                    : `${students.length} ${students.length === 1 ? 'student' : 'students'} enrolled across all courses`}
+                </p>
               </div>
             </div>
             <button
@@ -205,7 +376,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Students</p>
-              <p className="text-xl font-semibold text-gray-900">{students.length}</p>
+              <p className="text-xl font-semibold text-gray-900">{filteredStudents.length}</p>
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-3">
@@ -214,7 +385,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Paid Students</p>
-              <p className="text-xl font-semibold text-gray-900">{students.filter(s => s.paid).length}</p>
+              <p className="text-xl font-semibold text-gray-900">{filteredStudents.filter(s => s.paid).length}</p>
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-3">
@@ -223,7 +394,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Pending Students</p>
-              <p className="text-xl font-semibold text-gray-900">{students.filter(s => !s.paid).length}</p>
+              <p className="text-xl font-semibold text-gray-900">{filteredStudents.filter(s => !s.paid).length}</p>
             </div>
           </div>
         </div>
@@ -235,39 +406,74 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
             </div>
             <h3 className="text-lg font-semibold text-gray-900">Search & Filter</h3>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600" size={18} />
               <input
                 type="text"
                 placeholder="Search by name or student ID..."
-                className="w-full pl-10 pr-4 py-2.5 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <select
-              value={courseFilter}
-              onChange={(e) => setCourseFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white shadow-sm transition-all"
-            >
-              <option value="all">All Courses</option>
-              {courseOptions?.map(course => (
-                <option key={course.name || course} value={course.name || course}>
-                  {course.displayName || getCourseDisplayName(course.name)}
-                </option>
-              ))}
-            </select>
-            <select
-              value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white shadow-sm transition-all"
-            >
-              <option value="all">All Years</option>
-              {yearOptions.map(year => (
-                <option key={year} value={year}>Year {year}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={courseFilter}
+                onChange={(e) => {
+                  setCourseFilter(e.target.value);
+                  setBranchFilter('all'); // Reset branch filter when course changes
+                }}
+                className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white shadow-sm transition-all cursor-pointer hover:bg-gray-50"
+              >
+                <option value="all">All Courses</option>
+                {courseOptions?.map(course => (
+                  <option key={course.name || course} value={course.name || course}>
+                    {course.displayName || getCourseDisplayName(course.name)}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+            <div className="relative">
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white shadow-sm transition-all cursor-pointer hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={branchOptions.length === 0}
+              >
+                <option value="all">All Branches</option>
+                {branchOptions.map(branch => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+            <div className="relative">
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white shadow-sm transition-all cursor-pointer hover:bg-gray-50"
+              >
+                <option value="all">All Years</option>
+                {yearOptions.map(year => (
+                  <option key={year} value={year}>Year {year}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -279,11 +485,11 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No students found</h3>
               <p className="text-gray-600 mb-6">
-                {searchTerm || courseFilter !== 'all' || yearFilter !== 'all'
+                {searchTerm || courseFilter !== 'all' || yearFilter !== 'all' || branchFilter !== 'all'
                   ? 'Try adjusting your search or filters'
                   : 'Start by adding students to the system'}
               </p>
-              {!searchTerm && courseFilter === 'all' && yearFilter === 'all' && (
+              {!searchTerm && courseFilter === 'all' && yearFilter === 'all' && branchFilter === 'all' && (
                 <button
                   className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md hover:shadow-lg"
                   onClick={() => navigate('/add-student')}
@@ -311,6 +517,12 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
                 </div>
               </div>
               <div className="overflow-x-auto">
+                {refreshing && (
+                  <div className="px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-2 text-sm text-blue-700">
+                    <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    Refreshing data...
+                  </div>
+                )}
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -323,7 +535,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {filteredStudents.map(student => (
+                    {paginatedStudents.map(student => (
                       <tr
                         key={student.id}
                         onClick={() => navigate(`/student/${student.id}`)}
@@ -378,6 +590,58 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
                     ))}
                   </tbody>
                 </table>
+                {totalPages > 1 && (
+                  <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+                    <div className="text-sm text-gray-700">
+                      Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredStudents.length)} of {filteredStudents.length} students
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                      >
+                        <ChevronLeft size={16} />
+                        Previous
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white'
+                                  : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                      >
+                        Next
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
