@@ -98,7 +98,7 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Server is running! 😉");
   res.send("Hello This is Stationary BACKEND");
-  res.send("Backend is running! 😉");
+  
 });
 
 // Mount product routes
