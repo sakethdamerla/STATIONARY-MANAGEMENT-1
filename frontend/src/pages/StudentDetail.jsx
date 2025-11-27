@@ -1071,9 +1071,7 @@ const StudentDetail = ({
                             {/* Student Info */}
                             <div className="thermal-info">
                               <p><span>Name:</span> <span>{transaction.student?.name || student.name}</span></p>
-                              <p><span>ID:</span> <span>{transaction.student?.studentId || student.studentId}</span></p>
-                              <p><span>Course:</span> <span>{(transaction.student?.course || student.course)?.toUpperCase()}</span></p>
-                              <p><span>Year:</span> <span>{transaction.student?.year || student.year}</span></p>
+                              <p><span>ID: {transaction.student?.studentId || student.studentId}</span> <span>{(transaction.student?.course || student.course)?.toUpperCase()} | Year {transaction.student?.year || student.year}</span></p>
                             </div>
 
                             {/* Items Table */}
@@ -1123,8 +1121,7 @@ const StudentDetail = ({
 
                             {/* Payment Info */}
                             <div className="thermal-payment">
-                              <p><span>Payment:</span> <span>{transaction.paymentMethod === 'cash' ? 'CASH' : 'ONLINE'}</span></p>
-                              <p><span>Status:</span> <span>{transaction.isPaid ? 'PAID' : 'UNPAID'}</span></p>
+                              <p><span>Payment: {transaction.paymentMethod === 'cash' ? 'CASH' : 'ONLINE'}</span> <span>Status: {transaction.isPaid ? 'PAID' : 'UNPAID'}</span></p>
                               {transaction.remarks && (
                                 <p style={{ display: 'block' }}><span>Note: {transaction.remarks}</span></p>
                               )}
