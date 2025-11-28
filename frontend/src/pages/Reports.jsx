@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Search, Trash2, Receipt, Download, Eye, X, FileText, Calendar, Package, Building2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Search, Trash2, Receipt, Download, Eye, X, FileText, Calendar, Package, Building2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Filter, Printer } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 import jsPDF from 'jspdf';
+import { useReactToPrint } from 'react-to-print';
 
 const Reports = () => {
   const [transactions, setTransactions] = useState([]);
@@ -18,6 +19,9 @@ const Reports = () => {
   });
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showSalesSummaryPrint, setShowSalesSummaryPrint] = useState(false);
+  const [salesSummaryData, setSalesSummaryData] = useState(null);
+  const salesSummaryPrintRef = useRef(null);
   const [courses, setCourses] = useState([]);
   const [reportType, setReportType] = useState(''); // 'day-end', 'stock', 'vendor-purchase'
   const [receiptSettings, setReceiptSettings] = useState({
@@ -40,6 +44,7 @@ const Reports = () => {
     includeItems: false,
     includeSummary: true,
     onlyStatistics: false,
+    includeDayEndSales: false,
     // For stock report
     productCategory: '',
     // For vendor purchase report
@@ -236,6 +241,73 @@ const Reports = () => {
     return `Rs ${Number(amount || 0).toFixed(2)}`;
   };
 
+  // Calculate day-end sales summary
+  const calculateDayEndSales = useCallback((transactions) => {
+    // Exclude branch transfers from sales calculations (internal stock movements)
+    const revenueTransactions = transactions.filter(t => t.transactionType !== 'branch_transfer');
+    
+    // Aggregate items sold across all transactions
+    // For sets, expand them into their component items
+    const itemsSoldMap = new Map();
+    revenueTransactions.forEach(transaction => {
+      if (transaction.items && Array.isArray(transaction.items)) {
+        transaction.items.forEach(item => {
+          const setQuantity = Number(item.quantity) || 0;
+          const setComponents = Array.isArray(item.setComponents) ? item.setComponents : [];
+          const isSet = item.isSet || setComponents.length > 0;
+          
+          if (isSet && setComponents.length > 0) {
+            // If it's a set, expand into component items
+            setComponents.forEach(component => {
+              const componentName = component.name || component.productNameSnapshot || 'N/A';
+              const componentQty = Number(component.quantity) || 1;
+              // Multiply component quantity by set quantity
+              const totalQuantity = componentQty * setQuantity;
+              
+              if (itemsSoldMap.has(componentName)) {
+                itemsSoldMap.set(componentName, itemsSoldMap.get(componentName) + totalQuantity);
+              } else {
+                itemsSoldMap.set(componentName, totalQuantity);
+              }
+            });
+          } else {
+            // Regular item (not a set)
+            const itemName = item.name || 'N/A';
+            const quantity = setQuantity;
+            
+            if (itemsSoldMap.has(itemName)) {
+              itemsSoldMap.set(itemName, itemsSoldMap.get(itemName) + quantity);
+            } else {
+              itemsSoldMap.set(itemName, quantity);
+            }
+          }
+        });
+      }
+    });
+
+    // Convert map to array and sort by quantity (descending)
+    const itemsSold = Array.from(itemsSoldMap.entries())
+      .map(([name, quantity]) => ({ name, quantity }))
+      .sort((a, b) => b.quantity - a.quantity);
+
+    // Calculate statistics
+    const totalAmount = revenueTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+    const paidCount = revenueTransactions.filter(t => t.isPaid).length;
+    const paidAmount = revenueTransactions.filter(t => t.isPaid).reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+    const totalItemsSold = itemsSold.reduce((sum, item) => sum + item.quantity, 0);
+
+    return {
+      itemsSold,
+      statistics: {
+        totalTransactions: revenueTransactions.length,
+        totalAmount,
+        paidCount,
+        paidAmount,
+        totalItemsSold,
+      }
+    };
+  }, []);
+
   const generateDayEndReport = async (transactions) => {
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -275,6 +347,12 @@ const Reports = () => {
       const paidCount = revenueTransactions.filter(t => t.isPaid).length;
       const paidAmount = revenueTransactions.filter(t => t.isPaid).reduce((sum, t) => sum + (t.totalAmount || 0), 0);
       
+      // Calculate day-end sales summary if enabled
+      let salesSummary = null;
+      if (reportFilters.includeDayEndSales) {
+        salesSummary = calculateDayEndSales(transactions);
+      }
+      
       pdf.setFontSize(10);
       pdf.setFont(undefined, 'bold');
       pdf.text('Statistics', 14, yPos);
@@ -286,8 +364,43 @@ const Reports = () => {
       pdf.text(`Amount: ${formatCurrencyForPDF(totalAmount)}`, 52, statsY);
       pdf.text(`Paid: ${paidCount} (${formatCurrencyForPDF(paidAmount)})`, 96, statsY);
 
-      yPos += 16;
+      yPos += 8;
+
+      // Add Day-End Sales Summary in statistics if enabled
+      if (salesSummary && salesSummary.itemsSold.length > 0) {
+        pdf.setFontSize(9);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Day-End Sales Summary', 14, yPos);
+        yPos += 5;
+
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(7);
+        pdf.text(`Total Items Sold: ${salesSummary.statistics.totalItemsSold}`, 16, yPos);
+        yPos += 4;
+
+        // Show top items (limit to fit on page)
+        const topItems = salesSummary.itemsSold.slice(0, 10);
+        pdf.setFontSize(6);
+        topItems.forEach((item, idx) => {
+          if (yPos > 180) {
+            pdf.addPage();
+            yPos = 14;
+          }
+          const itemName = item.name.substring(0, 30);
+          pdf.text(`${idx + 1}. ${itemName}: ${item.quantity}`, 18, yPos);
+          yPos += 3.5;
+        });
+
+        if (salesSummary.itemsSold.length > 10) {
+          pdf.setFontSize(6);
+          pdf.text(`... and ${salesSummary.itemsSold.length - 10} more items`, 18, yPos);
+          yPos += 3;
+        }
+      }
+
+      yPos += 8;
     }
+
 
     // Transactions Table Header
     if (!reportFilters.onlyStatistics && transactions.length > 0) {
@@ -817,6 +930,11 @@ const Reports = () => {
     }
   };
 
+  const handlePrintSalesSummary = useReactToPrint({
+    contentRef: salesSummaryPrintRef,
+    documentTitle: `Day-End_Sales_Summary_${new Date().toISOString().split('T')[0]}`,
+  });
+
   const generatePDF = async () => {
     try {
       if (!reportType) {
@@ -846,6 +964,31 @@ const Reports = () => {
             if (reportFilters.endDate && transDate > new Date(reportFilters.endDate + 'T23:59:59')) return false;
             return true;
           });
+        }
+
+        // Check if only day-end sales summary is selected (without PDF generation)
+        // Show print option if only day-end sales is selected and other options are disabled
+        if (reportFilters.includeDayEndSales && 
+            !reportFilters.includeSummary && 
+            !reportFilters.includeItems) {
+          // Show print option instead of PDF
+          const salesData = calculateDayEndSales(reportTransactions);
+          setSalesSummaryData({
+            ...salesData,
+            dateRange: {
+              start: reportFilters.startDate,
+              end: reportFilters.endDate,
+            },
+            filters: {
+              course: reportFilters.course,
+              paymentMethod: reportFilters.paymentMethod,
+              isPaid: reportFilters.isPaid,
+            }
+          });
+          setShowSalesSummaryPrint(true);
+          setShowReportModal(false);
+          setReportType('');
+          return;
         }
 
         await generateDayEndReport(reportTransactions);
@@ -1701,6 +1844,18 @@ const Reports = () => {
                             Generate statistics only (no detailed tables)
                           </label>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="includeDayEndSales"
+                            checked={reportFilters.includeDayEndSales}
+                            onChange={(e) => setReportFilters({ ...reportFilters, includeDayEndSales: e.target.checked })}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <label htmlFor="includeDayEndSales" className="text-sm font-medium text-gray-700 cursor-pointer">
+                            Include day-end sales summary (items sold with quantities)
+                          </label>
+                        </div>
                       </div>
                     </>
                   )}
@@ -1833,6 +1988,228 @@ const Reports = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Day-End Sales Summary Print Modal */}
+      {showSalesSummaryPrint && salesSummaryData && (
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowSalesSummaryPrint(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+              <h2 className="text-2xl font-bold text-gray-900">Day-End Sales Summary</h2>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handlePrintSalesSummary}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  <Printer size={18} />
+                  Print
+                </button>
+                <button
+                  onClick={() => setShowSalesSummaryPrint(false)}
+                  className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <X size={18} className="text-gray-600" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {/* Preview */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Preview</h3>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <p>Date Range: {salesSummaryData.dateRange.start} to {salesSummaryData.dateRange.end}</p>
+                  {salesSummaryData.filters.course && <p>Course: {salesSummaryData.filters.course.toUpperCase()}</p>}
+                  <p>Total Transactions: {salesSummaryData.statistics.totalTransactions}</p>
+                  <p>Total Items Sold: {salesSummaryData.statistics.totalItemsSold}</p>
+                  <p>Total Amount: {formatCurrency(salesSummaryData.statistics.totalAmount)}</p>
+                </div>
+              </div>
+
+              {/* Thermal Printable Content */}
+              <div ref={salesSummaryPrintRef} className="hidden print:block thermal-receipt" data-thermal-print="true">
+                <style>{`
+                  /* Thermal Printer Optimized - 80mm paper */
+                  @page {
+                    size: 80mm auto;
+                    margin: 2mm 3mm;
+                  }
+                  @media print {
+                    *, *::before, *::after {
+                      box-shadow: none !important;
+                      text-shadow: none !important;
+                    }
+                    html, body {
+                      width: 80mm !important;
+                      max-width: 80mm !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      font-family: 'Arial Black', 'Helvetica Bold', 'Arial', sans-serif !important;
+                      font-size: 11px !important;
+                      font-weight: 700 !important;
+                      line-height: 1.4 !important;
+                      color: #000 !important;
+                      background: #fff !important;
+                      -webkit-print-color-adjust: exact !important;
+                      print-color-adjust: exact !important;
+                      -webkit-font-smoothing: none !important;
+                    }
+                    .thermal-receipt {
+                      width: 100% !important;
+                      max-width: 74mm !important;
+                      margin: 0 auto !important;
+                      padding: 2mm !important;
+                      font-weight: 700 !important;
+                    }
+                    .thermal-header {
+                      text-align: center !important;
+                      border-bottom: 2px solid #000 !important;
+                      padding-bottom: 2mm !important;
+                      margin-bottom: 2mm !important;
+                    }
+                    .thermal-header h1 {
+                      font-size: 13px !important;
+                      font-weight: 900 !important;
+                      margin: 0 0 1mm 0 !important;
+                      text-transform: uppercase !important;
+                      letter-spacing: 0.5px !important;
+                    }
+                    .thermal-header p {
+                      font-size: 10px !important;
+                      font-weight: 700 !important;
+                      margin: 0 !important;
+                    }
+                    .thermal-info {
+                      border-bottom: 2px solid #000 !important;
+                      padding-bottom: 2mm !important;
+                      margin-bottom: 2mm !important;
+                    }
+                    .thermal-info p {
+                      font-size: 10px !important;
+                      font-weight: 700 !important;
+                      margin: 1mm 0 !important;
+                      display: flex !important;
+                      justify-content: space-between !important;
+                    }
+                    .thermal-table {
+                      width: 100% !important;
+                      border-collapse: collapse !important;
+                      font-size: 10px !important;
+                      font-weight: 700 !important;
+                      margin: 2mm 0 !important;
+                    }
+                    .thermal-table th,
+                    .thermal-table td {
+                      padding: 1.5mm 0.5mm !important;
+                      text-align: left !important;
+                      border: none !important;
+                      vertical-align: top !important;
+                      font-weight: 700 !important;
+                    }
+                    .thermal-table th {
+                      border-bottom: 2px solid #000 !important;
+                      font-weight: 900 !important;
+                      font-size: 10px !important;
+                    }
+                    .thermal-table tbody tr {
+                      border-bottom: none !important;
+                    }
+                    .thermal-table th:last-child,
+                    .thermal-table td:last-child {
+                      text-align: right !important;
+                    }
+                    .thermal-total {
+                      border-top: 2px solid #000 !important;
+                      padding-top: 2mm !important;
+                      margin-top: 2mm !important;
+                      display: flex !important;
+                      justify-content: space-between !important;
+                      font-weight: 900 !important;
+                      font-size: 12px !important;
+                    }
+                    .thermal-footer {
+                      text-align: center !important;
+                      margin-top: 3mm !important;
+                      padding-top: 2mm !important;
+                      border-top: 2px solid #000 !important;
+                      font-size: 9px !important;
+                      font-weight: 700 !important;
+                    }
+                    .no-print {
+                      display: none !important;
+                    }
+                  }
+                `}</style>
+                
+                {/* Thermal Header */}
+                <div className="thermal-header">
+                  <h1>{receiptSettings.receiptHeader}</h1>
+                  <p style={{ textAlign: 'center' }}>
+                    {receiptSettings.receiptSubheader} | Day-End Sales Summary
+                  </p>
+                  <p style={{ textAlign: 'center', fontSize: '9px', marginTop: '1mm' }}>
+                    {new Date(salesSummaryData.dateRange.start).toLocaleDateString('en-IN', { 
+                      day: '2-digit', 
+                      month: '2-digit', 
+                      year: 'numeric'
+                    })}
+                    {salesSummaryData.dateRange.start !== salesSummaryData.dateRange.end && 
+                      ` - ${new Date(salesSummaryData.dateRange.end).toLocaleDateString('en-IN', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric'
+                      })}`
+                    }
+                  </p>
+                </div>
+
+                {/* Statistics Info */}
+                <div className="thermal-info">
+                  <p><span>Total Transactions:</span> <span>{salesSummaryData.statistics.totalTransactions}</span></p>
+                  <p><span>Total Amount:</span> <span>₹{Number(salesSummaryData.statistics.totalAmount).toFixed(2)}</span></p>
+                  {salesSummaryData.filters.course && (
+                    <p><span>Course:</span> <span>{salesSummaryData.filters.course.toUpperCase()}</span></p>
+                  )}
+                </div>
+
+                {/* Items Sold Table */}
+                <table className="thermal-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '60%' }}>Item Name</th>
+                      <th style={{ width: '40%', textAlign: 'right' }}>Qty Sold</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesSummaryData.itemsSold.map((item, idx) => (
+                      <tr key={idx}>
+                        <td>{item.name}</td>
+                        <td style={{ textAlign: 'right' }}>{item.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Total Items Sold */}
+                <div className="thermal-total">
+                  <span>TOTAL ITEMS SOLD:</span>
+                  <span>{salesSummaryData.statistics.totalItemsSold}</span>
+                </div>
+
+                {/* Footer */}
+                <div className="thermal-footer">
+                  <p>Generated on {new Date().toLocaleDateString('en-IN', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}</p>
+                  <p>Thank you! 💖 PydahSoft 💖</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
