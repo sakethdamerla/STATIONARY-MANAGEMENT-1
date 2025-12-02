@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Search, Trash2, Receipt, Download, Eye, X, FileText, Calendar, Package, Building2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Filter, Printer } from 'lucide-react';
+import { Search, Trash2, Receipt, Download, Eye, X, FileText, Calendar, Package, Building2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Filter, Printer, DollarSign, TrendingUp, ShoppingCart, AlertCircle } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 import jsPDF from 'jspdf';
 import { useReactToPrint } from 'react-to-print';
@@ -55,6 +55,7 @@ const Reports = () => {
   const [branchTransferPage, setBranchTransferPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [itemsSoldExpanded, setItemsSoldExpanded] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
@@ -129,7 +130,18 @@ const Reports = () => {
       const response = await fetch(apiUrl('/api/users'));
       if (response.ok) {
         const data = await response.json();
-        const uniqueCourses = Array.from(new Set(data.map(s => s.course)));
+        // Normalize courses: convert to lowercase and trim, then create a map to preserve original casing
+        const courseMap = new Map();
+        data.forEach(student => {
+          if (student.course) {
+            const normalized = student.course.toLowerCase().trim();
+            // Store the first occurrence with original casing
+            if (!courseMap.has(normalized)) {
+              courseMap.set(normalized, student.course.trim());
+            }
+          }
+        });
+        const uniqueCourses = Array.from(courseMap.values());
         setCourses(uniqueCourses);
       }
     } catch (error) {
@@ -138,8 +150,17 @@ const Reports = () => {
   };
 
   const courseOptions = useMemo(() => {
-    return [...courses]
-      .filter(Boolean)
+    // Further deduplicate and normalize for display
+    const normalizedMap = new Map();
+    courses.forEach(course => {
+      if (course) {
+        const normalized = course.toLowerCase().trim();
+        if (!normalizedMap.has(normalized)) {
+          normalizedMap.set(normalized, course.trim());
+        }
+      }
+    });
+    return Array.from(normalizedMap.values())
       .sort((a, b) => a.localeCompare(b));
   }, [courses]);
 
@@ -307,6 +328,32 @@ const Reports = () => {
       }
     };
   }, []);
+
+  // Calculate statistics from filtered transactions
+  const statistics = useMemo(() => {
+    // Exclude branch transfers from revenue calculations (internal stock movements)
+    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
+    
+    const totalAmount = revenueTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+    const paidTransactions = revenueTransactions.filter(t => t.isPaid);
+    const unpaidTransactions = revenueTransactions.filter(t => !t.isPaid);
+    const paidAmount = paidTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+    const unpaidAmount = unpaidTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+    
+    // Calculate items sold using existing function
+    const salesData = calculateDayEndSales(revenueTransactions);
+    
+    return {
+      totalTransactions: revenueTransactions.length,
+      totalAmount,
+      paidCount: paidTransactions.length,
+      paidAmount,
+      unpaidCount: unpaidTransactions.length,
+      unpaidAmount,
+      itemsSold: salesData.itemsSold,
+      totalItemsSold: salesData.statistics.totalItemsSold,
+    };
+  }, [studentTransactions, calculateDayEndSales]);
 
   const generateDayEndReport = async (transactions) => {
     const pdf = new jsPDF({
@@ -1036,6 +1083,7 @@ const Reports = () => {
         </div>
 
         <div className="space-y-6">
+          {/* Filters Section */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               {/* Filter Header */}
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -1148,6 +1196,114 @@ const Reports = () => {
                 )}
               </div>
             </div>
+
+          {/* Statistics Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-blue-100 mb-1">Total Amount</p>
+                  <p className="text-2xl font-bold text-white">{formatCurrency(statistics.totalAmount)}</p>
+                  <p className="text-xs text-blue-100 mt-2">{statistics.totalTransactions} transaction{statistics.totalTransactions !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-400/30 rounded-lg flex items-center justify-center">
+                  <DollarSign size={24} />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-green-100 mb-1">Paid Amount</p>
+                  <p className="text-2xl font-bold text-white">{formatCurrency(statistics.paidAmount)}</p>
+                  <p className="text-xs text-green-100 mt-2">{statistics.paidCount} paid transaction{statistics.paidCount !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="w-12 h-12 bg-green-400/30 rounded-lg flex items-center justify-center">
+                  <TrendingUp size={24} />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-red-100 mb-1">Unpaid Amount</p>
+                  <p className="text-2xl font-bold text-white">{formatCurrency(statistics.unpaidAmount)}</p>
+                  <p className="text-xs text-red-100 mt-2">{statistics.unpaidCount} unpaid transaction{statistics.unpaidCount !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="w-12 h-12 bg-red-400/30 rounded-lg flex items-center justify-center">
+                  <AlertCircle size={24} />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-purple-100 mb-1">Items Sold</p>
+                  <p className="text-2xl font-bold text-white">{statistics.totalItemsSold}</p>
+                  <p className="text-xs text-purple-100 mt-2">{statistics.itemsSold.length} unique item{statistics.itemsSold.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-400/30 rounded-lg flex items-center justify-center">
+                  <ShoppingCart size={24} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Items Sold Details - Expandable */}
+          {statistics.itemsSold.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div 
+                className="px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => setItemsSoldExpanded(!itemsSoldExpanded)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <ShoppingCart size={20} className="text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Items Sold ({statistics.itemsSold.length} unique items)
+                    </h3>
+                    <p className="text-sm text-gray-500">Click to {itemsSoldExpanded ? 'collapse' : 'expand'} individual items sold</p>
+                  </div>
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                  {itemsSoldExpanded ? (
+                    <>
+                      <ChevronUp size={18} />
+                      <span>Collapse</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown size={18} />
+                      <span>Expand</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              {itemsSoldExpanded && (
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                    {statistics.itemsSold.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-purple-300 transition-colors">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                        </div>
+                        <div className="ml-3">
+                          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-100 text-purple-700 font-semibold text-base">
+                            {item.quantity}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
             {/* Student Transactions Table */}
             {(filters.transactionType === '' || filters.transactionType === 'student') && (
