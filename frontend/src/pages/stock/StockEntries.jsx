@@ -1,14 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Filter, Package, Building2, FileText, Calendar, DollarSign, Eye, Trash2, X, Edit2, Save } from 'lucide-react';
 import { apiUrl } from '../../utils/api';
+import { hasFullAccess } from '../../utils/permissions';
 
-const StockEntries = () => {
-  // Get current user from localStorage
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
-  const isSuperAdmin = currentUser?.role === 'Administrator';
-  const permissions = currentUser?.permissions || [];
-  // Check if user has permission to edit stock entries
-  const canEditStockEntries = isSuperAdmin || permissions.includes('stock-entry-edit');
+const StockEntries = ({ currentUser }) => {
+  // Check access level - use currentUser prop if provided, otherwise fallback to localStorage
+  const user = currentUser || JSON.parse(localStorage.getItem('currentUser') || 'null');
+  const isSuperAdmin = user?.role === 'Administrator';
+  const permissions = user?.permissions || [];
+  
+  // Check for legacy manage-stock permission
+  const hasLegacyPermission = permissions.some(p => {
+    if (typeof p !== 'string') return false;
+    return p === 'manage-stock' || p.startsWith('manage-stock:');
+  });
+  
+  const canEditStockEntries = isSuperAdmin || hasLegacyPermission || hasFullAccess(permissions, 'stock-entries');
   
   const [stockEntries, setStockEntries] = useState([]);
   const [loading, setLoading] = useState(true);

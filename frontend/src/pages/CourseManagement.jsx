@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, GraduationCap, BookOpen, Edit2, X } from 'lucide-react';
 import { apiUrl } from '../utils/api';
+import { hasFullAccess } from '../utils/permissions';
 
-const CourseManagement = () => {
+const CourseManagement = ({ currentUser }) => {
+  // Check access level
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const canEdit = isSuperAdmin || hasFullAccess(currentUser?.permissions || [], 'courses');
+
   const [courses, setCourses] = useState([]);
   const [name, setName] = useState('');
   const [branchesText, setBranchesText] = useState('');
@@ -286,7 +291,8 @@ const CourseManagement = () => {
           </div>
         </div>
 
-        {/* Add Course Card */}
+        {/* Add Course Card - Only show if user has full access */}
+        {canEdit && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm border-2 border-blue-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -335,6 +341,7 @@ const CourseManagement = () => {
           </form>
           {error && <p className="text-red-600 mt-3 text-sm font-medium">{error}</p>}
         </div>
+        )}
 
         {/* Courses List Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -480,7 +487,7 @@ const CourseManagement = () => {
                                 Cancel
                               </button>
                             </>
-                          ) : (
+                          ) : canEdit ? (
                             <>
                               <button 
                                 className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
@@ -497,6 +504,10 @@ const CourseManagement = () => {
                                 Delete
                               </button>
                             </>
+                          ) : (
+                            <span className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-2 rounded-lg">
+                              View Only
+                            </span>
                           )}
                         </div>
                       </div>

@@ -1,8 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Filter, Package, ArrowRight, Calendar, CheckCircle, XCircle, Clock, Trash2, Plus, AlertCircle, Building2, Edit2, MapPin, Save } from 'lucide-react';
 import { apiUrl } from '../utils/api';
+import { hasFullAccess } from '../utils/permissions';
 
-const StockTransfers = () => {
+const StockTransfers = ({ currentUser }) => {
+  // Check access level
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const canEdit = isSuperAdmin || hasFullAccess(currentUser?.permissions || [], 'stock-transfers');
   const [stockTransfers, setStockTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -478,20 +482,24 @@ const StockTransfers = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowBranchModal(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl font-medium"
-            >
-              <Building2 size={18} />
-              Manage Branches
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium"
-            >
-              <Plus size={20} />
-              New Transfer
-            </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => setShowBranchModal(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl font-medium"
+                >
+                  <Building2 size={18} />
+                  Manage Branches
+                </button>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium"
+                >
+                  <Plus size={20} />
+                  New Transfer
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1011,44 +1019,50 @@ const StockTransfers = () => {
 
                 <div className="flex justify-between items-center pt-4 border-t border-gray-200">
                   {selectedTransfer.status === 'pending' && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleComplete(selectedTransfer._id);
-                          setSelectedTransfer(null);
-                        }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
-                        title="Complete Transfer"
-                      >
-                        <CheckCircle size={16} />
-                        Complete
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCancel(selectedTransfer._id);
-                          setSelectedTransfer(null);
-                        }}
-                        className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center gap-2"
-                        title="Cancel Transfer"
-                      >
-                        <XCircle size={16} />
-                        Cancel
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(selectedTransfer._id);
-                          setSelectedTransfer(null);
-                        }}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
-                        title="Delete Transfer"
-                      >
-                        <Trash2 size={16} />
-                        Delete
-                      </button>
-                    </div>
+                    canEdit ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleComplete(selectedTransfer._id);
+                            setSelectedTransfer(null);
+                          }}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
+                          title="Complete Transfer"
+                        >
+                          <CheckCircle size={16} />
+                          Complete
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancel(selectedTransfer._id);
+                            setSelectedTransfer(null);
+                          }}
+                          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center gap-2"
+                          title="Cancel Transfer"
+                        >
+                          <XCircle size={16} />
+                          Cancel
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(selectedTransfer._id);
+                            setSelectedTransfer(null);
+                          }}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+                          title="Delete Transfer"
+                        >
+                          <Trash2 size={16} />
+                          Delete
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-2 rounded-lg">
+                        View Only
+                      </span>
+                    )
                   )}
                   <div className="flex items-center gap-2 ml-auto">
                     <button
@@ -1083,9 +1097,10 @@ const StockTransfers = () => {
 
               <div className="p-6 space-y-6">
                 {/* Add Branch Form */}
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Branch</h3>
-                  <form onSubmit={handleCreateBranch} className="space-y-4">
+                {canEdit && (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Branch</h3>
+                    <form onSubmit={handleCreateBranch} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1145,7 +1160,8 @@ const StockTransfers = () => {
                       </button>
                     </div>
                   </form>
-                </div>
+                  </div>
+                )}
 
                 {/* Branches List */}
                 <div>
@@ -1200,31 +1216,39 @@ const StockTransfers = () => {
                               )}
                             </div>
                             <div className="flex items-center gap-2 ml-4">
-                              <button
-                                onClick={() => handleEditBranch(branch)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="Edit Branch"
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleToggleBranchStatus(branch)}
-                                className={`p-2 rounded-lg transition-colors ${
-                                  branch.isActive
-                                    ? 'text-yellow-600 hover:bg-yellow-50'
-                                    : 'text-green-600 hover:bg-green-50'
-                                }`}
-                                title={branch.isActive ? 'Deactivate Branch' : 'Activate Branch'}
-                              >
-                                {branch.isActive ? <XCircle size={16} /> : <CheckCircle size={16} />}
-                              </button>
-                              <button
-                                onClick={() => handleDeleteBranch(branch._id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete Branch"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                              {canEdit ? (
+                                <>
+                                  <button
+                                    onClick={() => handleEditBranch(branch)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Edit Branch"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleBranchStatus(branch)}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                      branch.isActive
+                                        ? 'text-yellow-600 hover:bg-yellow-50'
+                                        : 'text-green-600 hover:bg-green-50'
+                                    }`}
+                                    title={branch.isActive ? 'Deactivate Branch' : 'Activate Branch'}
+                                  >
+                                    {branch.isActive ? <XCircle size={16} /> : <CheckCircle size={16} />}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteBranch(branch._id)}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete Branch"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">
+                                  View Only
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>

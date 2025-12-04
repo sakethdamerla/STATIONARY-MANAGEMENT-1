@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Plus, Package, Building2, FileText, Calendar, DollarSign, Save, AlertCircle } from 'lucide-react';
 import { apiUrl } from '../../utils/api';
+import { hasFullAccess } from '../../utils/permissions';
 
-const AddStock = ({ products = [], setProducts }) => {
+const AddStock = ({ products = [], setProducts, currentUser }) => {
+  // Check access level
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const permissions = currentUser?.permissions || [];
+  
+  // Check for legacy manage-stock permission
+  const hasLegacyPermission = permissions.some(p => {
+    if (typeof p !== 'string') return false;
+    return p === 'manage-stock' || p.startsWith('manage-stock:');
+  });
+  
+  const canEdit = isSuperAdmin || hasLegacyPermission || hasFullAccess(permissions, 'stock-add');
   const [formData, setFormData] = useState({
     product: '',
     vendor: '',
@@ -45,6 +57,12 @@ const AddStock = ({ products = [], setProducts }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!canEdit) {
+      setStatusMsg({ type: 'error', message: 'You do not have permission to add stock entries' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+      return;
+    }
     
     if (!formData.product || !formData.vendor || !formData.quantity || Number(formData.quantity) < 1) {
       setStatusMsg({ type: 'error', message: 'Please fill in all required fields (Product, Vendor, and Quantity)' });
@@ -304,14 +322,21 @@ const AddStock = ({ products = [], setProducts }) => {
 
           {/* Submit Button */}
           <div className="pt-4 border-t border-gray-200">
-            <button
-              type="submit"
-              disabled={loading || !formData.product || !formData.vendor || !formData.quantity}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save size={20} />
-              {loading ? 'Adding Stock...' : 'Add Stock'}
-            </button>
+            {!canEdit ? (
+              <div className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 text-gray-500 rounded-lg font-medium">
+                <AlertCircle size={20} />
+                View Only - You do not have permission to add stock entries
+              </div>
+            ) : (
+              <button
+                type="submit"
+                disabled={loading || !formData.product || !formData.vendor || !formData.quantity}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={20} />
+                {loading ? 'Adding Stock...' : 'Add Stock'}
+              </button>
+            )}
           </div>
         </form>
       </div>

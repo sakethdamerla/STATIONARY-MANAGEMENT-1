@@ -1,4 +1,5 @@
 import { Navigate } from 'react-router-dom';
+import { hasViewAccess } from '../utils/permissions';
 
 const ProtectedRoute = ({ children, currentUser, requiredPermission, requiredPermissions, superAdminOnly = false }) => {
   // Check if user is authenticated
@@ -22,13 +23,13 @@ const ProtectedRoute = ({ children, currentUser, requiredPermission, requiredPer
   
   // Support multiple permissions (OR logic - user needs at least one)
   if (requiredPermissions && Array.isArray(requiredPermissions)) {
-    const hasAnyPermission = requiredPermissions.some(perm => permissions.includes(perm));
+    const hasAnyPermission = requiredPermissions.some(key => hasViewAccess(permissions, key));
     if (!hasAnyPermission) {
       return <Navigate to="/" replace />;
     }
   }
   // Support single permission (backward compatibility)
-  else if (requiredPermission && !permissions.includes(requiredPermission)) {
+  else if (requiredPermission && !hasViewAccess(permissions, requiredPermission)) {
     return <Navigate to="/" replace />;
   }
 

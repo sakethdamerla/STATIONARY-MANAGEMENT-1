@@ -4,6 +4,7 @@ import { ArrowLeft, Search, Plus, Trash2, GraduationCap, Users, ChevronLeft, Che
 import { apiUrl } from '../utils/api';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import { loadJSON, saveJSON } from '../utils/storage';
+import { getAllowedCourses, normalizeCourseName, hasViewAccess } from '../utils/permissions';
 
 const normalizeCourse = (value) => {
   if (!value) return '';
@@ -28,10 +29,27 @@ const isCacheValid = (timestampKey) => {
   return Date.now() - timestamp < CACHE_TTL;
 };
 
-const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
+const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, currentUser }) => {
   const navigate = useNavigate();
   const searchTimeoutRef = useRef(null);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  
+  // Check if user is super admin
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const userPermissions = Array.isArray(currentUser?.permissions) ? currentUser.permissions : [];
+  
+  // Get allowed courses for course-dashboard permission
+  const allowedCourses = useMemo(() => {
+    if (isSuperAdmin) return null; // Super admin sees all courses
+    if (!hasViewAccess(userPermissions, 'course-dashboard')) return []; // No access to course dashboard
+    
+    // Get course-specific permissions
+    const courses = getAllowedCourses(userPermissions);
+    // If user has course-dashboard permission but no course-specific permissions,
+    // they see all courses (return null)
+    // If they have course-specific permissions, return those courses
+    return courses.length > 0 ? courses : null; // null means all courses, empty array means no access
+  }, [isSuperAdmin, userPermissions]);
   
   // Load from cache first if available
   const cachedStudents = useMemo(() => {
@@ -245,6 +263,24 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
   const filteredStudents = useMemo(() => {
     const searchLower = debouncedSearchTerm.toLowerCase();
     return students.filter(student => {
+      // Filter by course permissions first
+      if (allowedCourses !== null) {
+        // If allowedCourses is an empty array, user has no access
+        if (allowedCourses.length === 0) {
+          return false;
+        }
+        // Check if student's course is in allowed courses
+        const studentCourseNormalized = normalizeCourseName(student.course);
+        const hasAccess = allowedCourses.some(allowedCourse => {
+          const normalizedAllowed = normalizeCourseName(allowedCourse);
+          return studentCourseNormalized === normalizedAllowed;
+        });
+        if (!hasAccess) {
+          return false;
+        }
+      }
+      // If allowedCourses is null, user has access to all courses (super admin or general course-dashboard permission)
+      
       const matchesSearch = !searchLower ||
         student.name?.toLowerCase().includes(searchLower) ||
         student.studentId?.toLowerCase().includes(searchLower);
@@ -261,7 +297,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
 
       return matchesSearch && matchesYear && matchesCourse && matchesBranch;
     });
-  }, [students, debouncedSearchTerm, yearFilter, courseFilter, branchFilter]);
+  }, [students, debouncedSearchTerm, yearFilter, courseFilter, branchFilter, allowedCourses]);
 
   // Pagination
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
@@ -276,20 +312,49 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp }) => {
     setCurrentPage(1);
   }, [yearFilter, courseFilter, branchFilter, debouncedSearchTerm]);
 
-  // Get years from filtered students (based on course filter)
+  // Get years from students (filtered by permissions, then by course filter)
   const yearOptions = useMemo(() => {
+    // First filter by permissions
+    let availableStudents = students;
+    if (allowedCourses !== null) {
+      if (allowedCourses.length === 0) {
+        return [];
+      }
+      availableStudents = students.filter(student => {
+        const studentCourseNormalized = normalizeCourseName(student.course);
+        return allowedCourses.some(allowedCourse => {
+          const normalizedAllowed = normalizeCourseName(allowedCourse);
+          return studentCourseNormalized === normalizedAllowed;
+        });
+      });
+    }
+    
+    // Then filter by course filter if set
     const filteredByCourse = courseFilter === 'all' 
-      ? students 
-      : students.filter(s => normalizeCourse(s.course) === normalizeCourse(courseFilter));
+      ? availableStudents 
+      : availableStudents.filter(s => normalizeCourse(s.course) === normalizeCourse(courseFilter));
     return Array.from(new Set(filteredByCourse.map(s => s.year).filter(Boolean))).sort((a, b) => a - b);
-  }, [students, courseFilter]);
+  }, [students, courseFilter, allowedCourses]);
 
-  // Get course options
-  const courseOptions = config?.courses
-    ? config.courses.map(c => ({ name: c.name, displayName: c.displayName }))
-    : Array.from(new Set(students.map(s => s.normalizedCourse)))
-        .filter(Boolean)
-        .map(name => ({ name, displayName: name.toUpperCase() }));
+  // Get course options - filter by allowed courses
+  const courseOptions = useMemo(() => {
+    let allCourses = config?.courses
+      ? config.courses.map(c => ({ name: c.name, displayName: c.displayName }))
+      : Array.from(new Set(students.map(s => s.normalizedCourse)))
+          .filter(Boolean)
+          .map(name => ({ name, displayName: name.toUpperCase() }));
+    
+    // Filter by allowed courses if user has course-specific permissions
+    if (allowedCourses !== null && allowedCourses.length > 0) {
+      allCourses = allCourses.filter(course => {
+        const courseName = course.name || course;
+        const normalizedCourse = normalizeCourseName(courseName);
+        return allowedCourses.some(allowed => normalizeCourseName(allowed) === normalizedCourse);
+      });
+    }
+    
+    return allCourses;
+  }, [config?.courses, students, allowedCourses]);
 
   // Get branch options based on selected course
   const branchOptions = useMemo(() => {

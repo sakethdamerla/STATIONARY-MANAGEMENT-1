@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck, ClipboardList, RefreshCcw, CheckCircle2, XCircle, Info, History, Clock, Lock } from 'lucide-react';
 import { apiUrl } from '../utils/api';
+import { hasViewAccess } from '../utils/permissions';
 
 const getCurrentUserName = () => {
   try {
@@ -22,15 +23,31 @@ const getCurrentUserInfo = () => {
   }
 };
 
-const AuditLogs = () => {
-  const currentUserInfo = useMemo(() => getCurrentUserInfo(), []);
+const AuditLogs = ({ currentUser }) => {
+  // Use currentUser prop if provided, otherwise fallback to localStorage
+  const currentUserInfo = useMemo(() => {
+    return currentUser || getCurrentUserInfo();
+  }, [currentUser]);
+  
   const currentUserPermissions = Array.isArray(currentUserInfo?.permissions) ? currentUserInfo.permissions : [];
   const isSuperAdmin = currentUserInfo?.role === 'Administrator';
-  const hasLegacyAuditPermission = currentUserPermissions.includes('audit-logs');
+  
+  // Check for legacy audit-logs permission (without access level)
+  const hasLegacyAuditPermission = currentUserPermissions.some(p => {
+    if (typeof p !== 'string') return false;
+    // Check for 'audit-logs' or 'audit-logs:view' or 'audit-logs:full'
+    return p === 'audit-logs' || p.startsWith('audit-logs:');
+  });
+  
+  // Use hasViewAccess to properly check permissions with access levels
   const canAccessEntry =
-    isSuperAdmin || hasLegacyAuditPermission || currentUserPermissions.includes('audit-log-entry');
+    isSuperAdmin || 
+    hasLegacyAuditPermission || 
+    hasViewAccess(currentUserPermissions, 'audit-log-entry');
   const canAccessApproval =
-    isSuperAdmin || hasLegacyAuditPermission || currentUserPermissions.includes('audit-log-approval');
+    isSuperAdmin || 
+    hasLegacyAuditPermission || 
+    hasViewAccess(currentUserPermissions, 'audit-log-approval');
 
   const [activeTab, setActiveTab] = useState(() => {
     if (canAccessEntry) return 'entry';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit, Trash2, X } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, X, Eye, Edit2, AlertCircle } from 'lucide-react';
 import { apiUrl } from '../utils/api';
+import { parsePermission, permissionsToObject, objectToPermissions } from '../utils/permissions';
 
 // Sidebar menu items for permissions
 const SIDEBAR_ITEMS = [
@@ -9,7 +10,17 @@ const SIDEBAR_ITEMS = [
   { path: '/student-management', label: 'Manage Students', key: 'student-management' },
   { path: '/courses', label: 'Add Courses', key: 'courses' },
   { path: '/students-dashboard', label: 'Student Dashboard', key: 'course-dashboard' },
-  { path: '/manage-stock', label: 'Manage Stock', key: 'manage-stock' },
+  {
+    path: '/manage-stock',
+    label: 'Manage Stock',
+    key: 'manage-stock',
+    children: [
+      { label: 'Add Product', key: 'stock-products' },
+      { label: 'Add Stock', key: 'stock-add' },
+      { label: 'Stock Entries', key: 'stock-entries' },
+      { label: 'Vendor Management', key: 'stock-vendors' },
+    ],
+  },
   { path: '/stock-transfers', label: 'Stock Transfers', key: 'stock-transfers' },
   { path: '/transactions', label: 'Reports', key: 'transactions' },
   { path: '/student-due', label: 'Student Due', key: 'student-due' },
@@ -38,17 +49,38 @@ const PERMISSION_LABELS = SIDEBAR_ITEMS.reduce((acc, item) => {
 
 const normalizePermissions = (perms = []) => {
   const list = Array.isArray(perms) ? perms.slice() : [];
-  const hasLegacyAudit = list.includes('audit-logs');
-  const withoutLegacy = list.filter((perm) => perm && perm !== 'audit-logs');
-  if (hasLegacyAudit) {
-    if (!withoutLegacy.includes('audit-log-entry')) {
-      withoutLegacy.push('audit-log-entry');
-    }
-    if (!withoutLegacy.includes('audit-log-approval')) {
-      withoutLegacy.push('audit-log-approval');
-    }
+  const hasLegacyAudit = list.some(p => {
+    const parsed = parsePermission(p);
+    return parsed.key === 'audit-logs';
+  });
+  const hasLegacyManageStock = list.some(p => {
+    const parsed = parsePermission(p);
+    return parsed.key === 'manage-stock';
+  });
+  
+  // Convert to object format for easier manipulation
+  const permObj = permissionsToObject(list);
+  
+  // Handle legacy audit-logs permission
+  if (hasLegacyAudit && !permObj['audit-log-entry'] && !permObj['audit-log-approval']) {
+    permObj['audit-log-entry'] = permObj['audit-logs'] || 'full';
+    permObj['audit-log-approval'] = permObj['audit-logs'] || 'full';
   }
-  return Array.from(new Set(withoutLegacy));
+  delete permObj['audit-logs'];
+  
+  // Handle legacy manage-stock permission
+  if (hasLegacyManageStock) {
+    const stockAccess = permObj['manage-stock'] || 'full';
+    // Only set if individual permissions don't exist
+    if (!permObj['stock-products']) permObj['stock-products'] = stockAccess;
+    if (!permObj['stock-add']) permObj['stock-add'] = stockAccess;
+    if (!permObj['stock-entries']) permObj['stock-entries'] = stockAccess;
+    if (!permObj['stock-vendors']) permObj['stock-vendors'] = stockAccess;
+  }
+  delete permObj['manage-stock'];
+  
+  // Convert back to array
+  return objectToPermissions(permObj);
 };
 
 // A simple modal component for creating/editing sub-admins
@@ -56,7 +88,35 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
   const [name, setName] = useState(subAdmin?.name || '');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState(subAdmin?.role || 'Editor');
-  const [permissions, setPermissions] = useState(subAdmin?.permissions || []);
+  const [permissions, setPermissions] = useState({}); // Object format: { 'key': 'view' | 'full' }
+  const [courses, setCourses] = useState([]);
+  const [coursePermissions, setCoursePermissions] = useState({}); // Object format: { 'course-name': 'view' | 'full' }
+
+  // Fetch courses when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchCourses = async () => {
+        try {
+          let res = await fetch(apiUrl('/api/academic-config/courses'));
+          if (res.ok) {
+            const data = await res.json();
+            setCourses(Array.isArray(data) ? data : []);
+            return;
+          }
+          if (res.status === 404) {
+            res = await fetch(apiUrl('/api/config/academic'));
+            if (res.ok) {
+              const data = await res.json();
+              setCourses(Array.isArray(data?.courses) ? data.courses : []);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch courses:', e);
+        }
+      };
+      fetchCourses();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -64,18 +124,84 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
       setRole(subAdmin?.role || 'Editor');
       setPassword(''); // Always clear password field when modal opens
       const sourcePerms = Array.isArray(subAdmin?.permissions) ? subAdmin.permissions : [];
-      setPermissions(normalizePermissions(sourcePerms));
+      const normalized = normalizePermissions(sourcePerms);
+      // Convert to object format for easier state management
+      const permsObj = permissionsToObject(normalized);
+      setPermissions(permsObj);
+      
+      // Extract course-specific permissions
+      const coursePerms = {};
+      Object.keys(permsObj).forEach(key => {
+        if (key.startsWith('course-dashboard-')) {
+          const courseName = key.replace('course-dashboard-', '');
+          coursePerms[courseName] = permsObj[key];
+        }
+      });
+      setCoursePermissions(coursePerms);
     }
   }, [isOpen, subAdmin]);
 
   if (!isOpen) return null;
 
-  const handlePermissionToggle = (key) => {
-    setPermissions(prev => 
-      prev.includes(key) 
-        ? prev.filter(p => p !== key)
-        : [...prev, key]
-    );
+  const normalizeCourseName = (courseName) => {
+    if (!courseName) return '';
+    return String(courseName).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  };
+
+  const handlePermissionAccessChange = (key, access) => {
+    setPermissions(prev => {
+      const newPerms = { ...prev };
+      if (access === null) {
+        // Remove permission
+        delete newPerms[key];
+        // If removing course-dashboard, also remove all course-specific permissions
+        if (key === 'course-dashboard') {
+          Object.keys(newPerms).forEach(permKey => {
+            if (permKey.startsWith('course-dashboard-')) {
+              delete newPerms[permKey];
+            }
+          });
+          setCoursePermissions({});
+        }
+      } else {
+        // Set permission with access level
+        newPerms[key] = access;
+      }
+      return newPerms;
+    });
+  };
+
+  const handleCoursePermissionChange = (courseName, access) => {
+    const normalizedCourse = normalizeCourseName(courseName);
+    const courseKey = `course-dashboard-${normalizedCourse}`;
+    
+    setCoursePermissions(prev => {
+      const newCoursePerms = { ...prev };
+      if (access === null) {
+        delete newCoursePerms[courseName];
+      } else {
+        newCoursePerms[courseName] = access;
+      }
+      return newCoursePerms;
+    });
+
+    setPermissions(prev => {
+      const newPerms = { ...prev };
+      if (access === null) {
+        delete newPerms[courseKey];
+      } else {
+        newPerms[courseKey] = access;
+      }
+      return newPerms;
+    });
+  };
+
+  const getPermissionAccess = (key) => {
+    return permissions[key] || null;
+  };
+
+  const getCoursePermissionAccess = (courseName) => {
+    return coursePermissions[courseName] || null;
   };
 
   const handleSubmit = (e) => {
@@ -86,7 +212,8 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
     }
     // Set default role for new sub-admins and only include password if it has been set
     const submissionRole = subAdmin ? role : 'Editor';
-    const cleanedPermissions = normalizePermissions(permissions);
+    // Convert permissions object back to array format
+    const cleanedPermissions = objectToPermissions(permissions);
     onSave({
       ...subAdmin,
       name,
@@ -134,58 +261,254 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
           
           {/* Permissions Section */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">Permissions</label>
-            <p className="text-xs text-gray-500 mb-4">Select which features this sub-admin can access:</p>
-            <div className="space-y-4 max-h-64 overflow-y-auto p-3 bg-indigo-50 rounded-xl border border-indigo-200">
-              {SIDEBAR_ITEMS.map((item) => {
-                if (item.children) {
-                  const anyChildSelected = item.children.some((child) => permissions.includes(child.key));
-                  return (
-                    <div key={item.key} className="bg-white rounded-xl border border-indigo-200 p-3">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-gray-800">{item.label}</span>
-                        {!anyChildSelected && (
-                          <span className="text-[11px] text-amber-600">No access selected</span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {item.children.map((child) => (
-                          <label
-                            key={child.key}
-                            className="flex items-center gap-2 p-3 bg-indigo-50/40 rounded-lg border border-indigo-200 hover:bg-indigo-50 cursor-pointer transition-colors"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={permissions.includes(child.key)}
-                              onChange={() => handlePermissionToggle(child.key)}
-                              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
-                            />
-                            <span className="text-sm font-medium text-gray-700">{child.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <label
-                    key={item.key}
-                    className="flex items-center gap-2 p-3 bg-white rounded-lg border border-indigo-200 hover:bg-indigo-50 hover:border-indigo-400 cursor-pointer transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={permissions.includes(item.key)}
-                      onChange={() => handlePermissionToggle(item.key)}
-                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
-                    />
-                    <span className="text-sm font-medium text-gray-700">{item.label}</span>
-                  </label>
-                );
-              })}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Permissions</label>
+                <p className="text-xs text-gray-500">Select access level for each feature (View = Read-only, Full = Read + Edit + Delete)</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="text-gray-600">View Access</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-gray-600">Full Access</span>
+                </div>
+              </div>
             </div>
-            {permissions.length === 0 && (
-              <p className="text-xs text-amber-600 mt-2">⚠️ No permissions selected. Sub-admin will have limited access.</p>
+            
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              <div className="max-h-[500px] overflow-y-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-100 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Feature</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-32">No Access</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-32">View Only</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-32">Full Access</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {SIDEBAR_ITEMS.map((item) => {
+                      if (item.children) {
+                        // Render parent row with expandable children
+                        const anyChildSelected = item.children.some((child) => getPermissionAccess(child.key) !== null);
+                        return (
+                          <React.Fragment key={item.key}>
+                            <tr className="bg-indigo-50/30 hover:bg-indigo-50/50">
+                              <td colSpan="4" className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-gray-800">{item.label}</span>
+                                  {!anyChildSelected && (
+                                    <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">No access</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {item.children.map((child) => {
+                              const access = getPermissionAccess(child.key);
+                              return (
+                                <tr key={child.key} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-4 py-3 pl-8">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                                      <span className="text-sm text-gray-700">{child.label}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePermissionAccessChange(child.key, null)}
+                                      className={`w-10 h-10 rounded-full border-2 transition-all ${
+                                        !access
+                                          ? 'bg-gray-200 border-gray-400 shadow-inner'
+                                          : 'bg-white border-gray-300 hover:border-gray-400'
+                                      }`}
+                                      title="No Access"
+                                    />
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePermissionAccessChange(child.key, access === 'view' ? null : 'view')}
+                                      className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
+                                        access === 'view'
+                                          ? 'bg-blue-500 border-blue-600 shadow-md'
+                                          : 'bg-white border-gray-300 hover:border-blue-200 hover:bg-blue-50'
+                                      }`}
+                                      title="View Access"
+                                    >
+                                      {access === 'view' && <Eye size={16} className="text-white" />}
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePermissionAccessChange(child.key, access === 'full' ? null : 'full')}
+                                      className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
+                                        access === 'full'
+                                          ? 'bg-green-500 border-green-600 shadow-md'
+                                          : 'bg-white border-gray-300 hover:border-green-200 hover:bg-green-50'
+                                      }`}
+                                      title="Full Access"
+                                    >
+                                      {access === 'full' && <Edit2 size={16} className="text-white" />}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      }
+
+                      // Regular permission item
+                      const access = getPermissionAccess(item.key);
+                      const isCourseDashboard = item.key === 'course-dashboard';
+                      const hasCourseDashboardAccess = access === 'view' || access === 'full';
+                      
+                      return (
+                        <React.Fragment key={item.key}>
+                          <tr className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handlePermissionAccessChange(item.key, null)}
+                                className={`w-10 h-10 rounded-full border-2 transition-all ${
+                                  !access
+                                    ? 'bg-gray-200 border-gray-400 shadow-inner'
+                                    : 'bg-white border-gray-300 hover:border-gray-400'
+                                }`}
+                                title="No Access"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handlePermissionAccessChange(item.key, access === 'view' ? null : 'view')}
+                                className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
+                                  access === 'view'
+                                    ? 'bg-blue-500 border-blue-600 shadow-md'
+                                    : 'bg-white border-gray-300 hover:border-blue-200 hover:bg-blue-50'
+                                }`}
+                                title="View Access"
+                              >
+                                {access === 'view' && <Eye size={16} className="text-white" />}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handlePermissionAccessChange(item.key, access === 'full' ? null : 'full')}
+                                className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
+                                  access === 'full'
+                                    ? 'bg-green-500 border-green-600 shadow-md'
+                                    : 'bg-white border-gray-300 hover:border-green-200 hover:bg-green-50'
+                                }`}
+                                title="Full Access"
+                              >
+                                {access === 'full' && <Edit2 size={16} className="text-white" />}
+                              </button>
+                            </td>
+                          </tr>
+                          {/* Course Selection for Student Dashboard */}
+                          {isCourseDashboard && hasCourseDashboardAccess && courses.length > 0 && (
+                            <tr>
+                              <td colSpan="4" className="px-4 py-4 bg-blue-50/30">
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xs font-semibold text-gray-700">Select Courses:</span>
+                                    <span className="text-xs text-gray-500">({Object.keys(coursePermissions).length} selected)</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    {courses.map((course) => {
+                                      const courseName = course.name || course;
+                                      const courseDisplayName = course.displayName || courseName;
+                                      const courseAccess = getCoursePermissionAccess(courseName);
+                                      return (
+                                        <div key={courseName} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+                                          <input
+                                            type="checkbox"
+                                            checked={courseAccess !== null}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                // Default to same access level as parent
+                                                handleCoursePermissionChange(courseName, access);
+                                              } else {
+                                                handleCoursePermissionChange(courseName, null);
+                                              }
+                                            }}
+                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                          />
+                                          <label className="text-sm text-gray-700 flex-1 cursor-pointer" onClick={() => {
+                                            if (courseAccess === null) {
+                                              handleCoursePermissionChange(courseName, access);
+                                            } else {
+                                              handleCoursePermissionChange(courseName, null);
+                                            }
+                                          }}>
+                                            {courseDisplayName}
+                                          </label>
+                                          {courseAccess !== null && (
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleCoursePermissionChange(courseName, courseAccess === 'view' ? 'full' : 'view');
+                                                }}
+                                                className={`px-2 py-1 text-xs rounded transition-colors ${
+                                                  courseAccess === 'view'
+                                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                }`}
+                                                title={courseAccess === 'view' ? 'View Only - Click for Full Access' : 'Full Access - Click for View Only'}
+                                              >
+                                                {courseAccess === 'view' ? 'View' : 'Full'}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  {Object.keys(coursePermissions).length === 0 && (
+                                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-2">
+                                      <AlertCircle size={12} />
+                                      No courses selected. Sub-admin will not have access to any course dashboard.
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            {Object.keys(permissions).length === 0 && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-700 flex items-center gap-2">
+                  <AlertCircle size={14} />
+                  No permissions selected. Sub-admin will have limited access.
+                </p>
+              </div>
+            )}
+            
+            {Object.keys(permissions).length > 0 && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>{Object.keys(permissions).length}</strong> permission{Object.keys(permissions).length !== 1 ? 's' : ''} selected
+                </p>
+              </div>
             )}
           </div>
           
@@ -355,12 +678,22 @@ const SubAdminManagement = ({ currentUser }) => {
                           {Array.isArray(subAdmin.permissions) && subAdmin.permissions.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1">
                               {subAdmin.permissions.slice(0, 3).map((perm) => {
-                                const label = PERMISSION_LABELS[perm];
-                                return label ? (
-                                  <span key={perm} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                                    {label}
+                                const parsed = parsePermission(perm);
+                                const label = PERMISSION_LABELS[parsed.key];
+                                if (!label) return null;
+                                return (
+                                  <span 
+                                    key={perm} 
+                                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                      parsed.access === 'full'
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-blue-100 text-blue-700'
+                                    }`}
+                                    title={parsed.access === 'full' ? 'Full Access' : 'View Only'}
+                                  >
+                                    {label} {parsed.access === 'view' && '(View)'}
                                   </span>
-                                ) : null;
+                                );
                               })}
                               {subAdmin.permissions.length > 3 && (
                                 <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">

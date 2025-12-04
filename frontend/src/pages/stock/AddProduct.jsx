@@ -1,8 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Filter, Package, Eye, Edit, Trash2, X, Save, Calendar, DollarSign, FileText, Layers, MinusCircle, LayoutGrid, Table } from 'lucide-react';
 import { apiUrl } from '../../utils/api';
+import { hasFullAccess } from '../../utils/permissions';
 
-const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, currentCourse, products = [], setProducts }) => {
+const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, currentCourse, products = [], setProducts, currentUser }) => {
+  // Check access level
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const permissions = currentUser?.permissions || [];
+  
+  // Check for legacy manage-stock permission
+  const hasLegacyPermission = permissions.some(p => {
+    if (typeof p !== 'string') return false;
+    return p === 'manage-stock' || p.startsWith('manage-stock:');
+  });
+  
+  const canEdit = isSuperAdmin || hasLegacyPermission || hasFullAccess(permissions, 'stock-products');
   const [selectedCourse, setSelectedCourse] = useState(currentCourse || '');
   const [selectedYear, setSelectedYear] = useState('');
   const [config, setConfig] = useState(null);
@@ -449,18 +461,20 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             <p className="text-gray-600 text-sm mt-1">Manage your product catalog</p>
           </div>
         </div>
-        <button
-          onClick={() => {
-            setShowAddProduct(true);
-            setShowProductDetail(false); // Ensure View modal is closed when adding
-            setSelectedProduct(null);    // Clear any selected product
-            setIsEditing(false);
-          }}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium"
-        >
-          <Plus size={20} />
-          Add New Product
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => {
+              setShowAddProduct(true);
+              setShowProductDetail(false); // Ensure View modal is closed when adding
+              setSelectedProduct(null);    // Clear any selected product
+              setIsEditing(false);
+            }}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium"
+          >
+            <Plus size={20} />
+            Add New Product
+          </button>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -673,13 +687,19 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                     <Eye size={16} />
                     View
                   </button>
-                  <button
-                    onClick={() => handleDelete(product._id, product.name)}
-                    className="px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {canEdit ? (
+                    <button
+                      onClick={() => handleDelete(product._id, product.name)}
+                      className="px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  ) : (
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-2 rounded-lg">
+                      View Only
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -748,13 +768,19 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                             <Eye size={16} />
                             View
               </button>
-                          <button
-                            onClick={() => handleDelete(product._id, product.name)}
-                            className="inline-flex items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canEdit ? (
+                            <button
+                              onClick={() => handleDelete(product._id, product.name)}
+                              className="inline-flex items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          ) : (
+                            <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">
+                              View Only
+                            </span>
+                          )}
           </div>
                       </td>
                     </tr>

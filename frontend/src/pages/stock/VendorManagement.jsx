@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Plus, Building2, Edit, Trash2, Mail, Phone, MapPin, FileText, Search, X, History, Package, Calendar, DollarSign } from 'lucide-react';
 import { apiUrl } from '../../utils/api';
+import { hasFullAccess } from '../../utils/permissions';
 
-const VendorManagement = () => {
+const VendorManagement = ({ currentUser }) => {
+  // Check access level
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const permissions = currentUser?.permissions || [];
+  
+  // Check for legacy manage-stock permission
+  const hasLegacyPermission = permissions.some(p => {
+    if (typeof p !== 'string') return false;
+    return p === 'manage-stock' || p.startsWith('manage-stock:');
+  });
+  
+  const canEdit = isSuperAdmin || hasLegacyPermission || hasFullAccess(permissions, 'stock-vendors');
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ type: '', message: '' });
@@ -250,16 +262,18 @@ const VendorManagement = () => {
             <p className="text-gray-600 text-sm mt-1">Manage your vendor information and contacts</p>
           </div>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium"
-        >
-          <Plus size={20} />
-          Add New Vendor
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium"
+          >
+            <Plus size={20} />
+            Add New Vendor
+          </button>
+        )}
       </div>
 
       {/* Status Message */}
@@ -393,20 +407,28 @@ const VendorManagement = () => {
                   <History size={16} />
                   History
                 </button>
-                <button
-                  onClick={() => handleEdit(vendor)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm"
-                >
-                  <Edit size={16} />
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(vendor._id, vendor.name)}
-                  className="px-4 py-2.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {canEdit ? (
+                  <>
+                    <button
+                      onClick={() => handleEdit(vendor)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm"
+                    >
+                      <Edit size={16} />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(vendor._id, vendor.name)}
+                      className="px-4 py-2.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-2 rounded-lg">
+                    View Only
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -420,7 +442,7 @@ const VendorManagement = () => {
           <p className="text-gray-600 mb-6">
             {searchQuery ? 'Try adjusting your search' : 'Get started by adding your first vendor'}
           </p>
-          {!searchQuery && (
+          {!searchQuery && canEdit && (
             <button
               onClick={() => {
                 resetForm();

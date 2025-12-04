@@ -22,8 +22,10 @@ const subAdminSchema = new mongoose.Schema(
     permissions: {
       type: [String],
       default: [],
-      // Permissions will be based on sidebar menu items
-      // e.g., ['dashboard', 'add-student', 'student-management', 'courses', 'manage-stock', 'transactions', 'settings']
+      // Permissions will be based on sidebar menu items with access levels
+      // Format: 'permission-key:access-level' where access-level is 'view' or 'full'
+      // e.g., ['dashboard:full', 'student-management:view', 'manage-stock:full', 'transactions:view']
+      // Legacy format (without access level) is treated as 'full' for backward compatibility
     },
   },
   { timestamps: true }

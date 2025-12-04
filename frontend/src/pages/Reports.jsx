@@ -1,10 +1,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Search, Trash2, Receipt, Download, Eye, X, FileText, Calendar, Package, Building2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Filter, Printer, DollarSign, TrendingUp, ShoppingCart, AlertCircle } from 'lucide-react';
 import { apiUrl } from '../utils/api';
+import { hasFullAccess } from '../utils/permissions';
 import jsPDF from 'jspdf';
 import { useReactToPrint } from 'react-to-print';
 
-const Reports = () => {
+const Reports = ({ currentUser }) => {
+  // Check access level
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const canEdit = isSuperAdmin || hasFullAccess(currentUser?.permissions || [], 'transactions');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -242,6 +246,11 @@ const Reports = () => {
   }, [searchTerm, filters]);
 
   const handleDelete = async (transactionId) => {
+    if (!canEdit) {
+      alert('You do not have permission to delete transactions');
+      return;
+    }
+    
     if (!window.confirm('Are you sure you want to delete this transaction?')) {
       return;
     }

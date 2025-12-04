@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Upload, Search, Users, Edit2, Trash2, X, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Filter, RefreshCw } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 import { loadJSON, saveJSON, removeStoredItem } from '../utils/storage';
+import { hasFullAccess } from '../utils/permissions';
 
 const StudentRow = ({
   student,
@@ -13,6 +14,7 @@ const StudentRow = ({
   cancelEdit,
   deleteStudent,
   isSqlMode,
+  canEdit,
 }) => {
   const isEditing = !isSqlMode && editingId === student.id;
   const studentInitial = String(student.name || '?').charAt(0).toUpperCase();
@@ -118,6 +120,10 @@ const StudentRow = ({
           <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
             Read only
           </span>
+        ) : !canEdit ? (
+          <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">
+            View Only
+          </span>
         ) : (
           <div className="flex gap-2">
             <button
@@ -146,12 +152,16 @@ const VIEW_MODES = {
   sql: 'sql',
 };
 
-const StudentManagement = ({ students = [], setStudents, addStudent, refreshStudents }) => {
+const StudentManagement = ({ students = [], setStudents, addStudent, refreshStudents, currentUser }) => {
   // SQL cache keys & TTL (2 minutes)
   const SQL_CACHE_KEY = 'sql_students_rows';
   const SQL_META_KEY = 'sql_students_meta';
   const SQL_CACHE_TIMESTAMP_KEY = 'sql_students_timestamp';
   const SQL_CACHE_TTL = 2 * 60 * 1000;
+
+  // Check access level
+  const isSuperAdmin = currentUser?.role === 'Administrator';
+  const canEdit = isSuperAdmin || hasFullAccess(currentUser?.permissions || [], 'student-management');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
@@ -901,6 +911,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
                   cancelEdit={cancelEdit}
                   deleteStudent={deleteStudent}
                   isSqlMode={isSqlMode}
+                  canEdit={canEdit}
                 />
               ))}
             </tbody>

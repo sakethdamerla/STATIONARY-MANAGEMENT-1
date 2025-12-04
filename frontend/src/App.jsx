@@ -22,6 +22,8 @@ import { apiUrl } from './utils/api';
 import useOnlineStatus from './hooks/useOnlineStatus';
 import { loadJSON, saveJSON } from './utils/storage';
 
+import { hasViewAccess } from './utils/permissions';
+
 const resolveDefaultPath = (user) => {
   if (!user) return '/login';
   if (user.role === 'Administrator') return '/';
@@ -39,7 +41,7 @@ const resolveDefaultPath = (user) => {
   ];
 
   for (const item of priorityPaths) {
-    if (permissions.includes(item.key)) {
+    if (hasViewAccess(permissions, item.key)) {
       return item.path;
     }
   }
@@ -435,6 +437,7 @@ function App() {
                       <StudentDashboard
                         initialStudents={students}
                         isOnline={isOnline}
+                        currentUser={currentUser}
                       />
                     </ProtectedRoute>
                   }
@@ -451,6 +454,7 @@ function App() {
                         onQueueTransaction={queueOfflineTransaction}
                         isOnline={isOnline}
                         pendingTransactions={pendingTransactions}
+                        currentUser={currentUser}
                       />
                     </ProtectedRoute>
                   }
@@ -459,7 +463,7 @@ function App() {
                   path="/add-student"
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermission="add-student">
-                      <AddStudent addStudent={addStudent} />
+                      <AddStudent addStudent={addStudent} currentUser={currentUser} />
                     </ProtectedRoute>
                   }
                 />
@@ -472,6 +476,7 @@ function App() {
                         setStudents={setStudents}
                         addStudent={addStudent}
                         refreshStudents={fetchStudentsData}
+                        currentUser={currentUser}
                       />
                     </ProtectedRoute>
                   }
@@ -487,8 +492,8 @@ function App() {
                 <Route
                   path="/manage-stock"
                   element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="manage-stock">
-                      <ManageStock itemCategories={itemCategories} addItemCategory={addItemCategory} setItemCategories={setItemCategories} currentCourse={currentCourse} products={products} setProducts={setProducts} />
+                    <ProtectedRoute currentUser={currentUser} requiredPermissions={['stock-products', 'stock-add', 'stock-entries', 'stock-vendors', 'manage-stock']}>
+                      <ManageStock itemCategories={itemCategories} addItemCategory={addItemCategory} setItemCategories={setItemCategories} currentCourse={currentCourse} products={products} setProducts={setProducts} currentUser={currentUser} />
                     </ProtectedRoute>
                   }
                 />
@@ -496,7 +501,7 @@ function App() {
                   path="/courses" 
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermission="courses">
-                      <CourseManagement />
+                      <CourseManagement currentUser={currentUser} />
                     </ProtectedRoute>
                   } 
                 />
@@ -504,7 +509,7 @@ function App() {
                   path="/transactions" 
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
-                      <Reports />
+                      <Reports currentUser={currentUser} />
                     </ProtectedRoute>
                   } 
                 />
@@ -512,7 +517,7 @@ function App() {
                   path="/student-due" 
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
-                      <StudentDue />
+                      <StudentDue currentUser={currentUser} />
                     </ProtectedRoute>
                   } 
                 />
@@ -520,7 +525,7 @@ function App() {
                   path="/audit-logs" 
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermissions={['audit-log-entry', 'audit-log-approval', 'audit-logs']}>
-                      <AuditLogs />
+                      <AuditLogs currentUser={currentUser} />
                     </ProtectedRoute>
                   } 
                 />
@@ -528,7 +533,7 @@ function App() {
                   path="/settings" 
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermission="settings">
-                      <Settings />
+                      <Settings currentUser={currentUser} />
                     </ProtectedRoute>
                   } 
                 />
@@ -536,7 +541,7 @@ function App() {
                   path="/stock-transfers" 
                   element={
                     <ProtectedRoute currentUser={currentUser} requiredPermission="stock-transfers">
-                      <StockTransfers />
+                      <StockTransfers currentUser={currentUser} />
                     </ProtectedRoute>
                   } 
                 />
