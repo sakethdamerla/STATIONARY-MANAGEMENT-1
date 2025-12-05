@@ -157,34 +157,38 @@ const Sidebar = ({ onLogout, isMobile: isMobileProp, sidebarOpen, setSidebarOpen
         </div>
 
         {/* Footer Section - User Info & Logout */}
-        <div className="p-4 border-t border-slate-600 bg-slate-750">
+        <div className={`border-t border-slate-600 bg-slate-750 ${sidebarOpen ? 'p-4' : 'p-2'}`}>
           {/* User Info */}
           {currentUser && (
-            <div className="flex items-center gap-3 p-3 bg-slate-700 border border-slate-600 rounded-xl text-slate-300 text-sm font-medium">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white shadow-md">
-                <User size={20} />
-              </div>
+            <div className={`flex items-center bg-slate-700 border border-slate-600 rounded-xl text-slate-300 text-sm font-medium ${
+              sidebarOpen ? 'gap-3 p-3' : 'justify-center p-2'
+            }`}>
               {sidebarOpen && (
-                <div className="flex items-center justify-between gap-3 flex-1 min-w-0">
-                  <div className="flex flex-col leading-tight flex-1 min-w-0">
-                    <span className="font-semibold text-sm truncate">{currentUser.name}</span>
-                    <span className="text-xs text-slate-300">
-                      {isSuperAdmin ? 'Administrator' : 'Sub-Administrator'}
-                    </span>
+                <>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 flex items-center justify-center text-white shadow-md">
+                    <User size={20} />
                   </div>
-                  <button
-                    onClick={onLogout}
-                    className="p-2 rounded-lg bg-slate-600 hover:bg-red-500 hover:border-red-400 hover:text-white hover:shadow-md transition-all duration-200"
-                    title="Logout"
-                  >
-                    <LogOut size={18} />
-                  </button>
-                </div>
+                  <div className="flex items-center justify-between gap-3 flex-1 min-w-0">
+                    <div className="flex flex-col leading-tight flex-1 min-w-0">
+                      <span className="font-semibold text-sm truncate">{currentUser.name}</span>
+                      <span className="text-xs text-slate-300">
+                        {isSuperAdmin ? 'Administrator' : 'Sub-Administrator'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={onLogout}
+                      className="p-2 rounded-lg bg-slate-600 hover:bg-red-500 hover:border-red-400 hover:text-white hover:shadow-md transition-all duration-200"
+                      title="Logout"
+                    >
+                      <LogOut size={18} />
+                    </button>
+                  </div>
+                </>
               )}
               {!sidebarOpen && (
                 <button
                   onClick={onLogout}
-                  className="p-2 rounded-lg bg-slate-600 hover:bg-red-500 hover:border-red-400 hover:text-white hover:shadow-md transition-all duration-200"
+                  className="p-2 rounded-lg bg-slate-600 hover:bg-red-500 hover:border-red-400 hover:text-white hover:shadow-md transition-all duration-200 w-full flex items-center justify-center"
                   title="Logout"
                 >
                   <LogOut size={18} />
