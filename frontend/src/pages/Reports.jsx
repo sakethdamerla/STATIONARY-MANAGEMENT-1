@@ -57,12 +57,16 @@ const Reports = ({ currentUser }) => {
   const [vendors, setVendors] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
   const [stockEntriesLoading, setStockEntriesLoading] = useState(true);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [selectedMonthForDaily, setSelectedMonthForDaily] = useState(null); // For daily breakdown view
   const [currentPage, setCurrentPage] = useState(1);
   const [branchTransferPage, setBranchTransferPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [itemsSoldExpanded, setItemsSoldExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('daily'); // 'daily', 'monthly', 'stock'
+  const [monthlyReportSubTab, setMonthlyReportSubTab] = useState('monthly-sale'); // 'monthly-sale', 'daily-breakdown'
   const [expandedDays, setExpandedDays] = useState(new Set()); // Track expanded days: "monthKey-dayKey"
 
   useEffect(() => {
@@ -71,13 +75,22 @@ const Reports = ({ currentUser }) => {
     fetchVendors();
     fetchSettings();
     fetchStockEntries();
+    fetchProducts();
   }, []);
 
   useEffect(() => {
     if (activeTab === 'stock') {
       fetchStockEntries();
+    } else if (activeTab === 'monthly') {
+      fetchProducts();
     }
   }, [activeTab]);
+
+  // Get current month key in format YYYY-MM
+  const getCurrentMonthKey = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  };
 
   const fetchSettings = async () => {
     try {
@@ -118,6 +131,21 @@ const Reports = ({ currentUser }) => {
       console.error('Error fetching stock entries:', error);
     } finally {
       setStockEntriesLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await fetch(apiUrl('/api/products'));
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setProductsLoading(false);
     }
   };
 
@@ -540,6 +568,204 @@ const Reports = ({ currentUser }) => {
     
     return Array.from(monthMap.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
   }, [studentTransactions]);
+
+  // Set default to current month when switching to daily breakdown sub-tab or when monthlyStats is available
+  useEffect(() => {
+    if (activeTab === 'monthly' && monthlyReportSubTab === 'daily-breakdown' && monthlyStats.length > 0) {
+      const currentMonthKey = getCurrentMonthKey();
+      // Check if current month exists in monthlyStats
+      const currentMonthExists = monthlyStats.some(m => m.monthKey === currentMonthKey);
+      
+      if (currentMonthExists) {
+        // If current month exists and not already selected, set it
+        if (!selectedMonthForDaily || selectedMonthForDaily !== currentMonthKey) {
+          setSelectedMonthForDaily(currentMonthKey);
+        }
+      } else if (!selectedMonthForDaily || !monthlyStats.some(m => m.monthKey === selectedMonthForDaily)) {
+        // If current month doesn't exist or selected month is invalid, select the most recent month
+        const mostRecentMonth = monthlyStats[0]; // monthlyStats is sorted by most recent first
+        if (mostRecentMonth) {
+          setSelectedMonthForDaily(mostRecentMonth.monthKey);
+        }
+      }
+    }
+  }, [activeTab, monthlyReportSubTab, monthlyStats, selectedMonthForDaily]);
+
+  // Enhanced Monthly Sales Report - Comprehensive table with all items and months
+  const comprehensiveMonthlyReport = useMemo(() => {
+    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
+    
+    // Get all months from transactions
+    const allMonths = new Set();
+    const itemMonthlySales = new Map(); // itemName -> { monthKey -> quantity }
+    const allItems = new Set();
+    
+    revenueTransactions.forEach(transaction => {
+      const date = new Date(transaction.transactionDate);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      allMonths.add(monthKey);
+      
+      // Process items in transaction
+      if (transaction.items && Array.isArray(transaction.items)) {
+        transaction.items.forEach(item => {
+          const setQuantity = Number(item.quantity) || 0;
+          const setComponents = Array.isArray(item.setComponents) ? item.setComponents : [];
+          const isSet = item.isSet || setComponents.length > 0;
+          
+          if (isSet && setComponents.length > 0) {
+            // Expand set into components
+            setComponents.forEach(component => {
+              const componentName = component.name || component.productNameSnapshot || 'N/A';
+              const componentQty = Number(component.quantity) || 1;
+              const totalQuantity = componentQty * setQuantity;
+              
+              allItems.add(componentName);
+              if (!itemMonthlySales.has(componentName)) {
+                itemMonthlySales.set(componentName, new Map());
+              }
+              const itemMap = itemMonthlySales.get(componentName);
+              const currentQty = itemMap.get(monthKey) || 0;
+              itemMap.set(monthKey, currentQty + totalQuantity);
+            });
+          } else {
+            // Regular item
+            const itemName = item.name || 'N/A';
+            allItems.add(itemName);
+            if (!itemMonthlySales.has(itemName)) {
+              itemMonthlySales.set(itemName, new Map());
+            }
+            const itemMap = itemMonthlySales.get(itemName);
+            const currentQty = itemMap.get(monthKey) || 0;
+            itemMap.set(monthKey, currentQty + setQuantity);
+          }
+        });
+      }
+    });
+    
+    // Convert to sorted arrays
+    const sortedMonths = Array.from(allMonths).sort((a, b) => a.localeCompare(b));
+    const sortedItems = Array.from(allItems).sort();
+    
+    // Calculate monthly totals (quantities)
+    const monthlyTotals = new Map();
+    sortedMonths.forEach(monthKey => {
+      let total = 0;
+      itemMonthlySales.forEach((salesMap) => {
+        total += salesMap.get(monthKey) || 0;
+      });
+      monthlyTotals.set(monthKey, total);
+    });
+    
+    // Calculate monthly revenue/income
+    const monthlyRevenue = new Map();
+    revenueTransactions.forEach(transaction => {
+      const date = new Date(transaction.transactionDate);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const currentRevenue = monthlyRevenue.get(monthKey) || 0;
+      monthlyRevenue.set(monthKey, currentRevenue + (transaction.totalAmount || 0));
+    });
+    
+    // Format month names
+    const monthNames = sortedMonths.map(monthKey => {
+      const [year, month] = monthKey.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      return {
+        key: monthKey,
+        name: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        fullName: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      };
+    });
+    
+    return {
+      items: sortedItems,
+      months: monthNames,
+      itemMonthlySales: itemMonthlySales,
+      monthlyTotals: monthlyTotals,
+      monthlyRevenue: monthlyRevenue
+    };
+  }, [studentTransactions]);
+
+  // Get product price for an item name
+  const getProductPrice = useCallback((itemName) => {
+    if (!itemName || !products.length) return 0;
+    const product = products.find(p => 
+      p.name && p.name.toLowerCase().trim() === itemName.toLowerCase().trim()
+    );
+    return product ? (product.price || 0) : 0;
+  }, [products]);
+
+  // Calculate daily breakdown with items as rows and days as columns for selected month
+  const dailyBreakdownReport = useMemo(() => {
+    if (!selectedMonthForDaily) return null;
+    
+    const selectedMonth = monthlyStats.find(m => m.monthKey === selectedMonthForDaily);
+    if (!selectedMonth || !selectedMonth.dayWiseBreakdown || selectedMonth.dayWiseBreakdown.length === 0) {
+      return null;
+    }
+
+    const allDays = new Set();
+    const itemDailySales = new Map(); // itemName -> { dayKey -> quantity }
+    const allItems = new Set();
+    const dailyRevenue = new Map(); // dayKey -> revenue
+
+    selectedMonth.dayWiseBreakdown.forEach(day => {
+      const dayKey = day.date; // Format: YYYY-MM-DD
+      const dayName = new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      allDays.add(dayKey);
+      dailyRevenue.set(dayKey, day.totalAmount || 0);
+
+      // Process items sold on this day
+      if (day.itemsSold && Array.isArray(day.itemsSold)) {
+        day.itemsSold.forEach(item => {
+          const itemName = item.name || 'N/A';
+          const quantity = Number(item.quantity) || 0;
+          
+          allItems.add(itemName);
+          if (!itemDailySales.has(itemName)) {
+            itemDailySales.set(itemName, new Map());
+          }
+          const itemMap = itemDailySales.get(itemName);
+          itemMap.set(dayKey, quantity);
+        });
+      }
+    });
+
+    // Convert to sorted arrays
+    const sortedDays = Array.from(allDays).sort((a, b) => a.localeCompare(b));
+    const sortedItems = Array.from(allItems).sort();
+
+    // Format day names
+    const dayNames = sortedDays.map(dayKey => {
+      const date = new Date(dayKey);
+      const dayNumber = date.getDate();
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+      return {
+        key: dayKey,
+        name: `${dayNumber}-${monthName}`,
+        fullDate: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      };
+    });
+
+    // Calculate daily totals (total items sold per day)
+    const dailyTotals = new Map();
+    sortedDays.forEach(dayKey => {
+      let total = 0;
+      itemDailySales.forEach((salesMap) => {
+        total += salesMap.get(dayKey) || 0;
+      });
+      dailyTotals.set(dayKey, total);
+    });
+
+    return {
+      items: sortedItems,
+      days: dayNames,
+      itemDailySales: itemDailySales,
+      dailyTotals: dailyTotals,
+      dailyRevenue: dailyRevenue,
+      monthName: selectedMonth.month
+    };
+  }, [selectedMonthForDaily, monthlyStats]);
 
   // Calculate day-wise breakdown
   const dayWiseBreakdown = useMemo(() => {
@@ -2053,176 +2279,442 @@ const Reports = ({ currentUser }) => {
             </>
           )}
 
-          {/* Monthly Report Tab */}
+          {/* Monthly Report Tab - Enhanced Comprehensive View */}
           {activeTab === 'monthly' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Monthly Report</h2>
-                
-                {monthlyStats.length === 0 ? (
+              {/* Summary Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-blue-100 mb-1">Total Items</p>
+                      <p className="text-2xl font-bold text-white">{comprehensiveMonthlyReport.items.length}</p>
+                      <p className="text-xs text-blue-100 mt-2">Unique products sold</p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-400/30 rounded-lg flex items-center justify-center">
+                      <Package size={24} />
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-green-100 mb-1">Months Covered</p>
+                      <p className="text-2xl font-bold text-white">{comprehensiveMonthlyReport.months.length}</p>
+                      <p className="text-xs text-green-100 mt-2">Active months</p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-400/30 rounded-lg flex items-center justify-center">
+                      <Calendar size={24} />
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-purple-100 mb-1">Total Transactions</p>
+                      <p className="text-2xl font-bold text-white">{studentTransactions.length}</p>
+                      <p className="text-xs text-purple-100 mt-2">All time transactions</p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-400/30 rounded-lg flex items-center justify-center">
+                      <Receipt size={24} />
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-orange-100 mb-1">Total Revenue</p>
+                      <p className="text-2xl font-bold text-white">
+                        {formatCurrency(studentTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0))}
+                      </p>
+                      <p className="text-xs text-orange-100 mt-2">All time revenue</p>
+                    </div>
+                    <div className="w-12 h-12 bg-orange-400/30 rounded-lg flex items-center justify-center">
+                      <DollarSign size={24} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-Tab Navigation */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="flex border-b border-gray-200">
+                  <button
+                    onClick={() => setMonthlyReportSubTab('monthly-sale')}
+                    className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                      monthlyReportSubTab === 'monthly-sale'
+                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <FileText size={18} />
+                      <span>Monthly Sale Report</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMonthlyReportSubTab('daily-breakdown');
+                      // Auto-select current month when switching to daily breakdown
+                      if (monthlyStats.length > 0) {
+                        const currentMonthKey = getCurrentMonthKey();
+                        const currentMonthExists = monthlyStats.some(m => m.monthKey === currentMonthKey);
+                        if (currentMonthExists) {
+                          setSelectedMonthForDaily(currentMonthKey);
+                        } else if (monthlyStats.length > 0) {
+                          // Select most recent month if current month doesn't have data
+                          setSelectedMonthForDaily(monthlyStats[0].monthKey);
+                        }
+                      }
+                    }}
+                    className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                      monthlyReportSubTab === 'daily-breakdown'
+                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Calendar size={18} />
+                      <span>Daily Breakdown per Month</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Monthly Sale Report Sub-Tab */}
+              {monthlyReportSubTab === 'monthly-sale' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Monthly Sale Report</h2>
+                        <p className="text-sm text-gray-600 mt-1">Comprehensive view of all items sold across all months</p>
+                      </div>
+                      {productsLoading && (
+                        <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                      )}
+                    </div>
+                  </div>
+
+                {comprehensiveMonthlyReport.items.length === 0 ? (
                   <div className="text-center py-12">
                     <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500">No monthly data available</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {monthlyStats.map((month, index) => {
-                      const totalItemsSold = month.itemsSold.reduce((sum, item) => sum + item.quantity, 0);
-                      return (
-                        <div key={index} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-semibold text-gray-900">{month.month}</h3>
-                            <span className="text-sm text-gray-500">{month.transactions.length} transactions</span>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                            S.No
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200 min-w-[300px]">
+                            Item Name
+                          </th>
+                          {comprehensiveMonthlyReport.months.map((month, idx) => (
+                            <th
+                              key={month.key}
+                              className={`px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider ${
+                                idx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-200' : ''
+                              }`}
+                              title={month.fullName}
+                            >
+                              {month.name}
+                            </th>
+                          ))}
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {/* Monthly Revenue/Income Summary Row */}
+                        <tr className="bg-gradient-to-r from-green-50 to-emerald-50 font-bold border-b-2 border-green-300">
+                          <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                            MONTHLY INCOME
+                          </td>
+                          {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
+                            const monthRevenue = comprehensiveMonthlyReport.monthlyRevenue.get(month.key) || 0;
+                            return (
+                              <td
+                                key={month.key}
+                                className={`px-3 py-3 whitespace-nowrap text-right text-green-700 font-bold ${
+                                  monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-300' : ''
+                                }`}
+                              >
+                                {monthRevenue > 0 ? formatCurrency(monthRevenue) : '-'}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 whitespace-nowrap text-right text-green-800 font-bold bg-green-100">
+                            {formatCurrency(
+                              Array.from(comprehensiveMonthlyReport.monthlyRevenue.values()).reduce(
+                                (sum, revenue) => sum + revenue,
+                                0
+                              )
+                            )}
+                          </td>
+                        </tr>
+                        {comprehensiveMonthlyReport.items.map((itemName, itemIndex) => {
+                          const itemSales = comprehensiveMonthlyReport.itemMonthlySales.get(itemName) || new Map();
+                          const currentPrice = getProductPrice(itemName);
+                          const rowTotal = Array.from(itemSales.values()).reduce((sum, qty) => sum + qty, 0);
+                          const isEven = itemIndex % 2 === 0;
+                          
+                          return (
+                            <tr
+                              key={itemIndex}
+                              className={`hover:bg-blue-50 transition-colors ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}
+                            >
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-medium border-r border-gray-200">
+                                {itemIndex + 1}
+                              </td>
+                              <td className="px-4 py-3 text-gray-900 font-medium border-r border-gray-200">
+                                {itemName}
+                                {currentPrice > 0 && (
+                                  <span className="text-gray-600 font-normal ml-2">
+                                    ({formatCurrency(currentPrice)})
+                                  </span>
+                                )}
+                              </td>
+                              {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
+                                const qty = itemSales.get(month.key) || 0;
+                                return (
+                                  <td
+                                    key={month.key}
+                                    className={`px-3 py-3 whitespace-nowrap text-right font-medium ${
+                                      qty > 0 ? 'text-gray-900' : 'text-gray-400'
+                                    } ${monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-200' : ''}`}
+                                  >
+                                    {qty > 0 ? qty : '-'}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-4 py-3 whitespace-nowrap text-right font-bold text-gray-900 bg-gray-100">
+                                {rowTotal > 0 ? rowTotal : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {/* Total Row */}
+                        <tr className="bg-gray-100 font-bold">
+                          <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                            GRAND TOTAL
+                          </td>
+                          {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
+                            const monthTotal = comprehensiveMonthlyReport.monthlyTotals.get(month.key) || 0;
+                            return (
+                              <td
+                                key={month.key}
+                                className={`px-3 py-3 whitespace-nowrap text-right text-gray-900 ${
+                                  monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-300' : ''
+                                }`}
+                              >
+                                {monthTotal > 0 ? monthTotal : '-'}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900 bg-blue-100">
+                            {Array.from(comprehensiveMonthlyReport.monthlyTotals.values()).reduce((sum, total) => sum + total, 0)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                </div>
+              )}
+
+              {/* Daily Breakdown Sub-Tab */}
+              {monthlyReportSubTab === 'daily-breakdown' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Daily Breakdown by Month</h3>
+                    <select
+                      value={selectedMonthForDaily || ''}
+                      onChange={(e) => setSelectedMonthForDaily(e.target.value || null)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select a month to view daily breakdown</option>
+                      {monthlyStats.map((month) => (
+                        <option key={month.monthKey} value={month.monthKey}>
+                          {month.month}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {selectedMonthForDaily && (
+                    (() => {
+                      const selectedMonth = monthlyStats.find(m => m.monthKey === selectedMonthForDaily);
+                      if (!selectedMonth || !selectedMonth.dayWiseBreakdown || selectedMonth.dayWiseBreakdown.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-gray-500">
+                            No daily data available for this month
                           </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="space-y-4">
+                          {/* Month Summary Cards */}
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                             <div className="bg-blue-50 rounded-lg p-4">
                               <p className="text-xs text-gray-600 mb-1">Total Amount</p>
-                              <p className="text-lg font-bold text-blue-700">{formatCurrency(month.totalAmount)}</p>
+                              <p className="text-lg font-bold text-blue-700">{formatCurrency(selectedMonth.totalAmount)}</p>
                             </div>
                             <div className="bg-green-50 rounded-lg p-4">
                               <p className="text-xs text-gray-600 mb-1">Paid Amount</p>
-                              <p className="text-lg font-bold text-green-700">{formatCurrency(month.paidAmount)}</p>
-                              <p className="text-xs text-gray-500 mt-1">{month.paidCount} transactions</p>
+                              <p className="text-lg font-bold text-green-700">{formatCurrency(selectedMonth.paidAmount)}</p>
                             </div>
                             <div className="bg-red-50 rounded-lg p-4">
                               <p className="text-xs text-gray-600 mb-1">Unpaid Amount</p>
-                              <p className="text-lg font-bold text-red-700">{formatCurrency(month.unpaidAmount)}</p>
-                              <p className="text-xs text-gray-500 mt-1">{month.unpaidCount} transactions</p>
+                              <p className="text-lg font-bold text-red-700">{formatCurrency(selectedMonth.unpaidAmount)}</p>
                             </div>
                             <div className="bg-purple-50 rounded-lg p-4">
-                              <p className="text-xs text-gray-600 mb-1">Collection Rate</p>
-                              <p className="text-lg font-bold text-purple-700">
-                                {month.totalAmount > 0 
-                                  ? `${((month.paidAmount / month.totalAmount) * 100).toFixed(1)}%`
-                                  : '0%'}
-                              </p>
+                              <p className="text-xs text-gray-600 mb-1">Transactions</p>
+                              <p className="text-lg font-bold text-purple-700">{selectedMonth.transactions.length}</p>
                             </div>
                           </div>
 
-                          {/* Items Sold Section */}
-                          {month.itemsSold.length > 0 && (
-                            <div className="mt-6 pt-6 border-t border-gray-200">
-                              <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                                  <ShoppingCart size={20} className="text-purple-600" />
-                                  Items Sold
-                                </h4>
-                                <span className="text-sm text-gray-600">
-                                  Total: {totalItemsSold} items ({month.itemsSold.length} unique)
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-                                {month.itemsSold.map((item, itemIndex) => (
-                                  <div key={itemIndex} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-purple-300 transition-colors">
-                                    <div className="flex-1">
-                                      <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                                    </div>
-                                    <div className="ml-3">
-                                      <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-100 text-purple-700 font-semibold text-base">
-                                        {item.quantity}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Day-wise Breakdown Section */}
-                          {month.dayWiseBreakdown && month.dayWiseBreakdown.length > 0 && (
-                            <div className="mt-6 pt-6 border-t border-gray-200">
-                              <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                <Calendar size={20} className="text-blue-600" />
-                                Day-wise Breakdown
-                              </h4>
-                              <div className="overflow-x-auto">
-                                <table className="w-full">
-                                  <thead className="bg-gray-50">
-                                    <tr>
-                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8"></th>
-                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Transactions</th>
-                                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
-                                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unpaid</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="bg-white divide-y divide-gray-200">
-                                    {month.dayWiseBreakdown.map((day, dayIndex) => {
-                                      const dayKey = `${month.monthKey}-${day.date}`;
-                                      const isExpanded = expandedDays.has(dayKey);
-                                      const dayTotalItems = day.itemsSold.reduce((sum, item) => sum + item.quantity, 0);
-                                      
+                          {/* Daily Sales Table - Items as Rows, Days as Columns */}
+                          {dailyBreakdownReport ? (
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                      S.No
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200 min-w-[300px]">
+                                      Item Name
+                                    </th>
+                                    {dailyBreakdownReport.days.map((day, idx) => (
+                                      <th
+                                        key={day.key}
+                                        className={`px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider ${
+                                          idx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-200' : ''
+                                        }`}
+                                        title={day.fullDate}
+                                      >
+                                        {day.name}
+                                      </th>
+                                    ))}
+                                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100">
+                                      Total
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {/* Daily Revenue/Income Summary Row */}
+                                  <tr className="bg-gradient-to-r from-green-50 to-emerald-50 font-bold border-b-2 border-green-300">
+                                    <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                                      DAILY INCOME
+                                    </td>
+                                    {dailyBreakdownReport.days.map((day, dayIdx) => {
+                                      const dayRevenue = dailyBreakdownReport.dailyRevenue.get(day.key) || 0;
                                       return (
-                                        <>
-                                          <tr 
-                                            key={dayIndex} 
-                                            className="hover:bg-gray-50 cursor-pointer"
-                                            onClick={() => {
-                                              const newExpanded = new Set(expandedDays);
-                                              if (isExpanded) {
-                                                newExpanded.delete(dayKey);
-                                              } else {
-                                                newExpanded.add(dayKey);
-                                              }
-                                              setExpandedDays(newExpanded);
-                                            }}
-                                          >
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                              {isExpanded ? (
-                                                <ChevronUp size={16} className="text-gray-500" />
-                                              ) : (
-                                                <ChevronDown size={16} className="text-gray-500" />
-                                              )}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{day.dayName}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{day.transactions.length}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">{formatCurrency(day.totalAmount)}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-green-600 text-right">{formatCurrency(day.paidAmount)}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-red-600 text-right">{formatCurrency(day.unpaidAmount)}</td>
-                                          </tr>
-                                          {isExpanded && day.itemsSold.length > 0 && (
-                                            <tr>
-                                              <td colSpan={6} className="px-4 py-4 bg-gray-50">
-                                                <div className="pl-6">
-                                                  <div className="flex items-center justify-between mb-3">
-                                                    <h5 className="text-sm font-semibold text-gray-700">Items Sold on {day.dayName}</h5>
-                                                    <span className="text-xs text-gray-500">
-                                                      {dayTotalItems} items ({day.itemsSold.length} unique)
-                                                    </span>
-                                                  </div>
-                                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                    {day.itemsSold.map((item, itemIndex) => (
-                                                      <div key={itemIndex} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                                                        <div className="flex-1">
-                                                          <p className="text-xs font-medium text-gray-900 truncate">{item.name}</p>
-                                                        </div>
-                                                        <div className="ml-2">
-                                                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-semibold text-sm">
-                                                            {item.quantity}
-                                                          </span>
-                                                        </div>
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                </div>
-                                              </td>
-                                            </tr>
-                                          )}
-                                        </>
+                                        <td
+                                          key={day.key}
+                                          className={`px-3 py-3 whitespace-nowrap text-right text-green-700 font-bold ${
+                                            dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-300' : ''
+                                          }`}
+                                        >
+                                          {dayRevenue > 0 ? formatCurrency(dayRevenue) : '-'}
+                                        </td>
                                       );
                                     })}
-                                  </tbody>
-                                </table>
-                              </div>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-green-800 font-bold bg-green-100">
+                                      {formatCurrency(
+                                        Array.from(dailyBreakdownReport.dailyRevenue.values()).reduce(
+                                          (sum, revenue) => sum + revenue,
+                                          0
+                                        )
+                                      )}
+                                    </td>
+                                  </tr>
+                                  {/* Item Rows */}
+                                  {dailyBreakdownReport.items.map((itemName, itemIndex) => {
+                                    const itemSales = dailyBreakdownReport.itemDailySales.get(itemName) || new Map();
+                                    const currentPrice = getProductPrice(itemName);
+                                    const rowTotal = Array.from(itemSales.values()).reduce((sum, qty) => sum + qty, 0);
+                                    const isEven = itemIndex % 2 === 0;
+                                    
+                                    return (
+                                      <tr
+                                        key={itemIndex}
+                                        className={`hover:bg-blue-50 transition-colors ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}
+                                      >
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-medium border-r border-gray-200">
+                                          {itemIndex + 1}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-900 font-medium border-r border-gray-200">
+                                          {itemName}
+                                          {currentPrice > 0 && (
+                                            <span className="text-gray-600 font-normal ml-2">
+                                              ({formatCurrency(currentPrice)})
+                                            </span>
+                                          )}
+                                        </td>
+                                        {dailyBreakdownReport.days.map((day, dayIdx) => {
+                                          const qty = itemSales.get(day.key) || 0;
+                                          return (
+                                            <td
+                                              key={day.key}
+                                              className={`px-3 py-3 whitespace-nowrap text-right font-medium ${
+                                                qty > 0 ? 'text-gray-900' : 'text-gray-400'
+                                              } ${dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-200' : ''}`}
+                                            >
+                                              {qty > 0 ? qty : '-'}
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="px-4 py-3 whitespace-nowrap text-right font-bold text-gray-900 bg-gray-100">
+                                          {rowTotal > 0 ? rowTotal : '-'}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                  {/* Total Row */}
+                                  <tr className="bg-gray-100 font-bold">
+                                    <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                                      GRAND TOTAL
+                                    </td>
+                                    {dailyBreakdownReport.days.map((day, dayIdx) => {
+                                      const dayTotal = dailyBreakdownReport.dailyTotals.get(day.key) || 0;
+                                      return (
+                                        <td
+                                          key={day.key}
+                                          className={`px-3 py-3 whitespace-nowrap text-right text-gray-900 ${
+                                            dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-300' : ''
+                                          }`}
+                                        >
+                                          {dayTotal > 0 ? dayTotal : '-'}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900 bg-blue-100">
+                                      {Array.from(dailyBreakdownReport.dailyTotals.values()).reduce(
+                                        (sum, total) => sum + total,
+                                        0
+                                      )}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              Loading daily breakdown data...
                             </div>
                           )}
                         </div>
                       );
-                    })}
-                  </div>
-                )}
-              </div>
+                    })()
+                  )}
+                </div>
+              )}
             </div>
           )}
 
