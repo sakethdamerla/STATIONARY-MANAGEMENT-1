@@ -10,7 +10,8 @@ An offline-first stationery inventory and student issuance platform built for th
 
 ---
 
-## ✨ Highlights
+## ✨ Highlights - checking
+
 
 - **Offline-first PWA** with precached shell, background sync queues for transactions, and graceful fallbacks for all major views.
 - **Role-aware dashboard** surfacing student, stock, and revenue insights with quick actions.
