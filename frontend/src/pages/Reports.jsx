@@ -572,24 +572,25 @@ const Reports = ({ currentUser }) => {
   // Set default to current month when switching to daily breakdown sub-tab or when monthlyStats is available
   useEffect(() => {
     if (activeTab === 'monthly' && monthlyReportSubTab === 'daily-breakdown' && monthlyStats.length > 0) {
-      const currentMonthKey = getCurrentMonthKey();
-      // Check if current month exists in monthlyStats
-      const currentMonthExists = monthlyStats.some(m => m.monthKey === currentMonthKey);
-      
-      if (currentMonthExists) {
-        // If current month exists and not already selected, set it
-        if (!selectedMonthForDaily || selectedMonthForDaily !== currentMonthKey) {
+      // Only set default if no month is currently selected or if the selected month is invalid
+      if (!selectedMonthForDaily || !monthlyStats.some(m => m.monthKey === selectedMonthForDaily)) {
+        const currentMonthKey = getCurrentMonthKey();
+        // Check if current month exists in monthlyStats
+        const currentMonthExists = monthlyStats.some(m => m.monthKey === currentMonthKey);
+        
+        if (currentMonthExists) {
+          // If current month exists, set it
           setSelectedMonthForDaily(currentMonthKey);
-        }
-      } else if (!selectedMonthForDaily || !monthlyStats.some(m => m.monthKey === selectedMonthForDaily)) {
-        // If current month doesn't exist or selected month is invalid, select the most recent month
-        const mostRecentMonth = monthlyStats[0]; // monthlyStats is sorted by most recent first
-        if (mostRecentMonth) {
-          setSelectedMonthForDaily(mostRecentMonth.monthKey);
+        } else {
+          // If current month doesn't exist, select the most recent month
+          const mostRecentMonth = monthlyStats[0]; // monthlyStats is sorted by most recent first
+          if (mostRecentMonth) {
+            setSelectedMonthForDaily(mostRecentMonth.monthKey);
+          }
         }
       }
     }
-  }, [activeTab, monthlyReportSubTab, monthlyStats, selectedMonthForDaily]);
+  }, [activeTab, monthlyReportSubTab, monthlyStats]);
 
   // Enhanced Monthly Sales Report - Comprehensive table with all items and months
   const comprehensiveMonthlyReport = useMemo(() => {
