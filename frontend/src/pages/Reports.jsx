@@ -1596,74 +1596,79 @@ const Reports = ({ currentUser }) => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto">
-        <div className="mb-8 space-y-6">
+        {/* Header with Tabs */}
+        <div className="mb-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                <FileText className="text-white" size={24} />
+              {/* Left Side: Title and Description */}
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <FileText className="text-white" size={24} />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+                  <p className="text-gray-600 mt-1">Monitor transactions and generate consolidated reports</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
-                <p className="text-gray-600 mt-1">Monitor transactions and generate consolidated reports</p>
+
+              {/* Right Side: Tabs and Generate Report Button */}
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
+                {/* Tab Navigation */}
+                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setActiveTab('daily')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
+                      activeTab === 'daily'
+                        ? 'bg-white text-blue-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar size={16} />
+                      <span>Daily</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('monthly')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
+                      activeTab === 'monthly'
+                        ? 'bg-white text-blue-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText size={16} />
+                      <span>Monthly</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('stock')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
+                      activeTab === 'stock'
+                        ? 'bg-white text-blue-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Package size={16} />
+                      <span>Stock</span>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Generate Report Button */}
+                <button
+                  onClick={() => {
+                    setTimeout(() => {
+                      setShowReportModal(true);
+                    }, 200);
+                  }}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg hover:shadow-xl font-medium whitespace-nowrap"
+                >
+                  <Download size={18} />
+                  Generate Report
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => {
-                setTimeout(() => {
-                  setShowReportModal(true);
-                }, 200);
-              }}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg hover:shadow-xl font-medium self-start lg:self-auto"
-            >
-              <Download size={20} />
-              Generate Report
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('daily')}
-              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                activeTab === 'daily'
-                  ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Calendar size={18} />
-                <span>Daily Transactions</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('monthly')}
-              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                activeTab === 'monthly'
-                  ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <FileText size={18} />
-                <span>Monthly Report</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('stock')}
-              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                activeTab === 'stock'
-                  ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Package size={18} />
-                <span>Stock Report</span>
-              </div>
-            </button>
-          </div>
         </div>
 
         <div className="space-y-6">
@@ -1671,40 +1676,13 @@ const Reports = ({ currentUser }) => {
           {activeTab === 'daily' && (
             <>
           {/* Filters Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              {/* Filter Header */}
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Filter className="text-blue-600" size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
-                    <p className="text-xs text-gray-500">Filter transactions by various criteria</p>
-                  </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 mr-auto">
+                  <Filter className="text-blue-600" size={18} />
+                  <span className="text-sm font-medium text-gray-700">Filters:</span>
                 </div>
-                <button
-                  onClick={() => setFiltersExpanded(!filtersExpanded)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  {filtersExpanded ? (
-                    <>
-                      <ChevronUp size={18} />
-                      <span>Hide Filters</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown size={18} />
-                      <span>Show More Filters</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Main Filters (Always Visible) */}
-              <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="lg:col-span-2 relative">
+                  <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
                       type="text"
@@ -1717,7 +1695,7 @@ const Reports = ({ currentUser }) => {
                   <select
                     value={filters.course}
                     onChange={(e) => setFilters({ ...filters, course: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
                   >
                     <option value="">All Courses</option>
                     {courseOptions.map(course => (
@@ -1727,7 +1705,7 @@ const Reports = ({ currentUser }) => {
                   <select
                     value={filters.transactionType}
                     onChange={(e) => setFilters({ ...filters, transactionType: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[180px]"
                   >
                     <option value="">All Transactions</option>
                     <option value="student">Student Transactions</option>
@@ -1736,29 +1714,27 @@ const Reports = ({ currentUser }) => {
                   <select
                     value={filters.paymentMethod}
                     onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[170px]"
                   >
                     <option value="">All Payment Methods</option>
                     <option value="cash">Cash</option>
                     <option value="online">Online</option>
                     <option value="transfer">Transfer</option>
                   </select>
-                </div>
-
-                {/* Expandable Filters Section */}
-                {filtersExpanded && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  
+                  {/* Expandable Filters Section */}
+                  {filtersExpanded && (
+                    <>
                       <select
                         value={filters.isPaid}
                         onChange={(e) => setFilters({ ...filters, isPaid: e.target.value })}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[160px]"
                       >
                         <option value="">All Payment Status</option>
                         <option value="true">Paid</option>
                         <option value="false">Unpaid</option>
                       </select>
-                      <div className="relative">
+                      <div className="relative min-w-[160px]">
                         <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                         <input
                           type="date"
@@ -1768,7 +1744,7 @@ const Reports = ({ currentUser }) => {
                           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
-                      <div className="relative">
+                      <div className="relative min-w-[160px]">
                         <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                         <input
                           type="date"
@@ -1778,9 +1754,24 @@ const Reports = ({ currentUser }) => {
                           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
-                    </div>
-                  </div>
-                )}
+                    </>
+                  )}
+                <button
+                  onClick={() => setFiltersExpanded(!filtersExpanded)}
+                  className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors ml-auto"
+                >
+                  {filtersExpanded ? (
+                    <>
+                      <ChevronUp size={16} />
+                      <span>Hide</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown size={16} />
+                      <span>More</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -2337,67 +2328,106 @@ const Reports = ({ currentUser }) => {
                 </div>
               </div>
 
-              {/* Sub-Tab Navigation */}
+              {/* Monthly Report Content with Unified Header */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="flex border-b border-gray-200">
-                  <button
-                    onClick={() => setMonthlyReportSubTab('monthly-sale')}
-                    className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                      monthlyReportSubTab === 'monthly-sale'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <FileText size={18} />
-                      <span>Monthly Sale Report</span>
+                {/* Unified Header with Toggle */}
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      {monthlyReportSubTab === 'monthly-sale' ? (
+                        <>
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <FileText className="text-blue-600" size={20} />
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-bold text-gray-900">Monthly Sale Report</h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Comprehensive view of all items sold across all months
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <Calendar className="text-green-600" size={20} />
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-bold text-gray-900">Daily Breakdown per Month</h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Daily breakdown of sales for selected month
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMonthlyReportSubTab('daily-breakdown');
-                      // Auto-select current month when switching to daily breakdown
-                      if (monthlyStats.length > 0) {
-                        const currentMonthKey = getCurrentMonthKey();
-                        const currentMonthExists = monthlyStats.some(m => m.monthKey === currentMonthKey);
-                        if (currentMonthExists) {
-                          setSelectedMonthForDaily(currentMonthKey);
-                        } else if (monthlyStats.length > 0) {
-                          // Select most recent month if current month doesn't have data
-                          setSelectedMonthForDaily(monthlyStats[0].monthKey);
-                        }
-                      }
-                    }}
-                    className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                      monthlyReportSubTab === 'daily-breakdown'
-                        ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <Calendar size={18} />
-                      <span>Daily Breakdown per Month</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Monthly Sale Report Sub-Tab */}
-              {monthlyReportSubTab === 'monthly-sale' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Monthly Sale Report</h2>
-                        <p className="text-sm text-gray-600 mt-1">Comprehensive view of all items sold across all months</p>
+                    <div className="flex items-center gap-3">
+                      {/* Month Selector - Show only when Daily Breakdown is selected */}
+                      {monthlyReportSubTab === 'daily-breakdown' && (
+                        <select
+                          value={selectedMonthForDaily || ''}
+                          onChange={(e) => setSelectedMonthForDaily(e.target.value || null)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium"
+                        >
+                          <option value="">Select a month</option>
+                          {monthlyStats.map((month) => (
+                            <option key={month.monthKey} value={month.monthKey}>
+                              {month.month}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <div className="flex items-center gap-1 bg-white p-1 rounded-lg shadow-sm">
+                        <button
+                          onClick={() => setMonthlyReportSubTab('monthly-sale')}
+                          className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
+                            monthlyReportSubTab === 'monthly-sale'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <FileText size={16} />
+                            <span>Monthly Sale</span>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMonthlyReportSubTab('daily-breakdown');
+                            // Auto-select current month when switching to daily breakdown
+                            if (monthlyStats.length > 0) {
+                              const currentMonthKey = getCurrentMonthKey();
+                              const currentMonthExists = monthlyStats.some(m => m.monthKey === currentMonthKey);
+                              if (currentMonthExists) {
+                                setSelectedMonthForDaily(currentMonthKey);
+                              } else if (monthlyStats.length > 0) {
+                                // Select most recent month if current month doesn't have data
+                                setSelectedMonthForDaily(monthlyStats[0].monthKey);
+                              }
+                            }
+                          }}
+                          className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
+                            monthlyReportSubTab === 'daily-breakdown'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Calendar size={16} />
+                            <span>Daily Breakdown</span>
+                          </div>
+                        </button>
                       </div>
                       {productsLoading && (
                         <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                       )}
                     </div>
                   </div>
+                </div>
 
-                {comprehensiveMonthlyReport.items.length === 0 ? (
+                {/* Monthly Sale Report Content */}
+                {monthlyReportSubTab === 'monthly-sale' && (
+                  <div>
+                    {comprehensiveMonthlyReport.items.length === 0 ? (
                   <div className="text-center py-12">
                     <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500">No monthly data available</p>
@@ -2523,29 +2553,13 @@ const Reports = ({ currentUser }) => {
                       </tbody>
                     </table>
                   </div>
-                )}
-                </div>
-              )}
-
-              {/* Daily Breakdown Sub-Tab */}
-              {monthlyReportSubTab === 'daily-breakdown' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Daily Breakdown by Month</h3>
-                    <select
-                      value={selectedMonthForDaily || ''}
-                      onChange={(e) => setSelectedMonthForDaily(e.target.value || null)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select a month to view daily breakdown</option>
-                      {monthlyStats.map((month) => (
-                        <option key={month.monthKey} value={month.monthKey}>
-                          {month.month}
-                        </option>
-                      ))}
-                    </select>
+                    )}
                   </div>
-                  
+                )}
+
+                {/* Daily Breakdown Content */}
+                {monthlyReportSubTab === 'daily-breakdown' && (
+                  <div className="p-6">
                   {selectedMonthForDaily && (
                     (() => {
                       const selectedMonth = monthlyStats.find(m => m.monthKey === selectedMonthForDaily);
@@ -2714,8 +2728,9 @@ const Reports = ({ currentUser }) => {
                       );
                     })()
                   )}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
