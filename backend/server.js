@@ -29,6 +29,12 @@ const allowedOrigins = [
   "http://localhost:3000",
 ];
 
+// Normalize origin for comparison (remove trailing slashes, convert to lowercase)
+const normalizeOrigin = (origin) => {
+  if (!origin) return null;
+  return origin.trim().toLowerCase().replace(/\/+$/, '');
+};
+
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -36,12 +42,16 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const normalizedAllowed = allowedOrigins.map(normalizeOrigin);
+
+    // Check if origin is in allowed list (case-insensitive, trailing slash insensitive)
+    if (normalizedAllowed.includes(normalizedOrigin)) {
       callback(null, true);
     } else {
       // Log for debugging
       console.log("CORS blocked request from:", origin);
+      console.log("Normalized origin:", normalizedOrigin);
       console.log("Allowed origins:", allowedOrigins);
       // For development, allow all origins
       if (process.env.NODE_ENV === 'development') {
@@ -72,14 +82,31 @@ const corsOptions = {
 // Enable CORS
 app.use(cors(corsOptions));
 
-// Additional CORS headers middleware (fallback)
+// Additional CORS headers middleware (fallback - ensures headers are always set)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept, X-Requested-With');
+  
+  // Normalize and check origin
+  if (origin) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const normalizedAllowed = allowedOrigins.map(normalizeOrigin);
+    
+    if (normalizedAllowed.includes(normalizedOrigin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept, X-Requested-With');
+    } else {
+      // Log for debugging CORS issues
+      if (req.path.includes('/api/sql')) {
+        console.log(`[CORS Debug] SQL route request from origin: ${origin}`);
+        console.log(`[CORS Debug] Normalized: ${normalizedOrigin}`);
+        console.log(`[CORS Debug] Allowed origins: ${allowedOrigins.join(', ')}`);
+      }
+    }
+  } else if (process.env.NODE_ENV === 'development') {
+    // In development, allow requests without origin
+    res.header('Access-Control-Allow-Origin', '*');
   }
   
   // Handle preflight requests
@@ -125,6 +152,17 @@ app.use("/api/sql", sqlStudentRoutes);
 
 // Error handling middleware (must be after all routes)
 app.use((err, req, res, next) => {
+  // Set CORS headers even for errors
+  const origin = req.headers.origin;
+  if (origin) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const normalizedAllowed = allowedOrigins.map(normalizeOrigin);
+    if (normalizedAllowed.includes(normalizedOrigin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+  
   console.error("Error:", err);
   console.error("Stack:", err.stack);
   const statusCode = err.statusCode || res.statusCode || 500;
@@ -136,6 +174,17 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
+  // Set CORS headers even for 404 errors
+  const origin = req.headers.origin;
+  if (origin) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const normalizedAllowed = allowedOrigins.map(normalizeOrigin);
+    if (normalizedAllowed.includes(normalizedOrigin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+  
   res.status(404).json({ message: "Route not found" });
 });
 
