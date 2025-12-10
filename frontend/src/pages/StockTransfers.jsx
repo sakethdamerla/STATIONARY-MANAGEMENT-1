@@ -407,8 +407,16 @@ const StockTransfers = ({ currentUser }) => {
     }
   };
 
-  const handleDelete = async (transferId) => {
-    if (!window.confirm('Are you sure you want to delete this transfer? This action cannot be undone.')) {
+  const handleDelete = async (transferId, transferStatus) => {
+    let confirmMessage = 'Are you sure you want to delete this transfer? This action cannot be undone.';
+    
+    if (transferStatus === 'completed') {
+      confirmMessage = 'Are you sure you want to delete this completed transfer? This will revert all stock changes (add stock back to central and remove from branch). This action cannot be undone.';
+    } else if (transferStatus === 'cancelled') {
+      confirmMessage = 'Are you sure you want to delete this cancelled transfer? This action cannot be undone.';
+    }
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -419,13 +427,16 @@ const StockTransfers = ({ currentUser }) => {
 
       if (res.ok) {
         setStockTransfers(prev => prev.filter(t => t._id !== transferId));
+        setStatusMsg({ type: 'success', message: 'Transfer deleted successfully. Stock changes have been reverted if applicable.' });
+        setTimeout(() => setStatusMsg({ type: '', message: '' }), 5000);
       } else {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to delete transfer');
       }
     } catch (error) {
       console.error('Error deleting transfer:', error);
-      alert(error.message || 'Error deleting transfer');
+      setStatusMsg({ type: 'error', message: error.message || 'Error deleting transfer' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 5000);
     }
   };
 
@@ -710,22 +721,36 @@ const StockTransfers = ({ currentUser }) => {
                 {/* Products Section */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Products <span className="text-red-500">*</span>
-                    </label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Products <span className="text-red-500">*</span>
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formData.items.length} {formData.items.length === 1 ? 'product' : 'products'} added
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={addProductItem}
-                      className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg transition-colors font-medium text-sm border border-indigo-200"
+                      title="Add another product to this transfer"
                     >
-                      <Plus size={16} />
+                      <Plus size={18} />
                       Add Product
                     </button>
                   </div>
                   <div className="space-y-3">
                     {formData.items.map((item, index) => (
-                      <div key={index} className="grid grid-cols-12 gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="col-span-6">
+                      <div key={index} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors">
+                        <div className="col-span-1 flex items-center justify-center">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-semibold">
+                            {index + 1}
+                          </div>
+                        </div>
+                        <div className="col-span-5">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Product {index + 1}
+                          </label>
                           <select
                             value={item.product}
                             onChange={async (e) => {
@@ -740,11 +765,13 @@ const StockTransfers = ({ currentUser }) => {
                             required={index === 0}
                           >
                             <option value="">Select Product</option>
-                            {products.map(product => (
-                              <option key={product._id} value={product._id}>
-                                {product.name} (Stock: {product.stock || 0})
-                              </option>
-                            ))}
+                            {products
+                              .filter(p => !formData.items.some((itm, idx) => idx !== index && itm.product === p._id))
+                              .map(product => (
+                                <option key={product._id} value={product._id}>
+                                  {product.name} (Stock: {product.stock || 0})
+                                </option>
+                              ))}
                           </select>
                           {item.product && formData.toBranch && (
                             <p className="mt-1 text-xs text-gray-500">
@@ -752,7 +779,10 @@ const StockTransfers = ({ currentUser }) => {
                             </p>
                           )}
                         </div>
-                        <div className="col-span-4">
+                        <div className="col-span-3">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Quantity
+                          </label>
                           <input
                             type="number"
                             min="1"
@@ -763,21 +793,30 @@ const StockTransfers = ({ currentUser }) => {
                             required={index === 0}
                           />
                         </div>
-                        <div className="col-span-2 flex items-center justify-center">
+                        <div className="col-span-3 flex items-end justify-end gap-2">
                           {formData.items.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeProductItem(index)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Remove Product"
+                              className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 hover:border-red-300 flex items-center gap-1 text-sm"
+                              title="Remove this product"
                             >
                               <Trash2 size={16} />
+                              Remove
                             </button>
+                          )}
+                          {formData.items.length === 1 && (
+                            <span className="text-xs text-gray-400 italic">At least 1 product required</span>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
+                  {formData.items.length === 0 && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                      <p className="text-sm text-yellow-800">No products added. Click "Add Product" to start.</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -1018,51 +1057,53 @@ const StockTransfers = ({ currentUser }) => {
                 </div>
 
                 <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                  {selectedTransfer.status === 'pending' && (
-                    canEdit ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleComplete(selectedTransfer._id);
-                            setSelectedTransfer(null);
-                          }}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
-                          title="Complete Transfer"
-                        >
-                          <CheckCircle size={16} />
-                          Complete
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancel(selectedTransfer._id);
-                            setSelectedTransfer(null);
-                          }}
-                          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center gap-2"
-                          title="Cancel Transfer"
-                        >
-                          <XCircle size={16} />
-                          Cancel
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(selectedTransfer._id);
-                            setSelectedTransfer(null);
-                          }}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
-                          title="Delete Transfer"
-                        >
-                          <Trash2 size={16} />
-                          Delete
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-2 rounded-lg">
-                        View Only
-                      </span>
-                    )
+                  {canEdit ? (
+                    <div className="flex items-center gap-2">
+                      {selectedTransfer.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleComplete(selectedTransfer._id);
+                              setSelectedTransfer(null);
+                            }}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
+                            title="Complete Transfer"
+                          >
+                            <CheckCircle size={16} />
+                            Complete
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancel(selectedTransfer._id);
+                              setSelectedTransfer(null);
+                            }}
+                            className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center gap-2"
+                            title="Cancel Transfer"
+                          >
+                            <XCircle size={16} />
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(selectedTransfer._id, selectedTransfer.status);
+                          setSelectedTransfer(null);
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+                        title="Delete Transfer"
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-2 rounded-lg">
+                      View Only
+                    </span>
                   )}
                   <div className="flex items-center gap-2 ml-auto">
                     <button

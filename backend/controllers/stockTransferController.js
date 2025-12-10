@@ -173,6 +173,15 @@ const deleteBranch = asyncHandler(async (req, res) => {
     throw new Error(`Cannot delete branch. It is used in ${transfersCount} transfer(s).`);
   }
 
+  // Check if branch has any stock
+  if (branch.stock && branch.stock.length > 0) {
+    const totalStock = branch.stock.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    if (totalStock > 0) {
+      res.status(400);
+      throw new Error(`Cannot delete branch. It has ${totalStock} items in stock. Please transfer or clear stock first.`);
+    }
+  }
+
   await TransferBranch.findByIdAndDelete(req.params.id);
   res.json({ message: 'Branch deleted successfully' });
 });
@@ -329,11 +338,26 @@ const updateStockTransfer = asyncHandler(async (req, res) => {
     throw new Error('Stock transfer not found');
   }
 
-  const { status, isPaid, remarks } = req.body;
+  const { status, isPaid, remarks, deductFromCentral, includeInRevenue } = req.body;
 
-  // Update status
+  // Validate status transitions - prevent invalid transitions
   if (status && ['pending', 'completed', 'cancelled'].includes(status)) {
     const oldStatus = stockTransfer.status;
+    
+    // Prevent invalid status transitions
+    if (oldStatus === 'completed' && status === 'pending') {
+      res.status(400);
+      throw new Error('Cannot change status from completed to pending');
+    }
+    if (oldStatus === 'cancelled' && status === 'pending') {
+      res.status(400);
+      throw new Error('Cannot change status from cancelled to pending');
+    }
+    if (oldStatus === 'completed' && status === 'cancelled') {
+      res.status(400);
+      throw new Error('Cannot cancel a completed transfer');
+    }
+    
     stockTransfer.status = status;
 
     // Set completion or cancellation timestamp
@@ -353,10 +377,20 @@ const updateStockTransfer = asyncHandler(async (req, res) => {
   }
 
   if (deductFromCentral !== undefined) {
+    // Prevent changing deductFromCentral if transfer is already completed
+    if (stockTransfer.status === 'completed') {
+      res.status(400);
+      throw new Error('Cannot modify deductFromCentral for completed transfers');
+    }
     stockTransfer.deductFromCentral = Boolean(deductFromCentral);
   }
 
   if (includeInRevenue !== undefined) {
+    // Prevent changing includeInRevenue if transfer is already completed
+    if (stockTransfer.status === 'completed') {
+      res.status(400);
+      throw new Error('Cannot modify includeInRevenue for completed transfers');
+    }
     stockTransfer.includeInRevenue = Boolean(includeInRevenue);
   }
 
@@ -373,27 +407,95 @@ const updateStockTransfer = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Delete a stock transfer
+ * @desc    Delete a stock transfer and revert stock changes if completed
  * @route   DELETE /api/stock-transfers/:id
  * @access  Public
  */
 const deleteStockTransfer = asyncHandler(async (req, res) => {
-  const stockTransfer = await StockTransfer.findById(req.params.id);
+  const stockTransfer = await StockTransfer.findById(req.params.id)
+    .populate('items.product')
+    .populate('toBranch');
   
   if (!stockTransfer) {
     res.status(404);
     throw new Error('Stock transfer not found');
   }
 
-  // Only allow deletion of pending transfers
-  if (stockTransfer.status !== 'pending') {
-    res.status(400);
-    throw new Error('Only pending transfers can be deleted');
+  // If transfer is completed, revert stock changes
+  if (stockTransfer.status === 'completed') {
+    const shouldDeductStock = stockTransfer.deductFromCentral !== false; // Default to true if not set
+    const toBranch = stockTransfer.toBranch;
+    
+    // Revert central stock (add back if it was deducted)
+    if (shouldDeductStock && stockTransfer.items && stockTransfer.items.length > 0) {
+      const stockReverts = [];
+      
+      for (const item of stockTransfer.items) {
+        const product = item.product;
+        const quantity = item.quantity;
+        
+        if (product && quantity > 0) {
+          stockReverts.push({
+            updateOne: {
+              filter: { _id: product._id },
+              update: { $inc: { stock: quantity } }, // Add back the stock
+            },
+          });
+        }
+      }
+      
+      if (stockReverts.length > 0) {
+        await Product.bulkWrite(stockReverts);
+      }
+    }
+    
+    // Revert branch stock (remove if it was added)
+    if (toBranch && toBranch.stock && stockTransfer.items && stockTransfer.items.length > 0) {
+      const branchStock = toBranch.stock || [];
+      const productStockMap = new Map();
+      
+      // Create a map of existing stock
+      for (const stockItem of branchStock) {
+        const productId = stockItem.product?.toString() || stockItem.product;
+        if (productId) {
+          productStockMap.set(productId, stockItem.quantity || 0);
+        }
+      }
+      
+      // Subtract the transferred quantities
+      for (const item of stockTransfer.items) {
+        const productId = item.product?._id?.toString() || item.product?.toString();
+        if (productId) {
+          const currentQty = productStockMap.get(productId) || 0;
+          const newQty = Math.max(0, currentQty - item.quantity); // Ensure non-negative
+          if (newQty > 0) {
+            productStockMap.set(productId, newQty);
+          } else {
+            productStockMap.delete(productId); // Remove if quantity becomes 0
+          }
+        }
+      }
+      
+      // Convert map back to array format
+      const updatedBranchStock = Array.from(productStockMap.entries()).map(([productId, quantity]) => ({
+        product: productId,
+        quantity,
+      }));
+      
+      toBranch.stock = updatedBranchStock;
+      await toBranch.save();
+    }
+    
+    // Delete associated transaction if exists
+    if (stockTransfer.transactionId) {
+      await Transaction.findByIdAndDelete(stockTransfer.transactionId);
+    }
   }
 
+  // Delete the transfer
   await StockTransfer.findByIdAndDelete(req.params.id);
 
-  res.json({ message: 'Stock transfer deleted' });
+  res.json({ message: 'Stock transfer deleted successfully. Stock changes have been reverted.' });
 });
 
 /**
@@ -420,6 +522,11 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
   const shouldDeductStock = stockTransfer.deductFromCentral !== false; // Default to true if not set
   const shouldIncludeInRevenue = stockTransfer.includeInRevenue !== false; // Default to true if not set
   
+  // Re-fetch products to get latest stock values (populated data might be stale)
+  const productIds = stockTransfer.items.map(item => item.product._id || item.product);
+  const currentProducts = await Product.find({ _id: { $in: productIds } });
+  const productMap = new Map(currentProducts.map(p => [p._id.toString(), p]));
+  
   // Validate stock for all items (only if deducting from central)
   const stockUpdates = [];
   const branchStockUpdates = [];
@@ -427,8 +534,14 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
   let totalAmount = 0;
 
   for (const item of stockTransfer.items) {
-    const product = item.product;
+    const productId = item.product._id?.toString() || item.product?.toString();
+    const product = productMap.get(productId);
     const quantity = item.quantity;
+
+    if (!product) {
+      res.status(404);
+      throw new Error(`Product not found: ${productId}`);
+    }
 
     // Check if stock is still sufficient (only if deducting from central)
     if (shouldDeductStock && product.stock < quantity) {
@@ -436,11 +549,15 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
       throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Required: ${quantity}`);
     }
 
-    // Prepare stock deduction (only if deducting from central)
+    // Prepare stock deduction with atomic operation to prevent race conditions
+    // Using $inc with condition to ensure stock doesn't go negative
     if (shouldDeductStock) {
       stockUpdates.push({
         updateOne: {
-          filter: { _id: product._id },
+          filter: { 
+            _id: product._id,
+            stock: { $gte: quantity } // Only update if stock is sufficient
+          },
           update: { $inc: { stock: -quantity } },
         },
       });
@@ -467,28 +584,59 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
   }
 
   // Deduct from central stock for all products (only if deducting from central)
+  // Use atomic operations to prevent race conditions
   if (shouldDeductStock && stockUpdates.length > 0) {
-    await Product.bulkWrite(stockUpdates);
-  }
-
-  // Add stock to branch inventory
-  const branchStock = toBranch.stock || [];
-  for (const update of branchStockUpdates) {
-    const existingStockIndex = branchStock.findIndex(
-      (s) => s.product.toString() === update.productId
-    );
-
-    if (existingStockIndex >= 0) {
-      branchStock[existingStockIndex].quantity += update.quantity;
-    } else {
-      branchStock.push({
-        product: update.productId,
-        quantity: update.quantity,
-      });
+    const bulkResult = await Product.bulkWrite(stockUpdates, { ordered: false });
+    
+    // Check if all updates were successful
+    const failedUpdates = stockUpdates.length - (bulkResult.modifiedCount || 0);
+    if (failedUpdates > 0) {
+      // Some updates failed, likely due to insufficient stock (race condition)
+      // Re-fetch products to get current stock levels
+      const productIds = stockTransfer.items.map(item => item.product._id);
+      const currentProducts = await Product.find({ _id: { $in: productIds } });
+      const productMap = new Map(currentProducts.map(p => [p._id.toString(), p]));
+      
+      // Find which products have insufficient stock
+      const insufficientStock = [];
+      for (const item of stockTransfer.items) {
+        const product = productMap.get(item.product._id.toString());
+        if (product && product.stock < item.quantity) {
+          insufficientStock.push(`${product.name} (Available: ${product.stock}, Required: ${item.quantity})`);
+        }
+      }
+      
+      res.status(400);
+      throw new Error(`Insufficient stock detected. This may be due to concurrent transfers. ${insufficientStock.join(', ')}`);
     }
   }
 
-  toBranch.stock = branchStock;
+  // Add stock to branch inventory
+  // Ensure no duplicate products in branch stock array
+  const branchStock = toBranch.stock || [];
+  const productStockMap = new Map();
+  
+  // First, create a map of existing stock
+  for (const stockItem of branchStock) {
+    const productId = stockItem.product?.toString() || stockItem.product;
+    if (productId) {
+      productStockMap.set(productId, stockItem.quantity || 0);
+    }
+  }
+  
+  // Add or update stock quantities
+  for (const update of branchStockUpdates) {
+    const currentQty = productStockMap.get(update.productId) || 0;
+    productStockMap.set(update.productId, currentQty + update.quantity);
+  }
+  
+  // Convert map back to array format
+  const updatedBranchStock = Array.from(productStockMap.entries()).map(([productId, quantity]) => ({
+    product: productId,
+    quantity,
+  }));
+  
+  toBranch.stock = updatedBranchStock;
   await toBranch.save();
 
   // Always create transaction for the transfer (for record-keeping, regardless of revenue inclusion)
@@ -549,4 +697,3 @@ module.exports = {
   deleteStockTransfer,
   completeStockTransfer,
 };
-

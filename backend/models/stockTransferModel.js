@@ -78,9 +78,15 @@ const stockTransferSchema = new mongoose.Schema(
       required: [true, 'Please provide at least one product'],
       validate: {
         validator: function(v) {
-          return Array.isArray(v) && v.length > 0;
+          if (!Array.isArray(v) || v.length === 0) {
+            return false;
+          }
+          // Check for duplicate products in the same transfer
+          const productIds = v.map(item => item.product?.toString()).filter(Boolean);
+          const uniqueProductIds = new Set(productIds);
+          return productIds.length === uniqueProductIds.size;
         },
-        message: 'At least one product is required',
+        message: 'At least one product is required and each product can only appear once per transfer',
       },
     },
     toBranch: {
