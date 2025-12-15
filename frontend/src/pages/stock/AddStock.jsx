@@ -29,6 +29,11 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
   const [statusMsg, setStatusMsg] = useState({ type: '', message: '' });
   const [selectedProduct, setSelectedProduct] = useState(null);
 
+  // Shared input styles for consistent compact layout
+  const inputCls = 'w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const selectCls = `${inputCls} appearance-none bg-white`;
+  const textAreaCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y';
+
   useEffect(() => {
     fetchVendors();
   }, []);
@@ -165,21 +170,22 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
       {/* Form Section */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Product Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-800">
                 Product <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <select
                   name="product"
                   value={formData.product}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                  className={selectCls}
                   required
                 >
-                  <option value="">Select a product</option>
+                  <option value="">Select product</option>
                   {products.map(product => (
                     <option key={product._id} value={product._id}>
                       {product.name} (Stock: {product.stock || 0})
@@ -188,28 +194,32 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
                 </select>
               </div>
               {selectedProduct && (
-                <p className="mt-2 text-sm text-gray-600">
-                  Current stock: <span className="font-semibold">{selectedProduct.stock || 0}</span> | 
-                  Price: <span className="font-semibold">₹{selectedProduct.price?.toFixed(2) || '0.00'}</span>
-                </p>
+                <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">
+                    Stock: {selectedProduct.stock || 0}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-50 text-green-700 font-semibold">
+                    ₹{selectedProduct.price?.toFixed(2) || '0.00'}
+                  </span>
+                </div>
               )}
             </div>
 
             {/* Vendor Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-800">
                 Vendor <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <select
                   name="vendor"
                   value={formData.vendor}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                  className={selectCls}
                   required
                 >
-                  <option value="">Select a vendor</option>
+                  <option value="">Select vendor</option>
                   {vendors.map(vendor => (
                     <option key={vendor._id} value={vendor._id}>
                       {vendor.name}
@@ -218,73 +228,74 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
                 </select>
               </div>
               {vendors.length === 0 && (
-                <p className="mt-2 text-xs text-amber-600">
+                <p className="text-xs text-amber-600">
                   No vendors available. Please add vendors first from the Vendor Management tab.
                 </p>
               )}
             </div>
 
             {/* Quantity */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-800">
                 Quantity <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                name="quantity"
-                value={formData.quantity}
-                onChange={handleChange}
-                min="1"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter quantity"
-                required
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  name="quantity"
+                  value={formData.quantity}
+                  onChange={handleChange}
+                  min="1"
+                  className={inputCls}
+                  placeholder="Qty"
+                  required
+                />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Invoice Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Invoice Number
-                </label>
-                <div className="relative">
-                  <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    name="invoiceNumber"
-                    value={formData.invoiceNumber}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Invoice number"
-                  />
-                </div>
+            {/* Invoice Number */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-800">
+                Invoice Number
+              </label>
+              <div className="relative">
+                <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  name="invoiceNumber"
+                  value={formData.invoiceNumber}
+                  onChange={handleChange}
+                  className={inputCls}
+                  placeholder="Invoice #"
+                />
               </div>
+            </div>
 
-              {/* Invoice Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Invoice Date
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="date"
-                    name="invoiceDate"
-                    value={formData.invoiceDate}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+            {/* Invoice Date */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-800">
+                Invoice Date
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="date"
+                  name="invoiceDate"
+                  value={formData.invoiceDate}
+                  onChange={handleChange}
+                  className={inputCls}
+                  placeholder="Pick date"
+                />
               </div>
             </div>
 
             {/* Purchase Price */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-800">
                 Purchase Price (per unit)
               </label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input
                   type="number"
                   name="purchasePrice"
@@ -292,12 +303,12 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
                   onChange={handleChange}
                   min="0"
                   step="0.01"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={inputCls}
                   placeholder="0.00"
                 />
               </div>
               {formData.purchasePrice && formData.quantity && (
-                <p className="mt-2 text-sm text-gray-600">
+                <p className="text-xs text-gray-600">
                   Total Cost: <span className="font-semibold">
                     ₹{(Number(formData.purchasePrice) * Number(formData.quantity)).toFixed(2)}
                   </span>
@@ -306,8 +317,8 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
             </div>
 
             {/* Remarks */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="space-y-2 md:col-span-3">
+              <label className="block text-sm font-medium text-gray-800">
                 Remarks
               </label>
               <textarea
@@ -315,10 +326,11 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
                 value={formData.remarks}
                 onChange={handleChange}
                 rows={3}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
-                placeholder="Any additional notes..."
+                className={textAreaCls}
+                placeholder="Notes or reference..."
               />
             </div>
+          </div>
 
           {/* Submit Button */}
           <div className="pt-4 border-t border-gray-200">
@@ -345,4 +357,3 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
 };
 
 export default AddStock;
-

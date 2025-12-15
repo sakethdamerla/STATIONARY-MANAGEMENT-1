@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, Package, Building2, FileText, Calendar, DollarSign, Eye, Trash2, X, Edit2, Save } from 'lucide-react';
+import { Search, Filter, Package, Building2, FileText, Calendar, DollarSign, Eye, Trash2, X, Edit2, Save, Printer } from 'lucide-react';
 import { apiUrl } from '../../utils/api';
 import { hasFullAccess } from '../../utils/permissions';
 
@@ -38,6 +38,145 @@ const StockEntries = ({ currentUser }) => {
   const [products, setProducts] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [updating, setUpdating] = useState(false);
+  const [receiptSettings, setReceiptSettings] = useState({
+    receiptHeader: 'PYDAH GROUP OF INSTITUTIONS',
+    receiptSubheader: 'Stationery Management System',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl('/api/settings'));
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setReceiptSettings({
+              receiptHeader: data.receiptHeader || 'PYDAH GROUP OF INSTITUTIONS',
+              receiptSubheader: data.receiptSubheader || 'Stationery Management System',
+            });
+          }
+        }
+      } catch (err) {
+        // fallback to defaults silently
+        console.warn('Could not load receipt settings for stock print', err);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
+  const handlePrint = (entry) => {
+    if (!entry) return;
+
+    const safe = (val) => (val ?? '').toString();
+    const fmtDate = (val) => (val ? new Date(val).toLocaleString() : '—');
+
+    const html = `
+      <html>
+        <head>
+          <title>Stock Entry Report</title>
+          <style>
+            @page { size: auto; margin: 0mm; }
+            body { font-family: 'Inter', Arial, sans-serif; padding: 18mm 16mm; margin: 0; color: #0f172a; background: #fff; }
+            .wrapper { max-width: 960px; margin: 0 auto; padding: 0; background: #fff; }
+            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 18px; }
+            .brand { font-size: 20px; font-weight: 800; color: #1d4ed8; letter-spacing: 0.5px; }
+            .subhead { font-size: 12px; color: #475569; margin-top: 4px; }
+            .title { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 6px; }
+            .meta { margin-top: 8px; font-size: 11px; color: #475569; }
+            .section-title { font-size: 14px; font-weight: 700; margin: 12px 0 8px; color: #0f172a; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 18px; }
+            .item { background: #fff; border: none; border-radius: 0; padding: 0; }
+            .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 2px; }
+            .value { font-size: 14px; font-weight: 700; color: #0f172a; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+            .remarks { margin-top: 16px; background: #fff; border: none; border-radius: 0; padding: 0; color: #0f172a; font-size: 13px; }
+          </style>
+        </head>
+        <body>
+          <div class="wrapper">
+            <div class="header">
+              <div class="brand">${safe(receiptSettings.receiptHeader)}</div>
+              <div class="subhead">${safe(receiptSettings.receiptSubheader)}</div>
+              <div class="title">Stock Entry Report</div>
+              <div class="meta">
+                <div><strong>Generated:</strong> ${fmtDate(new Date())}</div>
+                <div><strong>Entry ID:</strong> ${safe(entry._id || '—')}</div>
+              </div>
+            </div>
+
+            <div class="section-title">Overview</div>
+            <div class="grid">
+              <div class="item">
+                <div class="label">Product</div>
+                <div class="value">${safe(entry.product?.name || 'Unknown Product')}</div>
+              </div>
+              <div class="item">
+                <div class="label">Vendor</div>
+                <div class="value">${safe(entry.vendor?.name || 'Unknown Vendor')}</div>
+              </div>
+              <div class="item">
+                <div class="label">Quantity</div>
+                <div class="value">${safe(entry.quantity)}</div>
+              </div>
+              <div class="item">
+                <div class="label">Entry Date</div>
+                <div class="value">${fmtDate(entry.createdAt)}</div>
+              </div>
+            </div>
+
+            <div class="section-title">Financials</div>
+            <div class="grid">
+              <div class="item">
+                <div class="label">Unit Price</div>
+                <div class="value">₹${Number(entry.purchasePrice || 0).toFixed(2)}</div>
+              </div>
+              <div class="item">
+                <div class="label">Total Cost</div>
+                <div class="value">₹${Number(entry.totalCost || 0).toFixed(2)}</div>
+              </div>
+              <div class="item">
+                <div class="label">Invoice Number</div>
+                <div class="value">${safe(entry.invoiceNumber || '—')}</div>
+              </div>
+              <div class="item">
+                <div class="label">Invoice Date</div>
+                <div class="value">${fmtDate(entry.invoiceDate)}</div>
+              </div>
+            </div>
+
+            ${entry.remarks ? `
+              <div class="section-title">Remarks</div>
+              <div class="remarks">${safe(entry.remarks)}</div>
+            ` : ''}
+          </div>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 500);
+    };
+  };
 
   useEffect(() => {
     fetchStockEntries();
@@ -306,29 +445,25 @@ const StockEntries = ({ currentUser }) => {
           <p className="text-gray-600">Loading stock entries...</p>
         </div>
       ) : filteredEntries.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredEntries.map((entry) => (
             <div
               key={entry._id}
-              className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all hover:border-blue-300"
+              className="bg-white p-4 border-b border-gray-100"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Package className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        {entry.product?.name || 'Unknown Product'}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {entry.vendor?.name || 'Unknown Vendor'}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <Package className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-semibold text-gray-900">
+                      {entry.product?.name || 'Unknown Product'}
+                    </h3>
                   </div>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {entry.vendor?.name || 'Unknown Vendor'}
+                  </p>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Quantity</p>
                       <p className="text-sm font-semibold text-green-600">+{entry.quantity}</p>
@@ -352,7 +487,7 @@ const StockEntries = ({ currentUser }) => {
                   </div>
 
                   {entry.invoiceNumber && (
-                    <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                    <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
                       <FileText size={14} />
                       <span>Invoice: {entry.invoiceNumber}</span>
                       {entry.invoiceDate && (
@@ -364,7 +499,7 @@ const StockEntries = ({ currentUser }) => {
                   )}
 
                   {entry.remarks && (
-                    <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+                    <div className="mt-2">
                       <p className="text-xs text-gray-500 mb-1">Remarks</p>
                       <p className="text-sm text-gray-700">{entry.remarks}</p>
                     </div>
@@ -378,6 +513,13 @@ const StockEntries = ({ currentUser }) => {
                     title="View Details"
                   >
                     <Eye size={16} />
+                  </button>
+                  <button
+                    onClick={() => handlePrint(entry)}
+                    className="px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Print entry"
+                  >
+                    <Printer size={16} />
                   </button>
                   {canEditStockEntries && (
                     <button
@@ -687,4 +829,3 @@ const StockEntries = ({ currentUser }) => {
 };
 
 export default StockEntries;
-
