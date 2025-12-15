@@ -56,22 +56,21 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto">
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Archive className="w-7 h-7 text-white" />
+        {/* Header Section with Tabs */}
+        <div className="mb-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Archive className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900">Manage Stock</h1>
+                <p className="text-gray-600 mt-1 text-sm">Manage products, stock entries, and vendors</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Manage Stock</h1>
-              <p className="text-gray-600 mt-1">Manage products, stock entries, and vendors</p>
-            </div>
-          </div>
 
-          {/* Tabs Navigation */}
-          {tabs.length > 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
-              <div className="flex gap-2">
+            {tabs.length > 0 && (
+              <div className="flex flex-wrap gap-2 w-full md:w-auto">
                 {allTabs.map((tab) => {
                   const IconComponent = tab.icon;
                   const isActive = activeTab === tab.id;
@@ -82,10 +81,10 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
                       <button
                         key={tab.id}
                         disabled
-                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                        className="flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all opacity-60 cursor-not-allowed bg-gray-100 text-gray-400"
                         title="You do not have permission to access this tab"
                       >
-                        <Lock size={18} />
+                        <Lock size={16} />
                         <span>{tab.label}</span>
                       </button>
                     );
@@ -95,33 +94,35 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+                      className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                         isActive
                           ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
-                      <IconComponent size={18} />
+                      <IconComponent size={16} />
                       <span>{tab.label}</span>
                     </button>
                   );
                 })}
               </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                  <Lock className="text-gray-400" size={32} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Access</h3>
-                  <p className="text-sm text-gray-600">You do not have permission to access any stock management features.</p>
-                </div>
+            )}
+          </div>
+        </div>
+
+        {tabs.length === 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <Lock className="text-gray-400" size={32} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Access</h3>
+                <p className="text-sm text-gray-600">You do not have permission to access any stock management features.</p>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Tab Content */}
         {tabs.length > 0 && activeTab && (
@@ -150,4 +151,3 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
 };
 
 export default ManageStock;
-

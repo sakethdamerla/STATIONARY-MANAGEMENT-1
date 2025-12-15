@@ -450,33 +450,6 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
-            <Package size={20} className="text-white" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Products</h2>
-            <p className="text-gray-600 text-sm mt-1">Manage your product catalog</p>
-          </div>
-        </div>
-        {canEdit && (
-          <button
-            onClick={() => {
-              setShowAddProduct(true);
-              setShowProductDetail(false); // Ensure View modal is closed when adding
-              setSelectedProduct(null);    // Clear any selected product
-              setIsEditing(false);
-            }}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium"
-          >
-            <Plus size={20} />
-            Add New Product
-          </button>
-        )}
-      </div>
-
       {/* Search and Filters */}
       <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
@@ -484,23 +457,39 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             <p className="text-sm font-semibold text-gray-700">Filters & Display</p>
             <p className="text-xs text-gray-500">Search, refine and switch between table or card layouts.</p>
           </div>
-          <div className="inline-flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isCardView ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              <LayoutGrid size={16} />
-              Cards
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${!isCardView ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              <Table size={16} />
-              Table
-            </button>
+          <div className="flex items-center gap-3">
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setShowAddProduct(true);
+                  setShowProductDetail(false); // Ensure View modal is closed when adding
+                  setSelectedProduct(null);    // Clear any selected product
+                  setIsEditing(false);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg text-sm font-medium"
+              >
+                <Plus size={20} />
+                Add Product
+              </button>
+            )}
+            <div className="inline-flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-1">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isCardView ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <LayoutGrid size={16} />
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${!isCardView ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <Table size={16} />
+                Table
+              </button>
+            </div>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -613,7 +602,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
               >
                 <div className="p-4 border-b border-gray-100">
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-base font-semibold text-gray-900 line-clamp-2 flex-1">
+                    <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 flex-1">
                       {product.name}
                     </h3>
                     <div className="flex items-center gap-2">
@@ -1716,4 +1705,3 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
 };
 
 export default AddProduct;
-
