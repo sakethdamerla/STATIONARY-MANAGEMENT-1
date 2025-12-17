@@ -208,6 +208,7 @@ const StudentDue = () => {
         ? product.branch
         : (product.branch ? [product.branch] : [])).map(b => normalizeValue(b)),
       _years: getProductYears(product),
+      _semesters: product.semesters || [],
       _key: getItemKey(product.name),
     }));
   }, [products]);
@@ -219,6 +220,7 @@ const StudentDue = () => {
       _normalizedCourse: normalizeValue(student.course),
       _normalizedBranch: normalizeValue(student.branch),
       _year: Number(student.year),
+      _semester: Number(student.semester),
       _itemsMap: student.items || {},
     }));
   }, [students]);
@@ -252,6 +254,13 @@ const StudentDue = () => {
         // Year filter
         if (product._years.length > 0 && !product._years.includes(student._year)) {
           continue;
+        }
+
+        // Semester match (products with specific semesters vs student semester)
+        if (product._semesters.length > 0) {
+          if (!student._semester || !product._semesters.includes(student._semester)) {
+            continue;
+          }
         }
 
         // Branch filter

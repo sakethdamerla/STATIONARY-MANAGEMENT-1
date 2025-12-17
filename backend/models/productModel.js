@@ -60,6 +60,18 @@ const productSchema = new mongoose.Schema(
         message: 'Branch must be an array of non-empty strings'
       }
     },
+    // Optional semester applicability (e.g., 1, 2) - array for multiple semesters
+    // If empty, applies to all semesters in the selected year(s)
+    semesters: {
+      type: [Number],
+      default: [],
+      validate: {
+        validator: function(v) {
+          return v.every(sem => sem === 1 || sem === 2);
+        },
+        message: 'Semester must be 1 or 2'
+      }
+    },
     stock: {
       type: Number,
       required: true,

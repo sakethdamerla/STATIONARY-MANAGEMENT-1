@@ -52,7 +52,7 @@ const createProduct = async (req, res) => {
   } catch (diagErr) {
     console.warn('Could not read Product schema year options:', diagErr);
   }
-  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold } = req.body;
+  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters } = req.body;
   // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
   let parsedYears = [];
   if (years && Array.isArray(years)) {
@@ -106,6 +106,7 @@ const createProduct = async (req, res) => {
       isSet: Boolean(isSet),
       setItems: sanitizedSetItems,
       lowStockThreshold: Boolean(isSet) ? 0 : thresholdNumber,
+      semesters: (semesters || []).map(Number).filter(s => s === 1 || s === 2),
     });
 
     const createdProduct = await product.save();
@@ -177,7 +178,7 @@ const updateProduct = async (req, res) => {
     // Track old name for updating transactions if name changes
     const oldName = product.name;
 
-  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold } = req.body;
+  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters } = req.body;
   // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
   let parsedYears = undefined;
   if (years !== undefined && Array.isArray(years)) {
@@ -233,6 +234,9 @@ const updateProduct = async (req, res) => {
     if (parsedYears !== undefined) {
       product.years = parsedYears;
       product.year = parsedYears.length === 1 ? parsedYears[0] : (parsedYears.length === 0 ? 0 : parsedYears[0]); // Backward compatibility
+    }
+    if (semesters !== undefined) {
+      product.semesters = Array.isArray(semesters) ? semesters.map(Number).filter(s => s === 1 || s === 2) : [];
     }
     product.remarks = remarks !== undefined ? remarks : product.remarks;
 

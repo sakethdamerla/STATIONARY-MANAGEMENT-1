@@ -33,16 +33,16 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
   const navigate = useNavigate();
   const searchTimeoutRef = useRef(null);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  
+
   // Check if user is super admin
   const isSuperAdmin = currentUser?.role === 'Administrator';
   const userPermissions = Array.isArray(currentUser?.permissions) ? currentUser.permissions : [];
-  
+
   // Get allowed courses for course-dashboard permission
   const allowedCourses = useMemo(() => {
     if (isSuperAdmin) return null; // Super admin sees all courses
     if (!hasViewAccess(userPermissions, 'course-dashboard')) return []; // No access to course dashboard
-    
+
     // Get course-specific permissions
     const courses = getAllowedCourses(userPermissions);
     // If user has course-dashboard permission but no course-specific permissions,
@@ -50,7 +50,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
     // If they have course-specific permissions, return those courses
     return courses.length > 0 ? courses : null; // null means all courses, empty array means no access
   }, [isSuperAdmin, userPermissions]);
-  
+
   // Load from cache first if available
   const cachedStudents = useMemo(() => {
     if (initialStudents && initialStudents.length > 0) return prepareStudents(initialStudents);
@@ -62,6 +62,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [yearFilter, setYearFilter] = useState('all');
+  const [semesterFilter, setSemesterFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -127,7 +128,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
 
     try {
       const promises = [];
-      
+
       if (!hasValidConfigCache || forceRefresh) {
         promises.push(
           fetch(apiUrl('/api/config/academic'))
@@ -280,22 +281,25 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
         }
       }
       // If allowedCourses is null, user has access to all courses (super admin or general course-dashboard permission)
-      
+
       const matchesSearch = !searchLower ||
         student.name?.toLowerCase().includes(searchLower) ||
         student.studentId?.toLowerCase().includes(searchLower);
 
       const matchesYear = yearFilter === 'all' || String(student.year) === String(yearFilter);
-      
+
+      const matchesSemester = semesterFilter === 'all' ||
+        (student.semester && String(student.semester) === String(semesterFilter));
+
       // Course filter: compare normalized course names
       const normalizedCourseFilter = courseFilter === 'all' ? 'all' : normalizeCourse(courseFilter);
       const matchesCourse = normalizedCourseFilter === 'all' || student.normalizedCourse === normalizedCourseFilter;
-      
+
       // Branch filter: only apply if course is selected, and match branch
-      const matchesBranch = branchFilter === 'all' || 
+      const matchesBranch = branchFilter === 'all' ||
         (student.branch && student.branch.trim().toLowerCase() === branchFilter.trim().toLowerCase());
 
-      return matchesSearch && matchesYear && matchesCourse && matchesBranch;
+      return matchesSearch && matchesYear && matchesSemester && matchesCourse && matchesBranch;
     });
   }, [students, debouncedSearchTerm, yearFilter, courseFilter, branchFilter, allowedCourses]);
 
@@ -310,7 +314,35 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [yearFilter, courseFilter, branchFilter, debouncedSearchTerm]);
+  }, [yearFilter, semesterFilter, courseFilter, branchFilter, debouncedSearchTerm]);
+
+  // Get semesters from students (filtered by permissions, then by course/year filter)
+  const semesterOptions = useMemo(() => {
+    // Start with students filtered by permissions
+    let availableStudents = students;
+    if (allowedCourses !== null) {
+      if (allowedCourses.length === 0) return [];
+      availableStudents = students.filter(student => {
+        const studentCourseNormalized = normalizeCourseName(student.course);
+        return allowedCourses.some(allowedCourse => {
+          const normalizedAllowed = normalizeCourseName(allowedCourse);
+          return studentCourseNormalized === normalizedAllowed;
+        });
+      });
+    }
+
+    // Filter by course if set
+    if (courseFilter !== 'all') {
+      availableStudents = availableStudents.filter(s => normalizeCourse(s.course) === normalizeCourse(courseFilter));
+    }
+
+    // Filter by year if set
+    if (yearFilter !== 'all') {
+      availableStudents = availableStudents.filter(s => String(s.year) === String(yearFilter));
+    }
+
+    return Array.from(new Set(availableStudents.map(s => s.semester).filter(Boolean))).sort((a, b) => a - b);
+  }, [students, courseFilter, yearFilter, allowedCourses]);
 
   // Get years from students (filtered by permissions, then by course filter)
   const yearOptions = useMemo(() => {
@@ -328,10 +360,10 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
         });
       });
     }
-    
+
     // Then filter by course filter if set
-    const filteredByCourse = courseFilter === 'all' 
-      ? availableStudents 
+    const filteredByCourse = courseFilter === 'all'
+      ? availableStudents
       : availableStudents.filter(s => normalizeCourse(s.course) === normalizeCourse(courseFilter));
     return Array.from(new Set(filteredByCourse.map(s => s.year).filter(Boolean))).sort((a, b) => a - b);
   }, [students, courseFilter, allowedCourses]);
@@ -341,9 +373,9 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
     let allCourses = config?.courses
       ? config.courses.map(c => ({ name: c.name, displayName: c.displayName }))
       : Array.from(new Set(students.map(s => s.normalizedCourse)))
-          .filter(Boolean)
-          .map(name => ({ name, displayName: name.toUpperCase() }));
-    
+        .filter(Boolean)
+        .map(name => ({ name, displayName: name.toUpperCase() }));
+
     // Filter by allowed courses if user has course-specific permissions
     if (allowedCourses !== null && allowedCourses.length > 0) {
       allCourses = allCourses.filter(course => {
@@ -352,7 +384,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
         return allowedCourses.some(allowed => normalizeCourseName(allowed) === normalizedCourse);
       });
     }
-    
+
     return allCourses;
   }, [config?.courses, students, allowedCourses]);
 
@@ -362,16 +394,16 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
       // If no course selected, show all unique branches from all students
       return Array.from(new Set(students.map(s => s.branch).filter(Boolean))).sort();
     }
-    
+
     // Get branches from config for the selected course
     const normalizedFilter = normalizeCourse(courseFilter);
     const selectedCourse = config?.courses?.find(c => normalizeCourse(c.name) === normalizedFilter);
-    
+
     if (selectedCourse && selectedCourse.branches && selectedCourse.branches.length > 0) {
       // Return branches from config
       return selectedCourse.branches.sort();
     }
-    
+
     // Fallback: get branches from students in this course
     const studentsInCourse = students.filter(s => normalizeCourse(s.course) === normalizedFilter);
     return Array.from(new Set(studentsInCourse.map(s => s.branch).filter(Boolean))).sort();
@@ -418,7 +450,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Student Dashboard</h1>
                 <p className="text-gray-600 mt-1">
-                  {searchTerm || courseFilter !== 'all' || yearFilter !== 'all' || branchFilter !== 'all'
+                  {searchTerm || courseFilter !== 'all' || yearFilter !== 'all' || semesterFilter !== 'all' || branchFilter !== 'all'
                     ? `${filteredStudents.length} ${filteredStudents.length === 1 ? 'student' : 'students'} found`
                     : `${students.length} ${students.length === 1 ? 'student' : 'students'} enrolled across all courses`}
                 </p>
@@ -471,7 +503,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
             </div>
             <h3 className="text-lg font-semibold text-gray-900">Search & Filter</h3>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600" size={18} />
               <input
@@ -539,6 +571,23 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
                 </svg>
               </div>
             </div>
+            <div className="relative">
+              <select
+                value={semesterFilter}
+                onChange={(e) => setSemesterFilter(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white shadow-sm transition-all cursor-pointer hover:bg-gray-50"
+              >
+                <option value="all">All Semesters</option>
+                {semesterOptions.map(sem => (
+                  <option key={sem} value={sem}>Semester {sem}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -550,11 +599,11 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No students found</h3>
               <p className="text-gray-600 mb-6">
-                {searchTerm || courseFilter !== 'all' || yearFilter !== 'all' || branchFilter !== 'all'
+                {searchTerm || courseFilter !== 'all' || yearFilter !== 'all' || semesterFilter !== 'all' || branchFilter !== 'all'
                   ? 'Try adjusting your search or filters'
                   : 'Start by adding students to the system'}
               </p>
-              {!searchTerm && courseFilter === 'all' && yearFilter === 'all' && branchFilter === 'all' && (
+              {!searchTerm && courseFilter === 'all' && yearFilter === 'all' && semesterFilter === 'all' && branchFilter === 'all' && (
                 <button
                   className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md hover:shadow-lg"
                   onClick={() => navigate('/add-student')}
@@ -595,6 +644,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Course</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Student ID</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Year</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Semester</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Branch</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Action</th>
                     </tr>
@@ -620,7 +670,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             {getCourseDisplayName(student.course)}
                           </span>
                         </td>
@@ -633,6 +683,15 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
                           <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
                             Year {student.year}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {student.semester ? (
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                              Sem {student.semester}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700">
@@ -685,11 +744,10 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
                             <button
                               key={pageNum}
                               onClick={() => setCurrentPage(pageNum)}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                currentPage === pageNum
-                                  ? 'bg-blue-600 text-white'
-                                  : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                              }`}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
+                                ? 'bg-blue-600 text-white'
+                                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                }`}
                             >
                               {pageNum}
                             </button>

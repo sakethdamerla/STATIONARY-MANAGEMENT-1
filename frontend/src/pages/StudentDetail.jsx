@@ -56,7 +56,7 @@ const StudentDetail = ({
   // Fetch course-specific receipt settings
   useEffect(() => {
     if (!student?.course) return;
-    
+
     let isMounted = true;
     const fetchReceiptSettings = async () => {
       try {
@@ -85,7 +85,7 @@ const StudentDetail = ({
     if (!student || (!student.id && !student._id)) return;
 
     const studentId = String(student.id || student._id || '');
-    
+
     // If we already have cached transactions for this student and not forcing refresh, skip
     if (!forceRefresh && lastFetchedStudentId.current === studentId && transactionsCache.current.has(studentId)) {
       const cached = transactionsCache.current.get(studentId);
@@ -121,14 +121,14 @@ const StudentDetail = ({
   useEffect(() => {
     if (!student) return;
     const studentId = String(student.id || student._id || '');
-    
+
     // Load from cache if available
     if (transactionsCache.current.has(studentId)) {
       const cached = transactionsCache.current.get(studentId);
       setRawTransactions(cached || []);
       lastFetchedStudentId.current = studentId;
     }
-    
+
     // Fetch in background if online (only if cache is stale or missing)
     if (isOnline && (!transactionsCache.current.has(studentId) || lastFetchedStudentId.current !== studentId)) {
       fetchStudentTransactions(false);
@@ -171,8 +171,8 @@ const StudentDetail = ({
     // If product has no years specified (empty array), it applies to all years (for that course)
 
     // Branch filter: if product has branches, student's branch must be in the array
-    const productBranches = Array.isArray(p.branch) 
-      ? p.branch 
+    const productBranches = Array.isArray(p.branch)
+      ? p.branch
       : (p.branch ? [p.branch] : []);
     if (productBranches.length > 0) {
       const studentBranchNormalized = normalizeCourse(student?.branch || '');
@@ -510,7 +510,7 @@ const StudentDetail = ({
             <div>
               <p className="text-xs uppercase tracking-wider text-white">Student Profile</p>
               <h1 className="text-2xl font-semibold text-white">{student.name}</h1>
-              <p className="text-sm text-white/80 mt-1">{student.course?.toUpperCase()} • Year {student.year}{student.branch ? ` • ${student.branch}` : ''}</p>
+              <p className="text-sm text-white/80 mt-1">{student.course?.toUpperCase()} • Year {student.year}{student.semester ? ` • Sem ${student.semester}` : ''}{student.branch ? ` • ${student.branch}` : ''}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 self-end lg:self-center">
@@ -572,6 +572,12 @@ const StudentDetail = ({
                   <p className=" uppercase tracking-wide">Year</p>
                   <p className="text-sm font-medium text-gray-500">Year {student.year}</p>
                 </div>
+                {student.semester && (
+                  <div className="space-y-1">
+                    <p className=" uppercase tracking-wide">Semester</p>
+                    <p className="text-sm font-medium text-gray-500">Semester {student.semester}</p>
+                  </div>
+                )}
                 {student.branch && (
                   <div className="space-y-1">
                     <p className=" uppercase tracking-wide">Branch</p>
@@ -699,11 +705,10 @@ const StudentDetail = ({
 
               {componentUpdateStatus.message && (
                 <div
-                  className={`mb-4 text-xs font-semibold rounded-lg px-3 py-2 border ${
-                    componentUpdateStatus.type === 'success'
+                  className={`mb-4 text-xs font-semibold rounded-lg px-3 py-2 border ${componentUpdateStatus.type === 'success'
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-rose-50 text-rose-700 border-rose-200'
-                  }`}
+                    }`}
                 >
                   {componentUpdateStatus.message}
                 </div>
@@ -746,14 +751,14 @@ const StudentDetail = ({
                                     </span>
                                   )}
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${transaction.isPaid
-                                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                      : 'bg-rose-100 text-rose-700 border border-rose-200'
+                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                    : 'bg-rose-100 text-rose-700 border border-rose-200'
                                     }`}>
                                     {transaction.isPaid ? 'Paid' : 'Unpaid'}
                                   </span>
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${transaction.paymentMethod === 'cash'
-                                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                      : 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                    : 'bg-indigo-100 text-indigo-700 border border-indigo-200'
                                     }`}>
                                     {transaction.paymentMethod === 'cash' ? 'Cash' : 'Online'}
                                   </span>
@@ -801,98 +806,97 @@ const StudentDetail = ({
                                 {transaction.items.map((item, idx) => {
                                   const itemProductKey = String(
                                     item.productId?._id ||
-                                      item.productId ||
-                                      item._id ||
-                                      ''
+                                    item.productId ||
+                                    item._id ||
+                                    ''
                                   );
                                   return (
                                     <div
                                       key={idx}
                                       className="text-xs text-gray-800 bg-white/70 border border-blue-100 rounded-lg px-3 py-2"
                                     >
-                                    <div className="flex items-center justify-between">
-                                      <div className="font-medium">{item.name}</div>
-                                      <div className="font-semibold">
-                                        ×{item.quantity} • ₹{Number(item.total).toFixed(2)}
+                                      <div className="flex items-center justify-between">
+                                        <div className="font-medium">{item.name}</div>
+                                        <div className="font-semibold">
+                                          ×{item.quantity} • ₹{Number(item.total).toFixed(2)}
+                                        </div>
                                       </div>
-                                    </div>
-                                    {(item.isSet || item.status === 'partial') && (
-                                      <div className="flex items-center justify-between mt-1 text-[11px]">
-                                        <span className="text-gray-600 font-medium">
-                                          Status:
-                                          <span
-                                            className={`ml-1 font-semibold ${
-                                              item.status === 'partial' ? 'text-amber-600' : 'text-green-600'
-                                            }`}
-                                          >
-                                            {item.status === 'partial' ? 'Partial' : 'Fulfilled'}
+                                      {(item.isSet || item.status === 'partial') && (
+                                        <div className="flex items-center justify-between mt-1 text-[11px]">
+                                          <span className="text-gray-600 font-medium">
+                                            Status:
+                                            <span
+                                              className={`ml-1 font-semibold ${item.status === 'partial' ? 'text-amber-600' : 'text-green-600'
+                                                }`}
+                                            >
+                                              {item.status === 'partial' ? 'Partial' : 'Fulfilled'}
+                                            </span>
                                           </span>
-                                      </span>
-                                    </div>
-                                    )}
-                                    {item.isSet && item.setComponents?.length > 0 && (
-                                      <div className="mt-1 border-t border-blue-100 pt-1">
-                                        <p className="text-[11px] font-semibold text-gray-800 mb-1">
-                                          Includes:
-                                        </p>
-                                        <ul className="space-y-0.5">
-                                          {item.setComponents.map((component, componentIdx) => {
-                                            const componentProductKey = String(
-                                              component.productId ||
+                                        </div>
+                                      )}
+                                      {item.isSet && item.setComponents?.length > 0 && (
+                                        <div className="mt-1 border-t border-blue-100 pt-1">
+                                          <p className="text-[11px] font-semibold text-gray-800 mb-1">
+                                            Includes:
+                                          </p>
+                                          <ul className="space-y-0.5">
+                                            {item.setComponents.map((component, componentIdx) => {
+                                              const componentProductKey = String(
+                                                component.productId ||
                                                 component._id ||
                                                 ''
-                                            );
-                                            const actionKey = `${transaction._id || transaction.id}:${itemProductKey}:${componentProductKey}`;
-                                            return (
-                                              <li
-                                                key={`${item.name}-component-inline-${componentIdx}`}
-                                                className="flex items-center justify-between text-[11px] text-gray-700 gap-2"
-                                              >
-                                                <span className="truncate max-w-[200px]">
-                                                  {component.name}
-                                                </span>
-                                                <div className="flex items-center gap-2">
-                                                  <span className="font-semibold">
-                                                    × {component.quantity}
+                                              );
+                                              const actionKey = `${transaction._id || transaction.id}:${itemProductKey}:${componentProductKey}`;
+                                              return (
+                                                <li
+                                                  key={`${item.name}-component-inline-${componentIdx}`}
+                                                  className="flex items-center justify-between text-[11px] text-gray-700 gap-2"
+                                                >
+                                                  <span className="truncate max-w-[200px]">
+                                                    {component.name}
                                                   </span>
-                                                  {component.taken === false && (
-                                                    <div className="flex items-center gap-2">
-                                                      <span className="uppercase font-semibold text-red-600">
-                                                        Not Taken
-                                                      </span>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                          handleMarkComponentTaken(
-                                                            transaction,
-                                                            item,
-                                                            component
-                                                          )
-                                                        }
-                                                        disabled={
-                                                          !isOnline ||
-                                                          componentUpdating === actionKey
-                                                        }
-                                                        className="px-2 py-1 rounded-md border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                                      >
-                                                        {componentUpdating === actionKey ? (
-                                                          <Loader2
-                                                            size={12}
-                                                            className="animate-spin"
-                                                          />
-                                                        ) : (
-                                                          'Mark as Taken'
-                                                        )}
-                                                      </button>
-                                </div>
-                                                  )}
-                                                </div>
-                                              </li>
-                                            );
-                                          })}
-                                        </ul>
-                                      </div>
-                                    )}
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="font-semibold">
+                                                      × {component.quantity}
+                                                    </span>
+                                                    {component.taken === false && (
+                                                      <div className="flex items-center gap-2">
+                                                        <span className="uppercase font-semibold text-red-600">
+                                                          Not Taken
+                                                        </span>
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            handleMarkComponentTaken(
+                                                              transaction,
+                                                              item,
+                                                              component
+                                                            )
+                                                          }
+                                                          disabled={
+                                                            !isOnline ||
+                                                            componentUpdating === actionKey
+                                                          }
+                                                          className="px-2 py-1 rounded-md border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                        >
+                                                          {componentUpdating === actionKey ? (
+                                                            <Loader2
+                                                              size={12}
+                                                              className="animate-spin"
+                                                            />
+                                                          ) : (
+                                                            'Mark as Taken'
+                                                          )}
+                                                        </button>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </li>
+                                              );
+                                            })}
+                                          </ul>
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -1052,14 +1056,14 @@ const StudentDetail = ({
                                 }
                               }
                             `}</style>
-                            
+
                             {/* Thermal Header */}
                             <div className="thermal-header">
                               <h1>{receiptConfig.receiptHeader}</h1>
                               <p style={{ textAlign: 'center' }}>
-                                {receiptConfig.receiptSubheader} | {new Date(transaction.transactionDate || transaction.createdAt || Date.now()).toLocaleDateString('en-IN', { 
-                                  day: '2-digit', 
-                                  month: '2-digit', 
+                                {receiptConfig.receiptSubheader} | {new Date(transaction.transactionDate || transaction.createdAt || Date.now()).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
                                   year: 'numeric',
                                   hour: '2-digit',
                                   minute: '2-digit'

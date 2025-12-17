@@ -7,13 +7,13 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
   // Check access level
   const isSuperAdmin = currentUser?.role === 'Administrator';
   const permissions = currentUser?.permissions || [];
-  
+
   // Check for legacy manage-stock permission
   const hasLegacyPermission = permissions.some(p => {
     if (typeof p !== 'string') return false;
     return p === 'manage-stock' || p.startsWith('manage-stock:');
   });
-  
+
   const canEdit = isSuperAdmin || hasLegacyPermission || hasFullAccess(permissions, 'stock-products');
   const [selectedCourse, setSelectedCourse] = useState(currentCourse || '');
   const [selectedYear, setSelectedYear] = useState('');
@@ -34,6 +34,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
     forCourse: selectedCourse || '',
     years: [],
     branch: [],
+    semesters: [],
     isSet: false,
     setItems: [],
     lowStockThreshold: 10,
@@ -55,7 +56,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             setSelectedCourse('');
           }
         }
-      } catch (_) {}
+      } catch (_) { }
     })();
   }, []);
 
@@ -69,7 +70,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
     return (products || []).filter(p => {
       // Course filter
       if (selectedCourse && p.forCourse && p.forCourse !== selectedCourse) return false;
-      
+
       // Year filter - check both year (old) and years (new) array
       if (selectedYear) {
         const productYears = p.years || (p.year ? [p.year] : []);
@@ -82,7 +83,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         if (productTypeFilter === 'single' && p.isSet) return false;
         if (productTypeFilter === 'set' && !p.isSet) return false;
       }
-      
+
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -90,7 +91,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         const matchesDescription = p.description?.toLowerCase().includes(query);
         if (!matchesName && !matchesDescription) return false;
       }
-      
+
       return true;
     });
   }, [products, selectedCourse, selectedYear, searchQuery, productTypeFilter]);
@@ -131,7 +132,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
   };
 
   const handleProductUpdate = (updatedProduct) => {
-    setProducts && setProducts(prev => 
+    setProducts && setProducts(prev =>
       prev.map(p => p._id === updatedProduct._id ? updatedProduct : p)
     );
     setSelectedProduct(updatedProduct);
@@ -150,7 +151,9 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         remarks: selectedProduct.remarks || '',
         forCourse: selectedProduct.forCourse || '',
         years: productYears,
+        years: productYears,
         branch: Array.isArray(selectedProduct.branch) ? selectedProduct.branch : (selectedProduct.branch ? [selectedProduct.branch] : []),
+        semesters: selectedProduct.semesters || [],
         isSet: Boolean(selectedProduct.isSet),
         setItems: (selectedProduct.setItems || []).map(item => ({
           productId: item?.product?._id || item?.product || '',
@@ -174,7 +177,9 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         remarks: '',
         forCourse: selectedCourse || '',
         years: selectedYear ? [Number(selectedYear)] : [],
+        years: selectedYear ? [Number(selectedYear)] : [],
         branch: [],
+        semesters: [],
         isSet: false,
         setItems: [],
         lowStockThreshold: 10,
@@ -195,10 +200,10 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
     setFormData(prev => {
       const newData = {
         ...prev,
-        [name]: name === 'description' 
-          ? value.slice(0, 250) 
-          : (name === 'price' || name === 'stock' || name === 'lowStockThreshold') 
-            ? (value === '' ? 0 : Number(value)) 
+        [name]: name === 'description'
+          ? value.slice(0, 250)
+          : (name === 'price' || name === 'stock' || name === 'lowStockThreshold')
+            ? (value === '' ? 0 : Number(value))
             : value,
       };
       if (name === 'forCourse') {
@@ -214,14 +219,14 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
       const currentYears = prev.years || [];
       const yearNum = Number(year);
       const isSelected = currentYears.includes(yearNum);
-      
+
       let newYears;
       if (isSelected) {
         newYears = currentYears.filter(y => y !== yearNum);
       } else {
         newYears = [...currentYears, yearNum].sort((a, b) => a - b);
       }
-      
+
       return {
         ...prev,
         years: newYears
@@ -233,17 +238,37 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
     setFormData(prev => {
       const currentBranches = prev.branch || [];
       const isSelected = currentBranches.includes(branch);
-      
+
       let newBranches;
       if (isSelected) {
         newBranches = currentBranches.filter(b => b !== branch);
       } else {
         newBranches = [...currentBranches, branch].sort((a, b) => a.localeCompare(b));
       }
-      
+
       return {
         ...prev,
         branch: newBranches
+      };
+    });
+  };
+
+  const handleSemesterToggle = (semester) => {
+    setFormData(prev => {
+      const currentSemesters = prev.semesters || [];
+      const semNum = Number(semester);
+      const isSelected = currentSemesters.includes(semNum);
+
+      let newSemesters;
+      if (isSelected) {
+        newSemesters = currentSemesters.filter(s => s !== semNum);
+      } else {
+        newSemesters = [...currentSemesters, semNum].sort((a, b) => a - b);
+      }
+
+      return {
+        ...prev,
+        semesters: newSemesters
       };
     });
   };
@@ -370,9 +395,9 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             ...formData,
             setItems: formData.isSet
               ? (formData.setItems || []).map(item => ({
-                  productId: item.productId,
-                  quantity: item.quantity,
-                }))
+                productId: item.productId,
+                quantity: item.quantity,
+              }))
               : [],
             lowStockThreshold: formData.isSet ? 0 : formData.lowStockThreshold,
           }),
@@ -400,12 +425,13 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             forCourse: formData.forCourse || undefined,
             years: formData.years || [],
             branch: Array.isArray(formData.branch) && formData.branch.length > 0 ? formData.branch : undefined,
+            semesters: formData.semesters || [],
             isSet: formData.isSet || undefined,
             setItems: formData.isSet
               ? (formData.setItems || []).map(item => ({
-                  productId: item.productId,
-                  quantity: item.quantity,
-                }))
+                productId: item.productId,
+                quantity: item.quantity,
+              }))
               : [],
             lowStockThreshold: formData.isSet ? 0 : formData.lowStockThreshold,
           }),
@@ -508,9 +534,9 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
           {/* Course Filter */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-            <select 
+            <select
               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
-              value={selectedCourse} 
+              value={selectedCourse}
               onChange={(e) => setSelectedCourse(e.target.value)}
             >
               <option value="">All Courses</option>
@@ -522,9 +548,9 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
 
           {/* Year Filter */}
           <div>
-            <select 
+            <select
               className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
-              value={selectedYear} 
+              value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
             >
               <option value="">All Years</option>
@@ -551,11 +577,10 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
 
       {/* Status Message */}
       {statusMsg && (
-        <div className={`mb-6 p-4 rounded-lg text-sm font-medium ${
-          statusMsg.includes('successfully') 
-            ? 'bg-green-50 text-green-700 border border-green-200' 
-            : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
+        <div className={`mb-6 p-4 rounded-lg text-sm font-medium ${statusMsg.includes('successfully')
+          ? 'bg-green-50 text-green-700 border border-green-200'
+          : 'bg-red-50 text-red-700 border border-red-200'
+          }`}>
           {statusMsg}
         </div>
       )}
@@ -568,8 +593,8 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
           <p className="text-gray-600 mb-6">
-            {searchQuery || selectedCourse || selectedYear 
-              ? 'Try adjusting your filters' 
+            {searchQuery || selectedCourse || selectedYear
+              ? 'Try adjusting your filters'
               : 'Get started by adding your first product'}
           </p>
           {!searchQuery && !selectedCourse && !selectedYear && (
@@ -591,13 +616,13 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProducts.map((product) => {
             const productYears = product.years || (product.year ? [product.year] : []);
-            const yearsDisplay = productYears.length === 0 
-              ? 'All Years' 
+            const yearsDisplay = productYears.length === 0
+              ? 'All Years'
               : productYears.sort((a, b) => a - b).join(', ');
-            
+
             return (
-              <div 
-                key={product._id} 
+              <div
+                key={product._id}
                 className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow transition-all duration-200 group"
               >
                 <div className="p-4 border-b border-gray-100">
@@ -606,16 +631,16 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                       {product.name}
                     </h3>
                     <div className="flex items-center gap-2">
-                    {product.price !== undefined && (
+                      {product.price !== undefined && (
                         <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-md font-medium text-xs whitespace-nowrap">
-                        ₹{product.price.toFixed(2)}
-                      </span>
-                    )}
+                          ₹{product.price.toFixed(2)}
+                        </span>
+                      )}
                       {product.isSet && (
                         <span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 rounded-md font-medium text-xs whitespace-nowrap">
                           Set
-                      </span>
-                    )}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {product.description && (
@@ -633,6 +658,12 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-500">Years</span>
                     <span className="font-medium text-gray-900 truncate max-w-[120px] text-right">{yearsDisplay}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Semesters</span>
+                    <span className="font-medium text-gray-900 truncate max-w-[120px] text-right">
+                      {(product.semesters || []).length > 0 ? (product.semesters || []).join(', ') : 'All'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-500">Stock</span>
@@ -703,6 +734,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                   <th className="px-6 py-4">Product</th>
                   <th className="px-6 py-4">Course</th>
                   <th className="px-6 py-4">Years</th>
+                  <th className="px-6 py-4">Semesters</th>
                   <th className="px-6 py-4">Price</th>
                   <th className="px-6 py-4">Stock</th>
                   <th className="px-6 py-4">Type</th>
@@ -712,8 +744,8 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
               <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                 {filteredProducts.map(product => {
                   const productYears = product.years || (product.year ? [product.year] : []);
-                  const yearsDisplay = productYears.length === 0 
-                    ? 'All Years' 
+                  const yearsDisplay = productYears.length === 0
+                    ? 'All Years'
                     : productYears.sort((a, b) => a - b).map(y => `Year ${y}`).join(', ');
 
                   return (
@@ -724,10 +756,15 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                           {product.description && (
                             <span className="text-xs text-gray-500 line-clamp-1">{product.description}</span>
                           )}
-            </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-gray-600">{product.forCourse || 'All'}</td>
                       <td className="px-6 py-4 text-gray-600">{yearsDisplay}</td>
+                      <td className="px-6 py-4 text-gray-600">
+                        {(product.semesters || []).length > 0
+                          ? (product.semesters || []).map(s => `Sem ${s}`).join(', ')
+                          : 'All Semesters'}
+                      </td>
                       <td className="px-6 py-4 font-semibold text-gray-900">₹{product.price?.toFixed(2) || '0.00'}</td>
                       <td className="px-6 py-4">
                         {product.isSet ? (
@@ -750,13 +787,13 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
-              <button
+                          <button
                             onClick={() => handleViewDetails(product)}
                             className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
-              >
+                          >
                             <Eye size={16} />
                             View
-              </button>
+                          </button>
                           {canEdit ? (
                             <button
                               onClick={() => handleDelete(product._id, product.name)}
@@ -770,14 +807,14 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                               View Only
                             </span>
                           )}
-          </div>
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-      </div>
+          </div>
         </div>
       )}
 
@@ -886,7 +923,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         </p>
                       </div>
                     )}
-                    
+
                     {selectedProduct.lastPriceUpdated && (
                       <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
                         <Calendar size={14} />
@@ -1109,7 +1146,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                   {/* Course/Year */}
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Product Applicability</h3>
-                    
+
                     {/* Course */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Course</label>
@@ -1169,8 +1206,8 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         <div className="bg-gray-50 border border-gray-300 rounded-lg p-3">
                           {(() => {
                             const productYears = selectedProduct.years || (selectedProduct.year ? [selectedProduct.year] : []);
-                            const yearsDisplay = productYears.length === 0 
-                              ? 'All Years' 
+                            const yearsDisplay = productYears.length === 0
+                              ? 'All Years'
                               : productYears.sort((a, b) => a - b).map(y => `Year ${y}`).join(', ');
                             return <p className="text-gray-700 font-medium">{yearsDisplay}</p>;
                           })()}
@@ -1216,11 +1253,11 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                       ) : (
                         <div className="bg-gray-50 border border-gray-300 rounded-lg p-3">
                           {(() => {
-                            const productBranches = Array.isArray(selectedProduct.branch) 
-                              ? selectedProduct.branch 
+                            const productBranches = Array.isArray(selectedProduct.branch)
+                              ? selectedProduct.branch
                               : (selectedProduct.branch ? [selectedProduct.branch] : []);
-                            const branchesDisplay = productBranches.length === 0 
-                              ? 'All Branches' 
+                            const branchesDisplay = productBranches.length === 0
+                              ? 'All Branches'
                               : productBranches.sort((a, b) => a.localeCompare(b)).join(', ');
                             return <p className="text-gray-700 font-medium">{branchesDisplay}</p>;
                           })()}
@@ -1326,35 +1363,35 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         <p className="text-sm text-gray-500">Give your product a recognizable name and description.</p>
                       </div>
                       <div className="px-5 py-4 space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Product Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleFormChange}
-                      required
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Product Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleFormChange}
+                            required
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
                             placeholder="e.g. B.Tech 1st Year Starter Kit"
-                    />
-                  </div>
-                  <div>
+                          />
+                        </div>
+                        <div>
                           <div className="flex items-center justify-between mb-2">
                             <label className="block text-sm font-semibold text-gray-700">Description</label>
                             <span className="text-xs text-gray-500">{formData.description.length}/250</span>
                           </div>
-                    <textarea
-                      name="description"
-                      value={formData.description}
-                      onChange={handleFormChange}
-                      maxLength={250}
-                      rows={3}
+                          <textarea
+                            name="description"
+                            value={formData.description}
+                            onChange={handleFormChange}
+                            maxLength={250}
+                            rows={3}
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none shadow-sm"
                             placeholder="Share a short overview of what this product or kit includes..."
-                    />
-                  </div>
+                          />
+                        </div>
                       </div>
                     </section>
 
@@ -1373,19 +1410,19 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                               <p className="text-sm font-semibold text-gray-700">Price</p>
                               <p className="text-xs text-gray-500">Required • visible to students</p>
                             </div>
-                    </div>
-                    <input
-                      type="number"
-                      name="price"
-                      value={formData.price}
-                      onChange={handleFormChange}
-                      min="0"
-                      step="0.01"
+                          </div>
+                          <input
+                            type="number"
+                            name="price"
+                            value={formData.price}
+                            onChange={handleFormChange}
+                            min="0"
+                            step="0.01"
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
-                      placeholder="0.00"
-                      required
-                    />
-                  </div>
+                            placeholder="0.00"
+                            required
+                          />
+                        </div>
                         {!formData.isSet && (
                           <div className="md:col-span-1">
                             <div className="flex items-center gap-2 mb-2">
@@ -1417,17 +1454,17 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                               <p className="text-sm font-semibold text-gray-700">Remarks</p>
                               <p className="text-xs text-gray-500">Optional • internal only</p>
                             </div>
-                    </div>
-                    <textarea
-                      name="remarks"
-                      value={formData.remarks}
-                      onChange={handleFormChange}
-                      rows={3}
+                          </div>
+                          <textarea
+                            name="remarks"
+                            value={formData.remarks}
+                            onChange={handleFormChange}
+                            rows={3}
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-none shadow-sm"
                             placeholder="Add internal admin notes, procurement details, etc."
-                    />
-                  </div>
-                </div>
+                          />
+                        </div>
+                      </div>
                     </section>
 
                     {formData.isSet && (
@@ -1522,83 +1559,114 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         <p className="text-sm text-gray-500">Control which courses, branches, and academic years can see this product.</p>
                       </div>
                       <div className="px-5 py-4 space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Course</label>
-                      <select
-                        name="forCourse"
-                        value={formData.forCourse}
-                        onChange={handleFormChange}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Course</label>
+                          <select
+                            name="forCourse"
+                            value={formData.forCourse}
+                            onChange={handleFormChange}
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
-                      >
-                        <option value="">All Courses</option>
-                        {(config?.courses || []).map(c => (
-                          <option key={c.name} value={c.name}>{c.displayName}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Years</label>
+                          >
+                            <option value="">All Courses</option>
+                            {(config?.courses || []).map(c => (
+                              <option key={c.name} value={c.name}>{c.displayName}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Years</label>
                           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5">
                             <div className="flex flex-wrap gap-2.5">
-                          {(config?.courses?.find(c => c.name === formData.forCourse)?.years || []).map(y => {
-                            const isChecked = (formData.years || []).includes(y);
-                            return (
-                              <label
-                                key={y}
+                              {(config?.courses?.find(c => c.name === formData.forCourse)?.years || []).map(y => {
+                                const isChecked = (formData.years || []).includes(y);
+                                return (
+                                  <label
+                                    key={y}
                                     className={`flex items-center gap-2 px-3.5 py-1.5 border-2 rounded-lg cursor-pointer transition-all ${isChecked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleYearToggle(y)}
-                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => handleYearToggle(y)}
+                                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
                                     <span className="font-medium text-sm">Year {y}</span>
-                              </label>
-                            );
-                          })}
-                          {(config?.courses?.find(c => c.name === formData.forCourse)?.years || []).length === 0 && (
+                                  </label>
+                                );
+                              })}
+                              {(config?.courses?.find(c => c.name === formData.forCourse)?.years || []).length === 0 && (
                                 <p className="text-sm text-gray-500">Select a course to see available years.</p>
-                          )}
-                        </div>
-                        {(formData.years || []).length === 0 && (
+                              )}
+                            </div>
+                            {(formData.years || []).length === 0 && (
                               <p className="text-xs text-gray-500 mt-2">No years selected — the product will be visible to all years.</p>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Branches</label>
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5">
-                        <div className="flex flex-wrap gap-2.5">
-                          {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).map(branch => {
-                            const isChecked = (formData.branch || []).includes(branch);
-                            return (
-                              <label
-                                key={branch}
-                                className={`flex items-center gap-2 px-3.5 py-1.5 border-2 rounded-lg cursor-pointer transition-all ${isChecked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleBranchToggle(branch)}
-                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
-                                <span className="font-medium text-sm">{branch}</span>
-                              </label>
-                            );
-                          })}
-                          {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).length === 0 && (
-                            <p className="text-sm text-gray-500">Select a course to see available branches.</p>
-                          )}
+                            )}
+                          </div>
                         </div>
-                        {(formData.branch || []).length === 0 && (
-                          <p className="text-xs text-gray-500 mt-2">No branches selected — the product will be visible to all branches.</p>
-                        )}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Branches</label>
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5">
+                            <div className="flex flex-wrap gap-2.5">
+                              {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).map(branch => {
+                                const isChecked = (formData.branch || []).includes(branch);
+                                return (
+                                  <label
+                                    key={branch}
+                                    className={`flex items-center gap-2 px-3.5 py-1.5 border-2 rounded-lg cursor-pointer transition-all ${isChecked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => handleBranchToggle(branch)}
+                                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <span className="font-medium text-sm">{branch}</span>
+                                  </label>
+                                );
+                              })}
+                              {(config?.courses?.find(c => c.name === formData.forCourse)?.branches || []).length === 0 && (
+                                <p className="text-sm text-gray-500">Select a course to see available branches.</p>
+                              )}
+                            </div>
+                            {(formData.branch || []).length === 0 && (
+                              <p className="text-xs text-gray-500 mt-2">No branches selected — the product will be visible to all branches.</p>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Semesters</label>
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5">
+                            <div className="flex flex-wrap gap-2.5">
+                              {formData.forCourse ? (
+                                [1, 2].map(sem => {
+                                  const isChecked = (formData.semesters || []).includes(sem);
+                                  return (
+                                    <label
+                                      key={sem}
+                                      className={`flex items-center gap-2 px-3.5 py-1.5 border-2 rounded-lg cursor-pointer transition-all ${isChecked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => handleSemesterToggle(sem)}
+                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                      />
+                                      <span className="font-medium text-sm">Semester {sem}</span>
+                                    </label>
+                                  );
+                                })
+                              ) : (
+                                <p className="text-sm text-gray-500">Select a course to see available semesters.</p>
+                              )}
+                            </div>
+                            {(formData.semesters || []).length === 0 && (
+                              <p className="text-xs text-gray-500 mt-2">No semesters selected — product applies to all semesters.</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
                     </section>
-                </div>
+                  </div>
 
                   <aside className="space-y-4">
                     <div className="bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 text-white rounded-xl p-5 shadow-lg">
@@ -1622,11 +1690,11 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         </div>
                         <div>
                           <p className="text-blue-100">Years</p>
-                          <p className="text-sm font-semibold">{(formData.years || []).length > 0 ? formData.years.sort((a,b) => a - b).map(y => `Y${y}`).join(', ') : 'All Years'}</p>
+                          <p className="text-sm font-semibold">{(formData.years || []).length > 0 ? formData.years.sort((a, b) => a - b).map(y => `Y${y}`).join(', ') : 'All Years'}</p>
                         </div>
                         <div>
                           <p className="text-blue-100">Branches</p>
-                          <p className="text-sm font-semibold">{(formData.branch || []).length > 0 ? formData.branch.sort((a,b) => a.localeCompare(b)).join(', ') : 'All Branches'}</p>
+                          <p className="text-sm font-semibold">{(formData.branch || []).length > 0 ? formData.branch.sort((a, b) => a.localeCompare(b)).join(', ') : 'All Branches'}</p>
                         </div>
                         {!formData.isSet && (
                           <div className="col-span-2">
