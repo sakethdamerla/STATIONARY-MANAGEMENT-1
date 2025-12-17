@@ -187,7 +187,7 @@ const StudentDue = () => {
       });
       return Array.from(branches).sort((a, b) => a.localeCompare(b));
     }
-    
+
     // Filter branches by selected course
     const courseNormalized = normalizeValue(dueFilters.course);
     const branches = new Set();
@@ -204,8 +204,8 @@ const StudentDue = () => {
     return products.map(product => ({
       ...product,
       _normalizedCourse: normalizeValue(product.forCourse),
-      _normalizedBranches: (Array.isArray(product.branch) 
-        ? product.branch 
+      _normalizedBranches: (Array.isArray(product.branch)
+        ? product.branch
         : (product.branch ? [product.branch] : [])).map(b => normalizeValue(b)),
       _years: getProductYears(product),
       _key: getItemKey(product.name),
@@ -227,7 +227,7 @@ const StudentDue = () => {
     if (!normalizedStudents.length || !normalizedProducts.length) return [];
 
     const records = [];
-    
+
     // Optimize: group products by course first to reduce iterations
     const productsByCourse = new Map();
     normalizedProducts.forEach(product => {
@@ -280,17 +280,17 @@ const StudentDue = () => {
       const issuedCount = mappedProducts.length - pendingItems.length;
       let mappedValue = 0;
       let pendingValue = 0;
-      
+
       for (const product of mappedProducts) {
         const price = Number(product.price) || 0;
         mappedValue += price;
       }
-      
+
       for (const product of pendingItems) {
         const price = Number(product.price) || 0;
         pendingValue += price;
       }
-      
+
       const issuedValue = Math.max(mappedValue - pendingValue, 0);
 
       records.push({
@@ -429,109 +429,80 @@ const StudentDue = () => {
       });
 
       // Header Section
-      pdf.setFontSize(18);
+      pdf.setFontSize(16);
       pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
-      pdf.text(receiptSettings.receiptHeader, 105, 15, { align: 'center' });
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'normal');
-      pdf.text(receiptSettings.receiptSubheader, 105, 22, { align: 'center' });
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Student Due Report', 105, 30, { align: 'center' });
-      
+      pdf.text('Pending Students List', 105, 15, { align: 'center' });
+
       // Draw line under header
       pdf.setDrawColor(200, 200, 200);
-      pdf.line(20, 35, 190, 35);
-      
-      let yPos = 42;
+      pdf.line(20, 20, 190, 20);
 
-      // Report Info Section
+      let yPos = 28;
+
+      // Report Info Section (Condensed)
       pdf.setFontSize(10);
       pdf.setFont(undefined, 'bold');
-      pdf.text('Report Information', 20, yPos);
-      yPos += 6;
+
+      const filterParts = [];
+      if (reportFilters.course) filterParts.push(`Course: ${reportFilters.course.toUpperCase()}`);
+      if (reportFilters.year) filterParts.push(`Year: ${reportFilters.year}`);
+      if (reportFilters.branch) filterParts.push(`Branch: ${reportFilters.branch}`);
+      if (reportFilters.semester) filterParts.push(`Semester: ${reportFilters.semester}`);
+
+      // Just display filters without "Report Information" label
+      if (filterParts.length > 0) {
+        pdf.text(filterParts.join("   |   "), 105, yPos, { align: 'center' });
+        yPos += 5;
+      }
+
       pdf.setFont(undefined, 'normal');
       pdf.setFontSize(9);
-      
-      if (reportFilters.course) {
-        pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 25, yPos);
-        yPos += 5;
-      }
-      if (reportFilters.year) {
-        pdf.text(`Year: ${reportFilters.year}`, 25, yPos);
-        yPos += 5;
-      }
-      if (reportFilters.branch) {
-        pdf.text(`Branch: ${reportFilters.branch}`, 25, yPos);
-        yPos += 5;
-      }
-      if (reportFilters.semester) {
-        pdf.text(`Semester: ${reportFilters.semester}`, 25, yPos);
-        yPos += 5;
-      }
-      pdf.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 25, yPos);
-      yPos += 8;
+      // Generated on date removed from top as it appears in footer
+      yPos += 3;
 
-      // Statistics Section
-      if (reportFilters.includeSummary && filteredForReport.length > 0) {
-        const totalPendingItems = filteredForReport.reduce((sum, record) => sum + record.pendingItems.length, 0);
-        const totalPendingAmount = filteredForReport.reduce((sum, record) => sum + record.pendingValue, 0);
-        const totalIssuedItems = filteredForReport.reduce((sum, record) => sum + record.issuedCount, 0);
-        const totalIssuedAmount = filteredForReport.reduce((sum, record) => sum + record.issuedValue, 0);
-        const impactedCourses = new Set(
-          filteredForReport.map(record => (record.student.course || '').toUpperCase())
-        ).size;
-
-        pdf.setFontSize(11);
-        pdf.setFont(undefined, 'bold');
-        pdf.setFillColor(240, 240, 240);
-        pdf.rect(20, yPos - 4, 170, 6, 'F');
-        pdf.text('Summary Statistics', 20, yPos);
-        yPos += 7;
-        
-        pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(9);
-        pdf.text(`Total Students with Pending Items: ${filteredForReport.length}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Total Pending Items: ${totalPendingItems}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Total Pending Amount: ${formatCurrencyForPDF(totalPendingAmount)}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Total Issued Items: ${totalIssuedItems}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Total Issued Amount: ${formatCurrencyForPDF(totalIssuedAmount)}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Courses Impacted: ${impactedCourses}`, 25, yPos);
-        yPos += 8;
-      }
-
-      // Student Details Table
+      // Student Details Table & Statistics Merged
       if (filteredForReport.length > 0) {
-        pdf.setFontSize(11);
+        pdf.setFontSize(10);
         pdf.setFont(undefined, 'bold');
+
+        // Header Background
         pdf.setFillColor(240, 240, 240);
         pdf.rect(20, yPos - 4, 170, 6, 'F');
+
+        // Left side: Title
         pdf.text('Student Due Details', 20, yPos);
+
+        // Right side: Statistics (Merged into same line)
+        if (reportFilters.includeSummary) {
+          const totalPendingAmount = filteredForReport.reduce((sum, record) => sum + record.pendingValue, 0);
+          const statsText = `Total Students: ${filteredForReport.length}   |   Total Pending Amount: ${formatCurrencyForPDF(totalPendingAmount)}`;
+
+          pdf.setFontSize(9); // Slightly smaller for stats
+          pdf.text(statsText, 190, yPos, { align: 'right' });
+          pdf.setFontSize(10); // Reset for next elements if needed
+        }
+
         yPos += 7;
 
         // Table Headers
-        pdf.setFontSize(7);
+        pdf.setFontSize(9);
         pdf.setFont(undefined, 'bold');
         pdf.setFillColor(230, 230, 230);
-        pdf.rect(20, yPos - 3, 170, 5, 'F');
-        pdf.text('Student', 22, yPos);
-        pdf.text('Course/Year', 65, yPos);
-        pdf.text('Pending', 100, yPos);
-        pdf.text('Issued', 120, yPos);
-        pdf.text('Progress', 140, yPos);
-        pdf.text('Amount', 165, yPos, { align: 'right' });
-        yPos += 6;
+        pdf.rect(20, yPos - 3, 170, 6, 'F');
+
+        // Define column positions
+        const colName = 25;
+        const colRoll = 100;
+        const colRemarks = 150;
+
+        pdf.text('Student Name', colName, yPos + 1);
+        pdf.text('Roll Number', colRoll, yPos + 1);
+        pdf.text('Remarks', colRemarks, yPos + 1);
+        yPos += 8;
 
         pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(7);
+        pdf.setFontSize(9);
 
         filteredForReport.forEach((record, index) => {
           // Check if we need a new page
@@ -540,28 +511,20 @@ const StudentDue = () => {
             yPos = 20;
             // Redraw table headers on new page
             pdf.setFont(undefined, 'bold');
-            pdf.setFontSize(8);
+            pdf.setFontSize(9);
             pdf.setFillColor(230, 230, 230);
-            pdf.rect(20, yPos - 3, 170, 5, 'F');
-            pdf.text('Student', 22, yPos);
-            pdf.text('Course/Year', 65, yPos);
-            pdf.text('Pending', 100, yPos);
-            pdf.text('Issued', 120, yPos);
-            pdf.text('Progress', 140, yPos);
-            pdf.text('Amount', 165, yPos, { align: 'right' });
-            yPos += 6;
+            pdf.rect(20, yPos - 3, 170, 6, 'F');
+            pdf.text('Student Name', colName, yPos + 1);
+            pdf.text('Roll Number', colRoll, yPos + 1);
+            pdf.text('Remarks', colRemarks, yPos + 1);
+            yPos += 8;
             pdf.setFont(undefined, 'normal');
+            pdf.setFontSize(9);
           }
 
           const student = record.student;
-          const studentName = (student.name || 'N/A').substring(0, 20);
-          const studentId = (student.studentId || 'N/A').substring(0, 12);
-          const courseYear = `${(student.course || 'N/A').toUpperCase().substring(0, 8)} Y${student.year || 'N/A'}`;
-          const pendingCount = record.pendingItems.length;
-          const issuedCount = record.issuedCount;
-          const totalMapped = record.mappedProducts.length;
-          const completion = totalMapped > 0 ? Math.round((issuedCount / totalMapped) * 100) : 0;
-          const pendingAmount = formatCurrencyForPDF(record.pendingValue);
+          const studentName = (student.name || 'N/A').substring(0, 40);
+          const studentId = (student.studentId || 'N/A');
 
           // Alternate row background
           if (index % 2 === 0) {
@@ -569,51 +532,13 @@ const StudentDue = () => {
             pdf.rect(20, yPos - 3, 170, 8, 'F');
           }
 
-          pdf.text(`${studentName}`, 22, yPos);
-          pdf.setFontSize(6);
-          pdf.text(`ID: ${studentId}`, 22, yPos + 3.5);
-          pdf.setFontSize(7);
-          pdf.text(courseYear, 65, yPos);
-          if (student.branch) {
-            pdf.setFontSize(6);
-            pdf.text(student.branch.substring(0, 15), 65, yPos + 3.5);
-            pdf.setFontSize(7);
-          }
-          pdf.text(`${pendingCount} items`, 100, yPos);
-          pdf.text(`${issuedCount} items`, 120, yPos);
-          pdf.text(`${completion}%`, 140, yPos);
-          pdf.text(pendingAmount, 165, yPos, { align: 'right' });
+          pdf.text(studentName, colName, yPos + 2);
+          pdf.text(studentId, colRoll, yPos + 2);
+          // Remarks column is empty space
+
           yPos += 8;
 
-          // Item Details (if enabled)
-          if (reportFilters.includeItemDetails && record.pendingItems.length > 0) {
-            pdf.setFontSize(6);
-            pdf.text('Pending Items:', 25, yPos);
-            yPos += 3.5;
-            
-            record.pendingItems.slice(0, 3).forEach((item, itemIdx) => {
-              const itemName = (item.name || 'N/A').substring(0, 35);
-              pdf.text(`  • ${itemName}`, 25, yPos);
-              yPos += 3.5;
-              if (yPos > 270) {
-                pdf.addPage();
-                yPos = 20;
-              }
-            });
-            
-            if (pendingCount > 3) {
-              pdf.text(`  ... and ${pendingCount - 3} more`, 25, yPos);
-              yPos += 3.5;
-            }
-            yPos += 2;
-          }
-
-          // Draw separator line
-          if (index < filteredForReport.length - 1) {
-            pdf.setDrawColor(220, 220, 220);
-            pdf.line(20, yPos, 190, yPos);
-            yPos += 2;
-          }
+          // Separator line REMOVED as requested
         });
       } else {
         pdf.setFontSize(10);
@@ -632,7 +557,7 @@ const StudentDue = () => {
 
       const fileName = `Student_Due_Report_${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
-      
+
       setShowReportModal(false);
       alert('PDF report generated successfully!');
     } catch (error) {
@@ -800,10 +725,10 @@ const StudentDue = () => {
             <div className="flex flex-col items-center justify-center py-16">
               <div className="w-8 h-8 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
               <p className="text-gray-600">
-                {studentsLoading && productsLoading 
-                  ? 'Loading students and products...' 
-                  : studentsLoading 
-                    ? 'Loading students...' 
+                {studentsLoading && productsLoading
+                  ? 'Loading students and products...'
+                  : studentsLoading
+                    ? 'Loading students...'
                     : 'Loading products...'}
               </p>
             </div>
@@ -812,10 +737,10 @@ const StudentDue = () => {
               <AlertCircle className="mx-auto text-red-500" size={48} />
               <div>
                 <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                  {productsError && studentsError 
-                    ? 'Unable to load data' 
-                    : productsError 
-                      ? 'Unable to load products' 
+                  {productsError && studentsError
+                    ? 'Unable to load data'
+                    : productsError
+                      ? 'Unable to load products'
                       : 'Unable to load students'}
                 </h4>
                 <p className="text-gray-600">{productsError || studentsError}</p>
@@ -852,76 +777,76 @@ const StudentDue = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {paginatedDueStudents.map(record => {
-                    const student = record.student;
-                    const totalMapped = record.mappedProducts.length;
-                    const pendingCount = record.pendingItems.length;
-                    const issuedCount = record.issuedCount;
-                    const completion = totalMapped > 0 ? Math.round((issuedCount / totalMapped) * 100) : 0;
-                    const studentKey = student._id || student.id || student.studentId;
+                      const student = record.student;
+                      const totalMapped = record.mappedProducts.length;
+                      const pendingCount = record.pendingItems.length;
+                      const issuedCount = record.issuedCount;
+                      const completion = totalMapped > 0 ? Math.round((issuedCount / totalMapped) * 100) : 0;
+                      const studentKey = student._id || student.id || student.studentId;
 
-                    return (
-                      <tr key={studentKey} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900">{student.name}</span>
-                            <span className="text-xs text-gray-500">{student.studentId}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {student.course?.toUpperCase() || 'N/A'}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Year {student.year}{student.branch ? ` • ${student.branch}` : ''}</div>
-                        </td>
-                        <td className="px-6 py-4 max-w-xs">
-                          <div className="flex flex-wrap gap-2">
-                            {record.pendingItems.slice(0, 3).map(product =>
-                              <span key={product._id || product.name} className="px-2 py-1 text-xs bg-rose-100 text-rose-700 rounded-full">
-                                {product.name}
-                              </span>
-                            )}
-                            {pendingCount > 3 && (
-                              <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                                +{pendingCount - 3} more
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <span>{issuedCount} issued</span>
-                              <span>{pendingCount} pending</span>
+                      return (
+                        <tr key={studentKey} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900">{student.name}</span>
+                              <span className="text-xs text-gray-500">{student.studentId}</span>
                             </div>
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <span>{formatCurrency(record.issuedValue)}</span>
-                              <span>{formatCurrency(record.pendingValue)}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {student.course?.toUpperCase() || 'N/A'}
                             </div>
-                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-blue-500" style={{ width: `${completion}%` }}></div>
+                            <div className="text-xs text-gray-500 mt-1">Year {student.year}{student.branch ? ` • ${student.branch}` : ''}</div>
+                          </td>
+                          <td className="px-6 py-4 max-w-xs">
+                            <div className="flex flex-wrap gap-2">
+                              {record.pendingItems.slice(0, 3).map(product =>
+                                <span key={product._id || product.name} className="px-2 py-1 text-xs bg-rose-100 text-rose-700 rounded-full">
+                                  {product.name}
+                                </span>
+                              )}
+                              {pendingCount > 3 && (
+                                <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
+                                  +{pendingCount - 3} more
+                                </span>
+                              )}
                             </div>
-                            <p className="text-xs font-medium text-gray-600">{completion}% complete</p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="text-sm font-semibold text-rose-600">{formatCurrency(record.pendingValue)}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-rose-100 text-rose-700 text-sm font-semibold">
-                            {pendingCount}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => navigate(`/student/${student._id || student.id || studentKey}`)}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                          >
-                            <Eye size={16} />
-                            View Student
-                          </button>
-                        </td>
-                      </tr>
-                    );
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-xs text-gray-500">
+                                <span>{issuedCount} issued</span>
+                                <span>{pendingCount} pending</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-gray-500">
+                                <span>{formatCurrency(record.issuedValue)}</span>
+                                <span>{formatCurrency(record.pendingValue)}</span>
+                              </div>
+                              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500" style={{ width: `${completion}%` }}></div>
+                              </div>
+                              <p className="text-xs font-medium text-gray-600">{completion}% complete</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-sm font-semibold text-rose-600">{formatCurrency(record.pendingValue)}</span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-rose-100 text-rose-700 text-sm font-semibold">
+                              {pendingCount}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => navigate(`/student/${student._id || student.id || studentKey}`)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                            >
+                              <Eye size={16} />
+                              View Student
+                            </button>
+                          </td>
+                        </tr>
+                      );
                     })}
                   </tbody>
                 </table>
@@ -938,7 +863,7 @@ const StudentDue = () => {
                       </span>{' '}
                       of <span className="font-semibold">{filteredDueStudents.length}</span> students
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handlePageChange(currentPage - 1)}
@@ -977,11 +902,10 @@ const StudentDue = () => {
                             <button
                               key={page}
                               onClick={() => handlePageChange(page)}
-                              className={`px-3 py-1 text-sm border rounded-lg transition-colors ${
-                                page === currentPage
-                                  ? 'bg-purple-600 text-white border-purple-600'
-                                  : 'border-gray-300 hover:bg-gray-100'
-                              }`}
+                              className={`px-3 py-1 text-sm border rounded-lg transition-colors ${page === currentPage
+                                ? 'bg-purple-600 text-white border-purple-600'
+                                : 'border-gray-300 hover:bg-gray-100'
+                                }`}
                             >
                               {page}
                             </button>
@@ -1039,7 +963,7 @@ const StudentDue = () => {
             <div className="p-6 space-y-6">
               <div className="space-y-4">
                 <p className="text-sm text-gray-600 mb-4">Configure filters and options for the student due report</p>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
                   <select
