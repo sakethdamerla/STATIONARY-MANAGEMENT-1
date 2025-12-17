@@ -706,8 +706,8 @@ const StudentDetail = ({
               {componentUpdateStatus.message && (
                 <div
                   className={`mb-4 text-xs font-semibold rounded-lg px-3 py-2 border ${componentUpdateStatus.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
                     }`}
                 >
                   {componentUpdateStatus.message}
@@ -1060,8 +1060,8 @@ const StudentDetail = ({
                             {/* Thermal Header */}
                             <div className="thermal-header">
                               <h1>{receiptConfig.receiptHeader}</h1>
-                              <p style={{ textAlign: 'center' }}>
-                                {receiptConfig.receiptSubheader} | {new Date(transaction.transactionDate || transaction.createdAt || Date.now()).toLocaleDateString('en-IN', {
+                              <p style={{ textAlign: 'center', fontSize: '10px', marginTop: '1mm' }}>
+                                {new Date(transaction.transactionDate || transaction.createdAt || Date.now()).toLocaleDateString('en-IN', {
                                   day: '2-digit',
                                   month: '2-digit',
                                   year: 'numeric',

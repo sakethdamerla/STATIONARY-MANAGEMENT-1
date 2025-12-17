@@ -32,13 +32,13 @@ const Reports = ({ currentUser }) => {
     receiptHeader: 'PYDAH COLLEGE OF ENGINEERING',
     receiptSubheader: 'Stationery Management System',
   });
-  
+
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   };
-  
+
   const [reportFilters, setReportFilters] = useState({
     course: '',
     paymentMethod: '',
@@ -236,7 +236,7 @@ const Reports = ({ currentUser }) => {
         }
       }
 
-      const matchesSearch = 
+      const matchesSearch =
         transaction.transactionId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         transaction.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         transaction.student?.studentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -278,7 +278,7 @@ const Reports = ({ currentUser }) => {
       alert('You do not have permission to delete transactions');
       return;
     }
-    
+
     if (!window.confirm('Are you sure you want to delete this transaction?')) {
       return;
     }
@@ -329,7 +329,7 @@ const Reports = ({ currentUser }) => {
   const calculateDayEndSales = useCallback((transactions) => {
     // Exclude branch transfers from sales calculations (internal stock movements)
     const revenueTransactions = transactions.filter(t => t.transactionType !== 'branch_transfer');
-    
+
     // Aggregate items sold across all transactions
     // For sets, expand them into their component items
     const itemsSoldMap = new Map();
@@ -339,7 +339,7 @@ const Reports = ({ currentUser }) => {
           const setQuantity = Number(item.quantity) || 0;
           const setComponents = Array.isArray(item.setComponents) ? item.setComponents : [];
           const isSet = item.isSet || setComponents.length > 0;
-          
+
           if (isSet && setComponents.length > 0) {
             // If it's a set, expand into component items
             setComponents.forEach(component => {
@@ -347,7 +347,7 @@ const Reports = ({ currentUser }) => {
               const componentQty = Number(component.quantity) || 1;
               // Multiply component quantity by set quantity
               const totalQuantity = componentQty * setQuantity;
-              
+
               if (itemsSoldMap.has(componentName)) {
                 itemsSoldMap.set(componentName, itemsSoldMap.get(componentName) + totalQuantity);
               } else {
@@ -358,7 +358,7 @@ const Reports = ({ currentUser }) => {
             // Regular item (not a set)
             const itemName = item.name || 'N/A';
             const quantity = setQuantity;
-            
+
             if (itemsSoldMap.has(itemName)) {
               itemsSoldMap.set(itemName, itemsSoldMap.get(itemName) + quantity);
             } else {
@@ -396,16 +396,16 @@ const Reports = ({ currentUser }) => {
   const statistics = useMemo(() => {
     // Exclude branch transfers from revenue calculations (internal stock movements)
     const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
-    
+
     const totalAmount = revenueTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
     const paidTransactions = revenueTransactions.filter(t => t.isPaid);
     const unpaidTransactions = revenueTransactions.filter(t => !t.isPaid);
     const paidAmount = paidTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
     const unpaidAmount = unpaidTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
-    
+
     // Calculate items sold using existing function
     const salesData = calculateDayEndSales(revenueTransactions);
-    
+
     return {
       totalTransactions: revenueTransactions.length,
       totalAmount,
@@ -422,14 +422,14 @@ const Reports = ({ currentUser }) => {
   const monthlyStats = useMemo(() => {
     const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
     const monthMap = new Map();
-    
+
     revenueTransactions.forEach(transaction => {
       const date = new Date(transaction.transactionDate);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       const dayKey = date.toISOString().split('T')[0];
       const dayName = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      
+
       if (!monthMap.has(monthKey)) {
         monthMap.set(monthKey, {
           month: monthName,
@@ -444,7 +444,7 @@ const Reports = ({ currentUser }) => {
           dayWiseBreakdown: new Map(),
         });
       }
-      
+
       const monthData = monthMap.get(monthKey);
       monthData.transactions.push(transaction);
       monthData.totalAmount += transaction.totalAmount || 0;
@@ -487,14 +487,14 @@ const Reports = ({ currentUser }) => {
           const setQuantity = Number(item.quantity) || 0;
           const setComponents = Array.isArray(item.setComponents) ? item.setComponents : [];
           const isSet = item.isSet || setComponents.length > 0;
-          
+
           if (isSet && setComponents.length > 0) {
             // If it's a set, expand into component items
             setComponents.forEach(component => {
               const componentName = component.name || component.productNameSnapshot || 'N/A';
               const componentQty = Number(component.quantity) || 1;
               const totalQuantity = componentQty * setQuantity;
-              
+
               const existingItem = dayData.itemsSold.find(i => i.name === componentName);
               if (existingItem) {
                 existingItem.quantity += totalQuantity;
@@ -506,7 +506,7 @@ const Reports = ({ currentUser }) => {
             // Regular item (not a set)
             const itemName = item.name || 'N/A';
             const quantity = setQuantity;
-            
+
             const existingItem = dayData.itemsSold.find(i => i.name === itemName);
             if (existingItem) {
               existingItem.quantity += quantity;
@@ -523,14 +523,14 @@ const Reports = ({ currentUser }) => {
           const setQuantity = Number(item.quantity) || 0;
           const setComponents = Array.isArray(item.setComponents) ? item.setComponents : [];
           const isSet = item.isSet || setComponents.length > 0;
-          
+
           if (isSet && setComponents.length > 0) {
             // If it's a set, expand into component items
             setComponents.forEach(component => {
               const componentName = component.name || component.productNameSnapshot || 'N/A';
               const componentQty = Number(component.quantity) || 1;
               const totalQuantity = componentQty * setQuantity;
-              
+
               const existingItem = monthData.itemsSold.find(i => i.name === componentName);
               if (existingItem) {
                 existingItem.quantity += totalQuantity;
@@ -542,7 +542,7 @@ const Reports = ({ currentUser }) => {
             // Regular item (not a set)
             const itemName = item.name || 'N/A';
             const quantity = setQuantity;
-            
+
             const existingItem = monthData.itemsSold.find(i => i.name === itemName);
             if (existingItem) {
               existingItem.quantity += quantity;
@@ -553,7 +553,7 @@ const Reports = ({ currentUser }) => {
         });
       }
     });
-    
+
     // Sort items sold by quantity for each month and convert dayWiseBreakdown Map to Array
     monthMap.forEach(monthData => {
       monthData.itemsSold.sort((a, b) => b.quantity - a.quantity);
@@ -565,7 +565,7 @@ const Reports = ({ currentUser }) => {
       });
       monthData.dayWiseBreakdown = dayWiseArray;
     });
-    
+
     return Array.from(monthMap.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
   }, [studentTransactions]);
 
@@ -577,7 +577,7 @@ const Reports = ({ currentUser }) => {
         const currentMonthKey = getCurrentMonthKey();
         // Check if current month exists in monthlyStats
         const currentMonthExists = monthlyStats.some(m => m.monthKey === currentMonthKey);
-        
+
         if (currentMonthExists) {
           // If current month exists, set it
           setSelectedMonthForDaily(currentMonthKey);
@@ -595,32 +595,32 @@ const Reports = ({ currentUser }) => {
   // Enhanced Monthly Sales Report - Comprehensive table with all items and months
   const comprehensiveMonthlyReport = useMemo(() => {
     const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
-    
+
     // Get all months from transactions
     const allMonths = new Set();
     const itemMonthlySales = new Map(); // itemName -> { monthKey -> quantity }
     const allItems = new Set();
-    
+
     revenueTransactions.forEach(transaction => {
       const date = new Date(transaction.transactionDate);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       allMonths.add(monthKey);
-      
+
       // Process items in transaction
       if (transaction.items && Array.isArray(transaction.items)) {
         transaction.items.forEach(item => {
           const setQuantity = Number(item.quantity) || 0;
           const setComponents = Array.isArray(item.setComponents) ? item.setComponents : [];
           const isSet = item.isSet || setComponents.length > 0;
-          
+
           if (isSet && setComponents.length > 0) {
             // Expand set into components
             setComponents.forEach(component => {
               const componentName = component.name || component.productNameSnapshot || 'N/A';
               const componentQty = Number(component.quantity) || 1;
               const totalQuantity = componentQty * setQuantity;
-              
+
               allItems.add(componentName);
               if (!itemMonthlySales.has(componentName)) {
                 itemMonthlySales.set(componentName, new Map());
@@ -643,11 +643,11 @@ const Reports = ({ currentUser }) => {
         });
       }
     });
-    
+
     // Convert to sorted arrays
     const sortedMonths = Array.from(allMonths).sort((a, b) => a.localeCompare(b));
     const sortedItems = Array.from(allItems).sort();
-    
+
     // Calculate monthly totals (quantities)
     const monthlyTotals = new Map();
     sortedMonths.forEach(monthKey => {
@@ -657,7 +657,7 @@ const Reports = ({ currentUser }) => {
       });
       monthlyTotals.set(monthKey, total);
     });
-    
+
     // Calculate monthly revenue/income
     const monthlyRevenue = new Map();
     revenueTransactions.forEach(transaction => {
@@ -666,7 +666,7 @@ const Reports = ({ currentUser }) => {
       const currentRevenue = monthlyRevenue.get(monthKey) || 0;
       monthlyRevenue.set(monthKey, currentRevenue + (transaction.totalAmount || 0));
     });
-    
+
     // Format month names
     const monthNames = sortedMonths.map(monthKey => {
       const [year, month] = monthKey.split('-');
@@ -677,7 +677,7 @@ const Reports = ({ currentUser }) => {
         fullName: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       };
     });
-    
+
     return {
       items: sortedItems,
       months: monthNames,
@@ -690,7 +690,7 @@ const Reports = ({ currentUser }) => {
   // Get product price for an item name
   const getProductPrice = useCallback((itemName) => {
     if (!itemName || !products.length) return 0;
-    const product = products.find(p => 
+    const product = products.find(p =>
       p.name && p.name.toLowerCase().trim() === itemName.toLowerCase().trim()
     );
     return product ? (product.price || 0) : 0;
@@ -699,7 +699,7 @@ const Reports = ({ currentUser }) => {
   // Calculate daily breakdown with items as rows and days as columns for selected month
   const dailyBreakdownReport = useMemo(() => {
     if (!selectedMonthForDaily) return null;
-    
+
     const selectedMonth = monthlyStats.find(m => m.monthKey === selectedMonthForDaily);
     if (!selectedMonth || !selectedMonth.dayWiseBreakdown || selectedMonth.dayWiseBreakdown.length === 0) {
       return null;
@@ -721,7 +721,7 @@ const Reports = ({ currentUser }) => {
         day.itemsSold.forEach(item => {
           const itemName = item.name || 'N/A';
           const quantity = Number(item.quantity) || 0;
-          
+
           allItems.add(itemName);
           if (!itemDailySales.has(itemName)) {
             itemDailySales.set(itemName, new Map());
@@ -772,12 +772,12 @@ const Reports = ({ currentUser }) => {
   const dayWiseBreakdown = useMemo(() => {
     const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
     const dayMap = new Map();
-    
+
     revenueTransactions.forEach(transaction => {
       const date = new Date(transaction.transactionDate);
       const dayKey = date.toISOString().split('T')[0];
       const dayName = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      
+
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, {
           date: dayKey,
@@ -790,7 +790,7 @@ const Reports = ({ currentUser }) => {
           unpaidCount: 0,
         });
       }
-      
+
       const dayData = dayMap.get(dayKey);
       dayData.transactions.push(transaction);
       dayData.totalAmount += transaction.totalAmount || 0;
@@ -802,7 +802,7 @@ const Reports = ({ currentUser }) => {
         dayData.unpaidCount++;
       }
     });
-    
+
     return Array.from(dayMap.values()).sort((a, b) => b.date.localeCompare(a.date));
   }, [studentTransactions]);
 
@@ -824,7 +824,7 @@ const Reports = ({ currentUser }) => {
       const date = new Date(transaction.transactionDate);
       const dayKey = date.toISOString().split('T')[0];
       const dayName = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      
+
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, {
           date: dayKey,
@@ -835,7 +835,7 @@ const Reports = ({ currentUser }) => {
           unpaidAmount: 0,
         });
       }
-      
+
       const dayData = dayMap.get(dayKey);
       dayData.transactions.push(transaction);
       dayData.totalAmount += transaction.totalAmount || 0;
@@ -845,7 +845,7 @@ const Reports = ({ currentUser }) => {
         dayData.unpaidAmount += transaction.totalAmount || 0;
       }
     });
-    
+
     const dayWiseData = Array.from(dayMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
     const pdf = new jsPDF({
@@ -867,11 +867,11 @@ const Reports = ({ currentUser }) => {
     pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'bold');
     pdf.text('Day-End Transaction Report', 74, 24, { align: 'center' });
-    
+
     // Draw line under header
     pdf.setDrawColor(200, 200, 200);
     pdf.line(14, 28, 134, 28);
-    
+
     let yPos = 34;
 
     // Report Info Section - Date Range
@@ -881,8 +881,8 @@ const Reports = ({ currentUser }) => {
       const dateRangeText = reportFilters.startDate && reportFilters.endDate
         ? `Date Range: ${reportFilters.startDate} to ${reportFilters.endDate}`
         : reportFilters.startDate
-        ? `From: ${reportFilters.startDate}`
-        : `Until: ${reportFilters.endDate}`;
+          ? `From: ${reportFilters.startDate}`
+          : `Until: ${reportFilters.endDate}`;
       pdf.text(dateRangeText, 14, yPos);
       yPos += 5;
     }
@@ -898,17 +898,17 @@ const Reports = ({ currentUser }) => {
       const totalAmount = revenueTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
       const paidCount = revenueTransactions.filter(t => t.isPaid).length;
       const paidAmount = revenueTransactions.filter(t => t.isPaid).reduce((sum, t) => sum + (t.totalAmount || 0), 0);
-      
+
       // Calculate day-end sales summary if enabled
       let salesSummary = null;
       if (reportFilters.includeDayEndSales) {
         salesSummary = calculateDayEndSales(filteredTransactions);
       }
-      
+
       pdf.setFontSize(10);
       pdf.setFont(undefined, 'bold');
       pdf.text('Statistics (Filtered)', 14, yPos);
-      
+
       const statsY = yPos + 4;
       pdf.setFont(undefined, 'normal');
       pdf.setFontSize(8);
@@ -1091,7 +1091,7 @@ const Reports = ({ currentUser }) => {
             yPos += 4;
 
             // Item table header
-        pdf.setFontSize(6);
+            pdf.setFontSize(6);
             pdf.setFont(undefined, 'bold');
             pdf.setFillColor(245, 245, 245);
             pdf.rect(16, yPos - 2, 112, 4, 'F');
@@ -1151,7 +1151,7 @@ const Reports = ({ currentUser }) => {
 
       const response = await fetch(apiUrl(`/api/products?${queryParams.toString()}`));
       if (!response.ok) throw new Error('Failed to fetch products for report');
-      
+
       const allProducts = await response.json();
       const products = Array.isArray(allProducts) ? allProducts.filter(product => !product?.isSet) : [];
 
@@ -1174,11 +1174,11 @@ const Reports = ({ currentUser }) => {
       pdf.setTextColor(30, 58, 138);
       pdf.setFont(undefined, 'bold');
       pdf.text('Stock Report', 105, 30, { align: 'center' });
-      
+
       // Draw line under header
       pdf.setDrawColor(200, 200, 200);
       pdf.line(20, 35, 190, 35);
-      
+
       let yPos = 42;
 
       // Report Info Section
@@ -1188,7 +1188,7 @@ const Reports = ({ currentUser }) => {
       pdf.text('Report Information', 20, yPos);
       yPos += 6;
       pdf.setFont(undefined, 'normal');
-      
+
       if (reportFilters.course) {
         pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 25, yPos);
         yPos += 5;
@@ -1206,14 +1206,14 @@ const Reports = ({ currentUser }) => {
         const totalValue = products.reduce((sum, p) => sum + ((p.stock || 0) * (p.price || 0)), 0);
         const lowStockCount = products.filter(p => (p.stock || 0) < 10).length;
         const outOfStockCount = products.filter(p => (p.stock || 0) === 0).length;
-        
+
         pdf.setFontSize(11);
         pdf.setFont(undefined, 'bold');
         pdf.setFillColor(240, 240, 240);
         pdf.rect(20, yPos - 4, 170, 6, 'F');
         pdf.text('Summary Statistics', 20, yPos);
         yPos += 7;
-        
+
         pdf.setFont(undefined, 'normal');
         pdf.setFontSize(9);
         pdf.text(`Total Products: ${products.length}`, 25, yPos);
@@ -1238,7 +1238,7 @@ const Reports = ({ currentUser }) => {
         yPos += 7;
 
         // Table Headers
-            pdf.setFontSize(7);
+        pdf.setFontSize(7);
         pdf.setFont(undefined, 'bold');
         pdf.setFillColor(230, 230, 230);
         pdf.rect(20, yPos - 3, 170, 5, 'F');
@@ -1249,7 +1249,7 @@ const Reports = ({ currentUser }) => {
         yPos += 6;
 
         pdf.setFont(undefined, 'normal');
-            pdf.setFontSize(7);
+        pdf.setFontSize(7);
 
         products.forEach((product, index) => {
           // Check if we need a new page
@@ -1321,7 +1321,7 @@ const Reports = ({ currentUser }) => {
       // Fetch all stock entries first
       const response = await fetch(apiUrl('/api/stock-entries'));
       if (!response.ok) throw new Error('Failed to fetch stock entries for report');
-      
+
       let stockEntries = await response.json();
 
       // Apply filters on client side
@@ -1361,11 +1361,11 @@ const Reports = ({ currentUser }) => {
       pdf.setTextColor(30, 58, 138);
       pdf.setFont(undefined, 'bold');
       pdf.text('Vendor Purchase Report', 105, 30, { align: 'center' });
-      
+
       // Draw line under header
       pdf.setDrawColor(200, 200, 200);
       pdf.line(20, 35, 190, 35);
-      
+
       let yPos = 42;
 
       // Report Info Section
@@ -1375,7 +1375,7 @@ const Reports = ({ currentUser }) => {
       pdf.text('Report Information', 20, yPos);
       yPos += 6;
       pdf.setFont(undefined, 'normal');
-      
+
       if (reportFilters.startDate || reportFilters.endDate) {
         pdf.text(`Date Range: ${reportFilters.startDate || 'All'} to ${reportFilters.endDate || 'All'}`, 25, yPos);
         yPos += 5;
@@ -1396,14 +1396,14 @@ const Reports = ({ currentUser }) => {
           const vendorId = e.vendor?._id || e.vendor;
           return vendorId ? String(vendorId) : null;
         }).filter(Boolean)).size;
-        
+
         pdf.setFontSize(11);
         pdf.setFont(undefined, 'bold');
         pdf.setFillColor(240, 240, 240);
         pdf.rect(20, yPos - 4, 170, 6, 'F');
         pdf.text('Summary Statistics', 20, yPos);
         yPos += 7;
-        
+
         pdf.setFont(undefined, 'normal');
         pdf.setFontSize(9);
         pdf.text(`Total Purchase Entries: ${stockEntries.length}`, 25, yPos);
@@ -1539,9 +1539,9 @@ const Reports = ({ currentUser }) => {
 
         const response = await fetch(apiUrl(`/api/transactions?${queryParams.toString()}`));
         if (!response.ok) throw new Error('Failed to fetch transactions for report');
-        
+
         let reportTransactions = await response.json();
-        
+
         // Filter by date range on client side
         if (reportFilters.startDate || reportFilters.endDate) {
           reportTransactions = reportTransactions.filter(transaction => {
@@ -1554,9 +1554,9 @@ const Reports = ({ currentUser }) => {
 
         // Check if only day-end sales summary is selected (without PDF generation)
         // Show print option if only day-end sales is selected and other options are disabled
-        if (reportFilters.includeDayEndSales && 
-            !reportFilters.includeSummary && 
-            !reportFilters.includeItems) {
+        if (reportFilters.includeDayEndSales &&
+          !reportFilters.includeSummary &&
+          !reportFilters.includeItems) {
           // Show print option instead of PDF
           const salesData = calculateDayEndSales(reportTransactions);
           setSalesSummaryData({
@@ -1599,89 +1599,86 @@ const Reports = ({ currentUser }) => {
         {/* Header with Tabs */}
         <div className="mb-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              {/* Left Side: Title and Description */}
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <FileText className="text-white" size={24} />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
-                  <p className="text-gray-600 mt-1">Monitor transactions and generate consolidated reports</p>
-                </div>
+            {/* Left Side: Title and Description */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                <FileText className="text-white" size={24} />
               </div>
-
-              {/* Right Side: Tabs and Generate Report Button */}
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
-                {/* Tab Navigation */}
-                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-                  <button
-                    onClick={() => setActiveTab('daily')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
-                      activeTab === 'daily'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Calendar size={16} />
-                      <span>Daily</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('monthly')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
-                      activeTab === 'monthly'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText size={16} />
-                      <span>Monthly</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('stock')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
-                      activeTab === 'stock'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Package size={16} />
-                      <span>Stock</span>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Generate Report Button */}
-                <button
-                  onClick={() => {
-                    setTimeout(() => {
-                      setShowReportModal(true);
-                    }, 200);
-                  }}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg hover:shadow-xl font-medium whitespace-nowrap"
-                >
-                  <Download size={18} />
-                  Generate Report
-                </button>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+                <p className="text-gray-600 mt-1">Monitor transactions and generate consolidated reports</p>
               </div>
             </div>
+
+            {/* Right Side: Tabs and Generate Report Button */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
+              {/* Tab Navigation */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setActiveTab('daily')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${activeTab === 'daily'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar size={16} />
+                    <span>Daily</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('monthly')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${activeTab === 'monthly'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText size={16} />
+                    <span>Monthly</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('stock')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${activeTab === 'stock'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Package size={16} />
+                    <span>Stock</span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Generate Report Button */}
+              <button
+                onClick={() => {
+                  setTimeout(() => {
+                    setShowReportModal(true);
+                  }, 200);
+                }}
+                className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg hover:shadow-xl font-medium whitespace-nowrap"
+              >
+                <Download size={18} />
+                Generate Report
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
           {/* Daily Report Tab */}
           {activeTab === 'daily' && (
             <>
-          {/* Filters Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2 mr-auto">
-                  <Filter className="text-blue-600" size={18} />
-                  <span className="text-sm font-medium text-gray-700">Filters:</span>
-                </div>
+              {/* Filters Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 mr-auto">
+                    <Filter className="text-blue-600" size={18} />
+                    <span className="text-sm font-medium text-gray-700">Filters:</span>
+                  </div>
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
@@ -1721,7 +1718,7 @@ const Reports = ({ currentUser }) => {
                     <option value="online">Online</option>
                     <option value="transfer">Transfer</option>
                   </select>
-                  
+
                   {/* Expandable Filters Section */}
                   {filtersExpanded && (
                     <>
@@ -1756,518 +1753,512 @@ const Reports = ({ currentUser }) => {
                       </div>
                     </>
                   )}
-                <button
-                  onClick={() => setFiltersExpanded(!filtersExpanded)}
-                  className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors ml-auto"
-                >
-                  {filtersExpanded ? (
-                    <>
-                      <ChevronUp size={16} />
-                      <span>Hide</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown size={16} />
-                      <span>More</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-          {/* Statistics Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-blue-100 mb-1">Total Amount</p>
-                  <p className="text-2xl font-bold text-white">{formatCurrency(statistics.totalAmount)}</p>
-                  <p className="text-xs text-blue-100 mt-2">{statistics.totalTransactions} transaction{statistics.totalTransactions !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-400/30 rounded-lg flex items-center justify-center">
-                  <DollarSign size={24} />
+                  <button
+                    onClick={() => setFiltersExpanded(!filtersExpanded)}
+                    className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors ml-auto"
+                  >
+                    {filtersExpanded ? (
+                      <>
+                        <ChevronUp size={16} />
+                        <span>Hide</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={16} />
+                        <span>More</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-green-100 mb-1">Paid Amount</p>
-                  <p className="text-2xl font-bold text-white">{formatCurrency(statistics.paidAmount)}</p>
-                  <p className="text-xs text-green-100 mt-2">{statistics.paidCount} paid transaction{statistics.paidCount !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="w-12 h-12 bg-green-400/30 rounded-lg flex items-center justify-center">
-                  <TrendingUp size={24} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-red-100 mb-1">Unpaid Amount</p>
-                  <p className="text-2xl font-bold text-white">{formatCurrency(statistics.unpaidAmount)}</p>
-                  <p className="text-xs text-red-100 mt-2">{statistics.unpaidCount} unpaid transaction{statistics.unpaidCount !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="w-12 h-12 bg-red-400/30 rounded-lg flex items-center justify-center">
-                  <AlertCircle size={24} />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-purple-100 mb-1">Items Sold</p>
-                  <p className="text-2xl font-bold text-white">{statistics.totalItemsSold}</p>
-                  <p className="text-xs text-purple-100 mt-2">{statistics.itemsSold.length} unique item{statistics.itemsSold.length !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="w-12 h-12 bg-purple-400/30 rounded-lg flex items-center justify-center">
-                  <ShoppingCart size={24} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Items Sold Details - Expandable */}
-          {statistics.itemsSold.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div 
-                className="px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => setItemsSoldExpanded(!itemsSoldExpanded)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <ShoppingCart size={20} className="text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Items Sold ({statistics.itemsSold.length} unique items)
-                    </h3>
-                    <p className="text-sm text-gray-500">Click to {itemsSoldExpanded ? 'collapse' : 'expand'} individual items sold</p>
+              {/* Statistics Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-blue-100 mb-1">Total Amount</p>
+                      <p className="text-2xl font-bold text-white">{formatCurrency(statistics.totalAmount)}</p>
+                      <p className="text-xs text-blue-100 mt-2">{statistics.totalTransactions} transaction{statistics.totalTransactions !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-400/30 rounded-lg flex items-center justify-center">
+                      <DollarSign size={24} />
+                    </div>
                   </div>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                  {itemsSoldExpanded ? (
-                    <>
-                      <ChevronUp size={18} />
-                      <span>Collapse</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown size={18} />
-                      <span>Expand</span>
-                    </>
-                  )}
-                </button>
+
+                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-green-100 mb-1">Paid Amount</p>
+                      <p className="text-2xl font-bold text-white">{formatCurrency(statistics.paidAmount)}</p>
+                      <p className="text-xs text-green-100 mt-2">{statistics.paidCount} paid transaction{statistics.paidCount !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-400/30 rounded-lg flex items-center justify-center">
+                      <TrendingUp size={24} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-red-100 mb-1">Unpaid Amount</p>
+                      <p className="text-2xl font-bold text-white">{formatCurrency(statistics.unpaidAmount)}</p>
+                      <p className="text-xs text-red-100 mt-2">{statistics.unpaidCount} unpaid transaction{statistics.unpaidCount !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-red-400/30 rounded-lg flex items-center justify-center">
+                      <AlertCircle size={24} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-purple-100 mb-1">Items Sold</p>
+                      <p className="text-2xl font-bold text-white">{statistics.totalItemsSold}</p>
+                      <p className="text-xs text-purple-100 mt-2">{statistics.itemsSold.length} unique item{statistics.itemsSold.length !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-400/30 rounded-lg flex items-center justify-center">
+                      <ShoppingCart size={24} />
+                    </div>
+                  </div>
+                </div>
               </div>
-              {itemsSoldExpanded && (
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-                    {statistics.itemsSold.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-purple-300 transition-colors">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                        </div>
-                        <div className="ml-3">
-                          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-100 text-purple-700 font-semibold text-base">
-                            {item.quantity}
-                          </span>
-                        </div>
+
+              {/* Items Sold Details - Expandable */}
+              {statistics.itemsSold.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div
+                    className="px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => setItemsSoldExpanded(!itemsSoldExpanded)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <ShoppingCart size={20} className="text-purple-600" />
                       </div>
-                    ))}
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Items Sold ({statistics.itemsSold.length} unique items)
+                        </h3>
+                        <p className="text-sm text-gray-500">Click to {itemsSoldExpanded ? 'collapse' : 'expand'} individual items sold</p>
+                      </div>
+                    </div>
+                    <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                      {itemsSoldExpanded ? (
+                        <>
+                          <ChevronUp size={18} />
+                          <span>Collapse</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown size={18} />
+                          <span>Expand</span>
+                        </>
+                      )}
+                    </button>
                   </div>
+                  {itemsSoldExpanded && (
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                        {statistics.itemsSold.map((item, index) => (
+                          <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-purple-300 transition-colors">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                            </div>
+                            <div className="ml-3">
+                              <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-100 text-purple-700 font-semibold text-base">
+                                {item.quantity}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-            {/* Student Transactions Table */}
-            {(filters.transactionType === '' || filters.transactionType === 'student') && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Student Transactions</h3>
-                  <p className="text-sm text-gray-500">Review student transactions and manage receipts</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-                    {studentTransactions.length} transactions
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-600">Show:</label>
-                    <select
-                      value={itemsPerPage}
-                      onChange={(e) => {
-                        setItemsPerPage(Number(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                      className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value={10}>10</option>
-                      <option value={25}>25</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-                  <p className="text-gray-600">Loading transactions...</p>
-                </div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    {studentTransactions.length === 0 ? (
-                      <div className="p-12 text-center">
-                        <div className="text-6xl mb-4">📋</div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No student transactions found</h3>
-                        <p className="text-gray-600">
-                          {searchTerm || Object.values(filters).some(f => f !== '')
-                            ? 'Try adjusting your search criteria'
-                            : 'No student transactions have been created yet'}
-                        </p>
+              {/* Student Transactions Table */}
+              {(filters.transactionType === '' || filters.transactionType === 'student') && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Student Transactions</h3>
+                      <p className="text-sm text-gray-500">Review student transactions and manage receipts</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+                        {studentTransactions.length} transactions
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600">Show:</label>
+                        <select
+                          value={itemsPerPage}
+                          onChange={(e) => {
+                            setItemsPerPage(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
                       </div>
-                    ) : (
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {paginatedStudentTransactions.map(transaction => (
-                            <tr key={transaction._id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-medium text-gray-900">{transaction.student?.name || 'N/A'}</span>
-                                  <span className="text-xs text-gray-500">{transaction.student?.studentId || ''}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm text-gray-900">{transaction.student?.course?.toUpperCase() || 'N/A'}</span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-sm text-gray-900">
-                                  {transaction.items?.length || 0} item{transaction.items?.length !== 1 ? 's' : ''}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm font-semibold text-gray-900">{formatCurrency(transaction.totalAmount)}</span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                {transaction.transactionType === 'branch_transfer' ? (
-                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    transaction.isPaid 
+                    </div>
+                  </div>
+
+                  {loading ? (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                      <p className="text-gray-600">Loading transactions...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        {studentTransactions.length === 0 ? (
+                          <div className="p-12 text-center">
+                            <div className="text-6xl mb-4">📋</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No student transactions found</h3>
+                            <p className="text-gray-600">
+                              {searchTerm || Object.values(filters).some(f => f !== '')
+                                ? 'Try adjusting your search criteria'
+                                : 'No student transactions have been created yet'}
+                            </p>
+                          </div>
+                        ) : (
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {paginatedStudentTransactions.map(transaction => (
+                                <tr key={transaction._id} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-medium text-gray-900">{transaction.student?.name || 'N/A'}</span>
+                                      <span className="text-xs text-gray-500">{transaction.student?.studentId || ''}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-900">{transaction.student?.course?.toUpperCase() || 'N/A'}</span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="text-sm text-gray-900">
+                                      {transaction.items?.length || 0} item{transaction.items?.length !== 1 ? 's' : ''}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(transaction.totalAmount)}</span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    {transaction.transactionType === 'branch_transfer' ? (
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.isPaid
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
+                                        }`}>
+                                        {transaction.isPaid ? 'Paid' : 'Unpaid'}
+                                      </span>
+                                    ) : (
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.paymentMethod === 'cash'
+                                        ? 'bg-green-100 text-green-800'
+                                        : transaction.paymentMethod === 'online'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : 'bg-purple-100 text-purple-800'
+                                        }`}>
+                                        {transaction.paymentMethod === 'cash' ? 'Cash' : transaction.paymentMethod === 'online' ? 'Online' : 'Transfer'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.isPaid
                                       ? 'bg-green-100 text-green-800'
                                       : 'bg-red-100 text-red-800'
-                                  }`}>
-                                    {transaction.isPaid ? 'Paid' : 'Unpaid'}
-                                  </span>
-                                ) : (
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  transaction.paymentMethod === 'cash'
-                                    ? 'bg-green-100 text-green-800'
-                                      : transaction.paymentMethod === 'online'
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : 'bg-purple-100 text-purple-800'
-                                  }`}>
-                                    {transaction.paymentMethod === 'cash' ? 'Cash' : transaction.paymentMethod === 'online' ? 'Online' : 'Transfer'}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  transaction.isPaid
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {transaction.isPaid ? 'Paid' : 'Unpaid'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm text-gray-500">{formatDate(transaction.transactionDate)}</span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleViewDetails(transaction)}
-                                    className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                                  >
-                                    <Eye size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(transaction._id)}
-                                    className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
+                                      }`}>
+                                      {transaction.isPaid ? 'Paid' : 'Unpaid'}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-500">{formatDate(transaction.transactionDate)}</span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => handleViewDetails(transaction)}
+                                        className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                      >
+                                        <Eye size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(transaction._id)}
+                                        className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
 
-                  {studentTransactions.length > 0 && studentTotalPages > 1 && (
-                    <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-600">
-                          Showing <span className="font-medium">{studentStartIndex + 1}</span> to{' '}
-                          <span className="font-medium">{Math.min(studentEndIndex, studentTransactions.length)}</span> of{' '}
-                          <span className="font-medium">{studentTransactions.length}</span> transactions
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                            disabled={currentPage === 1}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-                          >
-                            <ChevronLeft size={16} />
-                            Previous
-                          </button>
+                      {studentTransactions.length > 0 && studentTotalPages > 1 && (
+                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm text-gray-600">
+                              Showing <span className="font-medium">{studentStartIndex + 1}</span> to{' '}
+                              <span className="font-medium">{Math.min(studentEndIndex, studentTransactions.length)}</span> of{' '}
+                              <span className="font-medium">{studentTransactions.length}</span> transactions
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                              >
+                                <ChevronLeft size={16} />
+                                Previous
+                              </button>
 
-                          <div className="flex items-center gap-1">
-                            {Array.from({ length: studentTotalPages }, (_, i) => i + 1).map(page => {
-                              if (
-                                page === 1 ||
-                                page === studentTotalPages ||
-                                (page >= currentPage - 1 && page <= currentPage + 1)
-                              ) {
-                                return (
-                                  <button
-                                    key={page}
-                                    onClick={() => setCurrentPage(page)}
-                                    className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${
-                                      currentPage === page
-                                        ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    {page}
-                                  </button>
-                                );
-                              } else if (page === currentPage - 2 || page === currentPage + 2) {
-                                return <span key={page} className="px-2 text-gray-500">...</span>;
-                              }
-                              return null;
-                            })}
+                              <div className="flex items-center gap-1">
+                                {Array.from({ length: studentTotalPages }, (_, i) => i + 1).map(page => {
+                                  if (
+                                    page === 1 ||
+                                    page === studentTotalPages ||
+                                    (page >= currentPage - 1 && page <= currentPage + 1)
+                                  ) {
+                                    return (
+                                      <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${currentPage === page
+                                          ? 'bg-blue-600 text-white border-blue-600'
+                                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                          }`}
+                                      >
+                                        {page}
+                                      </button>
+                                    );
+                                  } else if (page === currentPage - 2 || page === currentPage + 2) {
+                                    return <span key={page} className="px-2 text-gray-500">...</span>;
+                                  }
+                                  return null;
+                                })}
+                              </div>
+
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.min(studentTotalPages, prev + 1))}
+                                disabled={currentPage === studentTotalPages}
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                              >
+                                Next
+                                <ChevronRight size={16} />
+                              </button>
+                            </div>
                           </div>
-
-                          <button
-                            onClick={() => setCurrentPage(prev => Math.min(studentTotalPages, prev + 1))}
-                            disabled={currentPage === studentTotalPages}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-                          >
-                            Next
-                            <ChevronRight size={16} />
-                          </button>
                         </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Branch Transfers Table */}
+              {(filters.transactionType === '' || filters.transactionType === 'branch_transfer') && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Branch Transfers</h3>
+                      <p className="text-sm text-gray-500">Review stock transfers to branches</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+                        {branchTransfers.length} transfers
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600">Show:</label>
+                        <select
+                          value={itemsPerPage}
+                          onChange={(e) => {
+                            setItemsPerPage(Number(e.target.value));
+                            setBranchTransferPage(1);
+                          }}
+                          className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
                       </div>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-            )}
-
-            {/* Branch Transfers Table */}
-            {(filters.transactionType === '' || filters.transactionType === 'branch_transfer') && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Branch Transfers</h3>
-                  <p className="text-sm text-gray-500">Review stock transfers to branches</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-                    {branchTransfers.length} transfers
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-600">Show:</label>
-                    <select
-                      value={itemsPerPage}
-                      onChange={(e) => {
-                        setItemsPerPage(Number(e.target.value));
-                        setBranchTransferPage(1);
-                      }}
-                      className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value={10}>10</option>
-                      <option value={25}>25</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-                  <p className="text-gray-600">Loading transfers...</p>
-                </div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    {branchTransfers.length === 0 ? (
-                      <div className="p-12 text-center">
-                        <div className="text-6xl mb-4">📦</div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No branch transfers found</h3>
-                        <p className="text-gray-600">
-                          {searchTerm || Object.values(filters).some(f => f !== '')
-                            ? 'Try adjusting your search criteria'
-                            : 'No branch transfers have been created yet'}
-                        </p>
-                      </div>
-                    ) : (
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {paginatedBranchTransfers.map(transaction => (
-                            <tr key={transaction._id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-medium text-gray-900">{transaction.branchTransfer?.branchName || 'N/A'}</span>
-                                  <span className="text-xs text-gray-500">Branch Transfer</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm text-gray-900">{transaction.branchTransfer?.branchLocation || 'N/A'}</span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-sm text-gray-900">
-                                  {transaction.items?.length || 0} item{transaction.items?.length !== 1 ? 's' : ''}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm font-semibold text-gray-900">{formatCurrency(transaction.totalAmount)}</span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  transaction.isPaid 
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {transaction.isPaid ? 'Paid' : 'Unpaid'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm text-gray-500">{formatDate(transaction.transactionDate)}</span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleViewDetails(transaction)}
-                                    className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                                  >
-                                    <Eye size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(transaction._id)}
-                                    className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
                   </div>
 
-                  {branchTransfers.length > 0 && branchTransferTotalPages > 1 && (
-                    <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-600">
-                          Showing <span className="font-medium">{branchTransferStartIndex + 1}</span> to{' '}
-                          <span className="font-medium">{Math.min(branchTransferEndIndex, branchTransfers.length)}</span> of{' '}
-                          <span className="font-medium">{branchTransfers.length}</span> transfers
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setBranchTransferPage(prev => Math.max(1, prev - 1))}
-                            disabled={branchTransferPage === 1}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-                          >
-                            <ChevronLeft size={16} />
-                            Previous
-                          </button>
-
-                          <div className="flex items-center gap-1">
-                            {Array.from({ length: branchTransferTotalPages }, (_, i) => i + 1).map(page => {
-                              if (
-                                page === 1 ||
-                                page === branchTransferTotalPages ||
-                                (page >= branchTransferPage - 1 && page <= branchTransferPage + 1)
-                              ) {
-                                return (
-                                  <button
-                                    key={page}
-                                    onClick={() => setBranchTransferPage(page)}
-                                    className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${
-                                      branchTransferPage === page
-                                        ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    {page}
-                                  </button>
-                                );
-                              } else if (
-                                page === branchTransferPage - 2 ||
-                                page === branchTransferPage + 2
-                              ) {
-                                return (
-                                  <span key={page} className="px-2 text-gray-500">
-                                    ...
-                                  </span>
-                                );
-                              }
-                              return null;
-                            })}
-                          </div>
-                          <button
-                            onClick={() => setBranchTransferPage(prev => Math.min(branchTransferTotalPages, prev + 1))}
-                            disabled={branchTransferPage === branchTransferTotalPages}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-                          >
-                            Next
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-                      </div>
+                  {loading ? (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                      <p className="text-gray-600">Loading transfers...</p>
                     </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        {branchTransfers.length === 0 ? (
+                          <div className="p-12 text-center">
+                            <div className="text-6xl mb-4">📦</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No branch transfers found</h3>
+                            <p className="text-gray-600">
+                              {searchTerm || Object.values(filters).some(f => f !== '')
+                                ? 'Try adjusting your search criteria'
+                                : 'No branch transfers have been created yet'}
+                            </p>
+                          </div>
+                        ) : (
+                          <table className="w-full">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {paginatedBranchTransfers.map(transaction => (
+                                <tr key={transaction._id} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-medium text-gray-900">{transaction.branchTransfer?.branchName || 'N/A'}</span>
+                                      <span className="text-xs text-gray-500">Branch Transfer</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-900">{transaction.branchTransfer?.branchLocation || 'N/A'}</span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="text-sm text-gray-900">
+                                      {transaction.items?.length || 0} item{transaction.items?.length !== 1 ? 's' : ''}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(transaction.totalAmount)}</span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.isPaid
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-red-100 text-red-800'
+                                      }`}>
+                                      {transaction.isPaid ? 'Paid' : 'Unpaid'}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-500">{formatDate(transaction.transactionDate)}</span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => handleViewDetails(transaction)}
+                                        className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                      >
+                                        <Eye size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(transaction._id)}
+                                        className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+
+                      {branchTransfers.length > 0 && branchTransferTotalPages > 1 && (
+                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm text-gray-600">
+                              Showing <span className="font-medium">{branchTransferStartIndex + 1}</span> to{' '}
+                              <span className="font-medium">{Math.min(branchTransferEndIndex, branchTransfers.length)}</span> of{' '}
+                              <span className="font-medium">{branchTransfers.length}</span> transfers
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setBranchTransferPage(prev => Math.max(1, prev - 1))}
+                                disabled={branchTransferPage === 1}
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                              >
+                                <ChevronLeft size={16} />
+                                Previous
+                              </button>
+
+                              <div className="flex items-center gap-1">
+                                {Array.from({ length: branchTransferTotalPages }, (_, i) => i + 1).map(page => {
+                                  if (
+                                    page === 1 ||
+                                    page === branchTransferTotalPages ||
+                                    (page >= branchTransferPage - 1 && page <= branchTransferPage + 1)
+                                  ) {
+                                    return (
+                                      <button
+                                        key={page}
+                                        onClick={() => setBranchTransferPage(page)}
+                                        className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${branchTransferPage === page
+                                          ? 'bg-blue-600 text-white border-blue-600'
+                                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                          }`}
+                                      >
+                                        {page}
+                                      </button>
+                                    );
+                                  } else if (
+                                    page === branchTransferPage - 2 ||
+                                    page === branchTransferPage + 2
+                                  ) {
+                                    return (
+                                      <span key={page} className="px-2 text-gray-500">
+                                        ...
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                              </div>
+                              <button
+                                onClick={() => setBranchTransferPage(prev => Math.min(branchTransferTotalPages, prev + 1))}
+                                disabled={branchTransferPage === branchTransferTotalPages}
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                              >
+                                Next
+                                <ChevronRight size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
-                </>
+                </div>
               )}
-            </div>
-            )}
             </>
           )}
 
@@ -2379,11 +2370,10 @@ const Reports = ({ currentUser }) => {
                       <div className="flex items-center gap-1 bg-white p-1 rounded-lg shadow-sm">
                         <button
                           onClick={() => setMonthlyReportSubTab('monthly-sale')}
-                          className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
-                            monthlyReportSubTab === 'monthly-sale'
-                              ? 'bg-blue-600 text-white shadow-sm'
-                              : 'text-gray-600 hover:text-gray-900'
-                          }`}
+                          className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${monthlyReportSubTab === 'monthly-sale'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                            }`}
                         >
                           <div className="flex items-center gap-2">
                             <FileText size={16} />
@@ -2405,11 +2395,10 @@ const Reports = ({ currentUser }) => {
                               }
                             }
                           }}
-                          className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
-                            monthlyReportSubTab === 'daily-breakdown'
-                              ? 'bg-blue-600 text-white shadow-sm'
-                              : 'text-gray-600 hover:text-gray-900'
-                          }`}
+                          className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${monthlyReportSubTab === 'daily-breakdown'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                            }`}
                         >
                           <div className="flex items-center gap-2">
                             <Calendar size={16} />
@@ -2428,131 +2417,127 @@ const Reports = ({ currentUser }) => {
                 {monthlyReportSubTab === 'monthly-sale' && (
                   <div>
                     {comprehensiveMonthlyReport.items.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">No monthly data available</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                            S.No
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200 min-w-[300px]">
-                            Item Name
-                          </th>
-                          {comprehensiveMonthlyReport.months.map((month, idx) => (
-                            <th
-                              key={month.key}
-                              className={`px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider ${
-                                idx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-200' : ''
-                              }`}
-                              title={month.fullName}
-                            >
-                              {month.name}
-                            </th>
-                          ))}
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100">
-                            Total
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {/* Monthly Revenue/Income Summary Row */}
-                        <tr className="bg-gradient-to-r from-green-50 to-emerald-50 font-bold border-b-2 border-green-300">
-                          <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
-                            MONTHLY INCOME
-                          </td>
-                          {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
-                            const monthRevenue = comprehensiveMonthlyReport.monthlyRevenue.get(month.key) || 0;
-                            return (
-                              <td
-                                key={month.key}
-                                className={`px-3 py-3 whitespace-nowrap text-right text-green-700 font-bold ${
-                                  monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-300' : ''
-                                }`}
-                              >
-                                {monthRevenue > 0 ? formatCurrency(monthRevenue) : '-'}
-                              </td>
-                            );
-                          })}
-                          <td className="px-4 py-3 whitespace-nowrap text-right text-green-800 font-bold bg-green-100">
-                            {formatCurrency(
-                              Array.from(comprehensiveMonthlyReport.monthlyRevenue.values()).reduce(
-                                (sum, revenue) => sum + revenue,
-                                0
-                              )
-                            )}
-                          </td>
-                        </tr>
-                        {comprehensiveMonthlyReport.items.map((itemName, itemIndex) => {
-                          const itemSales = comprehensiveMonthlyReport.itemMonthlySales.get(itemName) || new Map();
-                          const currentPrice = getProductPrice(itemName);
-                          const rowTotal = Array.from(itemSales.values()).reduce((sum, qty) => sum + qty, 0);
-                          const isEven = itemIndex % 2 === 0;
-                          
-                          return (
-                            <tr
-                              key={itemIndex}
-                              className={`hover:bg-blue-50 transition-colors ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}
-                            >
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-medium border-r border-gray-200">
-                                {itemIndex + 1}
-                              </td>
-                              <td className="px-4 py-3 text-gray-900 font-medium border-r border-gray-200">
-                                {itemName}
-                                {currentPrice > 0 && (
-                                  <span className="text-gray-600 font-normal ml-2">
-                                    ({formatCurrency(currentPrice)})
-                                  </span>
-                                )}
+                      <div className="text-center py-12">
+                        <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500">No monthly data available</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                S.No
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200 min-w-[300px]">
+                                Item Name
+                              </th>
+                              {comprehensiveMonthlyReport.months.map((month, idx) => (
+                                <th
+                                  key={month.key}
+                                  className={`px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider ${idx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-200' : ''
+                                    }`}
+                                  title={month.fullName}
+                                >
+                                  {month.name}
+                                </th>
+                              ))}
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100">
+                                Total
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {/* Monthly Revenue/Income Summary Row */}
+                            <tr className="bg-gradient-to-r from-green-50 to-emerald-50 font-bold border-b-2 border-green-300">
+                              <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                                MONTHLY INCOME
                               </td>
                               {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
-                                const qty = itemSales.get(month.key) || 0;
+                                const monthRevenue = comprehensiveMonthlyReport.monthlyRevenue.get(month.key) || 0;
                                 return (
                                   <td
                                     key={month.key}
-                                    className={`px-3 py-3 whitespace-nowrap text-right font-medium ${
-                                      qty > 0 ? 'text-gray-900' : 'text-gray-400'
-                                    } ${monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-200' : ''}`}
+                                    className={`px-3 py-3 whitespace-nowrap text-right text-green-700 font-bold ${monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-300' : ''
+                                      }`}
                                   >
-                                    {qty > 0 ? qty : '-'}
+                                    {monthRevenue > 0 ? formatCurrency(monthRevenue) : '-'}
                                   </td>
                                 );
                               })}
-                              <td className="px-4 py-3 whitespace-nowrap text-right font-bold text-gray-900 bg-gray-100">
-                                {rowTotal > 0 ? rowTotal : '-'}
+                              <td className="px-4 py-3 whitespace-nowrap text-right text-green-800 font-bold bg-green-100">
+                                {formatCurrency(
+                                  Array.from(comprehensiveMonthlyReport.monthlyRevenue.values()).reduce(
+                                    (sum, revenue) => sum + revenue,
+                                    0
+                                  )
+                                )}
                               </td>
                             </tr>
-                          );
-                        })}
-                        {/* Total Row */}
-                        <tr className="bg-gray-100 font-bold">
-                          <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
-                            GRAND TOTAL
-                          </td>
-                          {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
-                            const monthTotal = comprehensiveMonthlyReport.monthlyTotals.get(month.key) || 0;
-                            return (
-                              <td
-                                key={month.key}
-                                className={`px-3 py-3 whitespace-nowrap text-right text-gray-900 ${
-                                  monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-300' : ''
-                                }`}
-                              >
-                                {monthTotal > 0 ? monthTotal : '-'}
+                            {comprehensiveMonthlyReport.items.map((itemName, itemIndex) => {
+                              const itemSales = comprehensiveMonthlyReport.itemMonthlySales.get(itemName) || new Map();
+                              const currentPrice = getProductPrice(itemName);
+                              const rowTotal = Array.from(itemSales.values()).reduce((sum, qty) => sum + qty, 0);
+                              const isEven = itemIndex % 2 === 0;
+
+                              return (
+                                <tr
+                                  key={itemIndex}
+                                  className={`hover:bg-blue-50 transition-colors ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}
+                                >
+                                  <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-medium border-r border-gray-200">
+                                    {itemIndex + 1}
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-900 font-medium border-r border-gray-200">
+                                    {itemName}
+                                    {currentPrice > 0 && (
+                                      <span className="text-gray-600 font-normal ml-2">
+                                        ({formatCurrency(currentPrice)})
+                                      </span>
+                                    )}
+                                  </td>
+                                  {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
+                                    const qty = itemSales.get(month.key) || 0;
+                                    return (
+                                      <td
+                                        key={month.key}
+                                        className={`px-3 py-3 whitespace-nowrap text-right font-medium ${qty > 0 ? 'text-gray-900' : 'text-gray-400'
+                                          } ${monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-200' : ''}`}
+                                      >
+                                        {qty > 0 ? qty : '-'}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-4 py-3 whitespace-nowrap text-right font-bold text-gray-900 bg-gray-100">
+                                    {rowTotal > 0 ? rowTotal : '-'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {/* Total Row */}
+                            <tr className="bg-gray-100 font-bold">
+                              <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                                GRAND TOTAL
                               </td>
-                            );
-                          })}
-                          <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900 bg-blue-100">
-                            {Array.from(comprehensiveMonthlyReport.monthlyTotals.values()).reduce((sum, total) => sum + total, 0)}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                              {comprehensiveMonthlyReport.months.map((month, monthIdx) => {
+                                const monthTotal = comprehensiveMonthlyReport.monthlyTotals.get(month.key) || 0;
+                                return (
+                                  <td
+                                    key={month.key}
+                                    className={`px-3 py-3 whitespace-nowrap text-right text-gray-900 ${monthIdx < comprehensiveMonthlyReport.months.length - 1 ? 'border-r border-gray-300' : ''
+                                      }`}
+                                  >
+                                    {monthTotal > 0 ? monthTotal : '-'}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900 bg-blue-100">
+                                {Array.from(comprehensiveMonthlyReport.monthlyTotals.values()).reduce((sum, total) => sum + total, 0)}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 )}
@@ -2560,174 +2545,170 @@ const Reports = ({ currentUser }) => {
                 {/* Daily Breakdown Content */}
                 {monthlyReportSubTab === 'daily-breakdown' && (
                   <div className="p-6">
-                  {selectedMonthForDaily && (
-                    (() => {
-                      const selectedMonth = monthlyStats.find(m => m.monthKey === selectedMonthForDaily);
-                      if (!selectedMonth || !selectedMonth.dayWiseBreakdown || selectedMonth.dayWiseBreakdown.length === 0) {
+                    {selectedMonthForDaily && (
+                      (() => {
+                        const selectedMonth = monthlyStats.find(m => m.monthKey === selectedMonthForDaily);
+                        if (!selectedMonth || !selectedMonth.dayWiseBreakdown || selectedMonth.dayWiseBreakdown.length === 0) {
+                          return (
+                            <div className="text-center py-8 text-gray-500">
+                              No daily data available for this month
+                            </div>
+                          );
+                        }
+
                         return (
-                          <div className="text-center py-8 text-gray-500">
-                            No daily data available for this month
+                          <div className="space-y-4">
+                            {/* Month Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                              <div className="bg-blue-50 rounded-lg p-4">
+                                <p className="text-xs text-gray-600 mb-1">Total Amount</p>
+                                <p className="text-lg font-bold text-blue-700">{formatCurrency(selectedMonth.totalAmount)}</p>
+                              </div>
+                              <div className="bg-green-50 rounded-lg p-4">
+                                <p className="text-xs text-gray-600 mb-1">Paid Amount</p>
+                                <p className="text-lg font-bold text-green-700">{formatCurrency(selectedMonth.paidAmount)}</p>
+                              </div>
+                              <div className="bg-red-50 rounded-lg p-4">
+                                <p className="text-xs text-gray-600 mb-1">Unpaid Amount</p>
+                                <p className="text-lg font-bold text-red-700">{formatCurrency(selectedMonth.unpaidAmount)}</p>
+                              </div>
+                              <div className="bg-purple-50 rounded-lg p-4">
+                                <p className="text-xs text-gray-600 mb-1">Transactions</p>
+                                <p className="text-lg font-bold text-purple-700">{selectedMonth.transactions.length}</p>
+                              </div>
+                            </div>
+
+                            {/* Daily Sales Table - Items as Rows, Days as Columns */}
+                            {dailyBreakdownReport ? (
+                              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-50 sticky top-0 z-10">
+                                    <tr>
+                                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                                        S.No
+                                      </th>
+                                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200 min-w-[300px]">
+                                        Item Name
+                                      </th>
+                                      {dailyBreakdownReport.days.map((day, idx) => (
+                                        <th
+                                          key={day.key}
+                                          className={`px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider ${idx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-200' : ''
+                                            }`}
+                                          title={day.fullDate}
+                                        >
+                                          {day.name}
+                                        </th>
+                                      ))}
+                                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100">
+                                        Total
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                                    {/* Daily Revenue/Income Summary Row */}
+                                    <tr className="bg-gradient-to-r from-green-50 to-emerald-50 font-bold border-b-2 border-green-300">
+                                      <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                                        DAILY INCOME
+                                      </td>
+                                      {dailyBreakdownReport.days.map((day, dayIdx) => {
+                                        const dayRevenue = dailyBreakdownReport.dailyRevenue.get(day.key) || 0;
+                                        return (
+                                          <td
+                                            key={day.key}
+                                            className={`px-3 py-3 whitespace-nowrap text-right text-green-700 font-bold ${dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-300' : ''
+                                              }`}
+                                          >
+                                            {dayRevenue > 0 ? formatCurrency(dayRevenue) : '-'}
+                                          </td>
+                                        );
+                                      })}
+                                      <td className="px-4 py-3 whitespace-nowrap text-right text-green-800 font-bold bg-green-100">
+                                        {formatCurrency(
+                                          Array.from(dailyBreakdownReport.dailyRevenue.values()).reduce(
+                                            (sum, revenue) => sum + revenue,
+                                            0
+                                          )
+                                        )}
+                                      </td>
+                                    </tr>
+                                    {/* Item Rows */}
+                                    {dailyBreakdownReport.items.map((itemName, itemIndex) => {
+                                      const itemSales = dailyBreakdownReport.itemDailySales.get(itemName) || new Map();
+                                      const currentPrice = getProductPrice(itemName);
+                                      const rowTotal = Array.from(itemSales.values()).reduce((sum, qty) => sum + qty, 0);
+                                      const isEven = itemIndex % 2 === 0;
+
+                                      return (
+                                        <tr
+                                          key={itemIndex}
+                                          className={`hover:bg-blue-50 transition-colors ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}
+                                        >
+                                          <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-medium border-r border-gray-200">
+                                            {itemIndex + 1}
+                                          </td>
+                                          <td className="px-4 py-3 text-gray-900 font-medium border-r border-gray-200">
+                                            {itemName}
+                                            {currentPrice > 0 && (
+                                              <span className="text-gray-600 font-normal ml-2">
+                                                ({formatCurrency(currentPrice)})
+                                              </span>
+                                            )}
+                                          </td>
+                                          {dailyBreakdownReport.days.map((day, dayIdx) => {
+                                            const qty = itemSales.get(day.key) || 0;
+                                            return (
+                                              <td
+                                                key={day.key}
+                                                className={`px-3 py-3 whitespace-nowrap text-right font-medium ${qty > 0 ? 'text-gray-900' : 'text-gray-400'
+                                                  } ${dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-200' : ''}`}
+                                              >
+                                                {qty > 0 ? qty : '-'}
+                                              </td>
+                                            );
+                                          })}
+                                          <td className="px-4 py-3 whitespace-nowrap text-right font-bold text-gray-900 bg-gray-100">
+                                            {rowTotal > 0 ? rowTotal : '-'}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                    {/* Total Row */}
+                                    <tr className="bg-gray-100 font-bold">
+                                      <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
+                                        GRAND TOTAL
+                                      </td>
+                                      {dailyBreakdownReport.days.map((day, dayIdx) => {
+                                        const dayTotal = dailyBreakdownReport.dailyTotals.get(day.key) || 0;
+                                        return (
+                                          <td
+                                            key={day.key}
+                                            className={`px-3 py-3 whitespace-nowrap text-right text-gray-900 ${dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-300' : ''
+                                              }`}
+                                          >
+                                            {dayTotal > 0 ? dayTotal : '-'}
+                                          </td>
+                                        );
+                                      })}
+                                      <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900 bg-blue-100">
+                                        {Array.from(dailyBreakdownReport.dailyTotals.values()).reduce(
+                                          (sum, total) => sum + total,
+                                          0
+                                        )}
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="text-center py-8 text-gray-500">
+                                Loading daily breakdown data...
+                              </div>
+                            )}
                           </div>
                         );
-                      }
-                      
-                      return (
-                        <div className="space-y-4">
-                          {/* Month Summary Cards */}
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                            <div className="bg-blue-50 rounded-lg p-4">
-                              <p className="text-xs text-gray-600 mb-1">Total Amount</p>
-                              <p className="text-lg font-bold text-blue-700">{formatCurrency(selectedMonth.totalAmount)}</p>
-                            </div>
-                            <div className="bg-green-50 rounded-lg p-4">
-                              <p className="text-xs text-gray-600 mb-1">Paid Amount</p>
-                              <p className="text-lg font-bold text-green-700">{formatCurrency(selectedMonth.paidAmount)}</p>
-                            </div>
-                            <div className="bg-red-50 rounded-lg p-4">
-                              <p className="text-xs text-gray-600 mb-1">Unpaid Amount</p>
-                              <p className="text-lg font-bold text-red-700">{formatCurrency(selectedMonth.unpaidAmount)}</p>
-                            </div>
-                            <div className="bg-purple-50 rounded-lg p-4">
-                              <p className="text-xs text-gray-600 mb-1">Transactions</p>
-                              <p className="text-lg font-bold text-purple-700">{selectedMonth.transactions.length}</p>
-                            </div>
-                          </div>
-
-                          {/* Daily Sales Table - Items as Rows, Days as Columns */}
-                          {dailyBreakdownReport ? (
-                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                              <table className="w-full text-sm">
-                                <thead className="bg-gray-50 sticky top-0 z-10">
-                                  <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                                      S.No
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200 min-w-[300px]">
-                                      Item Name
-                                    </th>
-                                    {dailyBreakdownReport.days.map((day, idx) => (
-                                      <th
-                                        key={day.key}
-                                        className={`px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider ${
-                                          idx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-200' : ''
-                                        }`}
-                                        title={day.fullDate}
-                                      >
-                                        {day.name}
-                                      </th>
-                                    ))}
-                                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100">
-                                      Total
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                  {/* Daily Revenue/Income Summary Row */}
-                                  <tr className="bg-gradient-to-r from-green-50 to-emerald-50 font-bold border-b-2 border-green-300">
-                                    <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
-                                      DAILY INCOME
-                                    </td>
-                                    {dailyBreakdownReport.days.map((day, dayIdx) => {
-                                      const dayRevenue = dailyBreakdownReport.dailyRevenue.get(day.key) || 0;
-                                      return (
-                                        <td
-                                          key={day.key}
-                                          className={`px-3 py-3 whitespace-nowrap text-right text-green-700 font-bold ${
-                                            dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {dayRevenue > 0 ? formatCurrency(dayRevenue) : '-'}
-                                        </td>
-                                      );
-                                    })}
-                                    <td className="px-4 py-3 whitespace-nowrap text-right text-green-800 font-bold bg-green-100">
-                                      {formatCurrency(
-                                        Array.from(dailyBreakdownReport.dailyRevenue.values()).reduce(
-                                          (sum, revenue) => sum + revenue,
-                                          0
-                                        )
-                                      )}
-                                    </td>
-                                  </tr>
-                                  {/* Item Rows */}
-                                  {dailyBreakdownReport.items.map((itemName, itemIndex) => {
-                                    const itemSales = dailyBreakdownReport.itemDailySales.get(itemName) || new Map();
-                                    const currentPrice = getProductPrice(itemName);
-                                    const rowTotal = Array.from(itemSales.values()).reduce((sum, qty) => sum + qty, 0);
-                                    const isEven = itemIndex % 2 === 0;
-                                    
-                                    return (
-                                      <tr
-                                        key={itemIndex}
-                                        className={`hover:bg-blue-50 transition-colors ${isEven ? 'bg-white' : 'bg-gray-50/50'}`}
-                                      >
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-medium border-r border-gray-200">
-                                          {itemIndex + 1}
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-900 font-medium border-r border-gray-200">
-                                          {itemName}
-                                          {currentPrice > 0 && (
-                                            <span className="text-gray-600 font-normal ml-2">
-                                              ({formatCurrency(currentPrice)})
-                                            </span>
-                                          )}
-                                        </td>
-                                        {dailyBreakdownReport.days.map((day, dayIdx) => {
-                                          const qty = itemSales.get(day.key) || 0;
-                                          return (
-                                            <td
-                                              key={day.key}
-                                              className={`px-3 py-3 whitespace-nowrap text-right font-medium ${
-                                                qty > 0 ? 'text-gray-900' : 'text-gray-400'
-                                              } ${dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-200' : ''}`}
-                                            >
-                                              {qty > 0 ? qty : '-'}
-                                            </td>
-                                          );
-                                        })}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right font-bold text-gray-900 bg-gray-100">
-                                          {rowTotal > 0 ? rowTotal : '-'}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                  {/* Total Row */}
-                                  <tr className="bg-gray-100 font-bold">
-                                    <td colSpan={2} className="px-4 py-3 text-gray-900 border-r border-gray-300">
-                                      GRAND TOTAL
-                                    </td>
-                                    {dailyBreakdownReport.days.map((day, dayIdx) => {
-                                      const dayTotal = dailyBreakdownReport.dailyTotals.get(day.key) || 0;
-                                      return (
-                                        <td
-                                          key={day.key}
-                                          className={`px-3 py-3 whitespace-nowrap text-right text-gray-900 ${
-                                            dayIdx < dailyBreakdownReport.days.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {dayTotal > 0 ? dayTotal : '-'}
-                                        </td>
-                                      );
-                                    })}
-                                    <td className="px-4 py-3 whitespace-nowrap text-right text-gray-900 bg-blue-100">
-                                      {Array.from(dailyBreakdownReport.dailyTotals.values()).reduce(
-                                        (sum, total) => sum + total,
-                                        0
-                                      )}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 text-gray-500">
-                              Loading daily breakdown data...
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()
-                  )}
+                      })()
+                    )}
                   </div>
                 )}
               </div>
@@ -2740,7 +2721,7 @@ const Reports = ({ currentUser }) => {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Stock Report</h2>
                 <p className="text-gray-600 mb-6">View stock entries statistics and total amount collected from stock purchases.</p>
-                
+
                 {stockEntriesLoading ? (
                   <div className="text-center py-12">
                     <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
@@ -2896,11 +2877,10 @@ const Reports = ({ currentUser }) => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Payment Status</p>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    selectedTransaction.isPaid
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${selectedTransaction.isPaid
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                    }`}>
                     {selectedTransaction.isPaid ? 'Paid' : 'Unpaid'}
                   </span>
                 </div>
@@ -3053,7 +3033,7 @@ const Reports = ({ currentUser }) => {
                   {/* Day-End Report Filters */}
                   {reportType === 'day-end' && (
                     <>
-                      
+
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
@@ -3136,8 +3116,8 @@ const Reports = ({ currentUser }) => {
                             type="checkbox"
                             id="includeSummary"
                             checked={reportFilters.includeSummary}
-                            onChange={(e) => setReportFilters({ 
-                              ...reportFilters, 
+                            onChange={(e) => setReportFilters({
+                              ...reportFilters,
                               includeSummary: e.target.checked,
                               onlyStatistics: e.target.checked ? false : reportFilters.onlyStatistics
                             })}
@@ -3465,23 +3445,20 @@ const Reports = ({ currentUser }) => {
                     }
                   }
                 `}</style>
-                
+
                 {/* Thermal Header */}
                 <div className="thermal-header">
                   <h1>{receiptSettings.receiptHeader}</h1>
-                  <p style={{ textAlign: 'center' }}>
-                    {receiptSettings.receiptSubheader} | Day-End Sales Summary
-                  </p>
-                  <p style={{ textAlign: 'center', fontSize: '9px', marginTop: '1mm' }}>
-                    {new Date(salesSummaryData.dateRange.start).toLocaleDateString('en-IN', { 
-                      day: '2-digit', 
-                      month: '2-digit', 
+                  <p style={{ textAlign: 'center', fontSize: '10px', marginTop: '1mm' }}>
+                    Day-End Sales Summary | {new Date(salesSummaryData.dateRange.start).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: '2-digit',
                       year: 'numeric'
                     })}
-                    {salesSummaryData.dateRange.start !== salesSummaryData.dateRange.end && 
-                      ` - ${new Date(salesSummaryData.dateRange.end).toLocaleDateString('en-IN', { 
-                        day: '2-digit', 
-                        month: '2-digit', 
+                    {salesSummaryData.dateRange.start !== salesSummaryData.dateRange.end &&
+                      ` - ${new Date(salesSummaryData.dateRange.end).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: '2-digit',
                         year: 'numeric'
                       })}`
                     }
@@ -3490,8 +3467,10 @@ const Reports = ({ currentUser }) => {
 
                 {/* Statistics Info */}
                 <div className="thermal-info">
-                  <p><span>Total Transactions:</span> <span>{salesSummaryData.statistics.totalTransactions}</span></p>
-                  <p><span>Total Amount:</span> <span>₹{Number(salesSummaryData.statistics.totalAmount).toFixed(2)}</span></p>
+                  <p>
+                    <span>Transactions: {salesSummaryData.statistics.totalTransactions}</span>
+                    <span>Amount: ₹{Number(salesSummaryData.statistics.totalAmount).toFixed(2)}</span>
+                  </p>
                   {salesSummaryData.filters.course && (
                     <p><span>Course:</span> <span>{salesSummaryData.filters.course.toUpperCase()}</span></p>
                   )}
@@ -3501,8 +3480,8 @@ const Reports = ({ currentUser }) => {
                 <table className="thermal-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '60%' }}>Item Name</th>
-                      <th style={{ width: '40%', textAlign: 'right' }}>Qty Sold</th>
+                      <th style={{ width: '85%' }}>Item Name</th>
+                      <th style={{ width: '15%', textAlign: 'right' }}>Qty</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3523,9 +3502,9 @@ const Reports = ({ currentUser }) => {
 
                 {/* Footer */}
                 <div className="thermal-footer">
-                  <p>Generated on {new Date().toLocaleDateString('en-IN', { 
-                    day: '2-digit', 
-                    month: '2-digit', 
+                  <p>Generated on {new Date().toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
                     year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'

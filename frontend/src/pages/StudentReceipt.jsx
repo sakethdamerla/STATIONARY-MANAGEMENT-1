@@ -70,10 +70,10 @@ const StudentReceiptModal = ({
       try {
         // Get course-specific receipt headers if student has a course
         const course = student?.course;
-        const url = course 
+        const url = course
           ? apiUrl(`/api/settings?course=${encodeURIComponent(course)}`)
           : apiUrl('/api/settings');
-        
+
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
@@ -115,7 +115,7 @@ const StudentReceiptModal = ({
         console.warn('Print attempted but receiptRef is not ready');
         return;
       }
-      
+
       // Try using react-to-print first
       if (typeof triggerPrint === 'function') {
         triggerPrint();
@@ -133,7 +133,7 @@ const StudentReceiptModal = ({
       return;
     }
 
-        const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=800,height=1000');
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=800,height=1000');
     if (!printWindow) {
       alert('Please allow popups to print the receipt');
       return;
@@ -287,7 +287,6 @@ const StudentReceiptModal = ({
       <div class="thermal-receipt">
         <div class="thermal-header">
           <h2>${receiptConfig.receiptHeader}</h2>
-          <p>${receiptConfig.receiptSubheader}</p>
           <p style="margin-top: 2mm; font-size: 8px;">
             ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
@@ -348,11 +347,11 @@ const StudentReceiptModal = ({
 
     printWindow.document.write(`<!doctype html><html><head><title>Receipt-${student?.studentId || 'student'}</title>${styles}</head><body>${thermalReceiptContent}</body></html>`);
     printWindow.document.close();
-    
+
     // Wait for content to load before printing
     printWindow.onload = () => {
       setTimeout(() => {
-    printWindow.focus();
+        printWindow.focus();
         printWindow.print();
         // Don't close immediately, let user cancel if needed
       }, 500);
@@ -416,25 +415,25 @@ const StudentReceiptModal = ({
     });
   }, [itemSearch, visibleItems]);
 
-const displayItems = useMemo(() => {
-  if (mode !== 'addon' || itemSearch.trim()) {
-    return filteredItems;
-  }
+  const displayItems = useMemo(() => {
+    if (mode !== 'addon' || itemSearch.trim()) {
+      return filteredItems;
+    }
 
-  const selectedOnly = filteredItems.filter((item) => selectedItems[item._id]);
-  if (selectedOnly.length > 0) {
-    return selectedOnly;
-  }
+    const selectedOnly = filteredItems.filter((item) => selectedItems[item._id]);
+    if (selectedOnly.length > 0) {
+      return selectedOnly;
+    }
 
-  return filteredItems.slice(0, 3);
-}, [filteredItems, itemSearch, mode, selectedItems]);
+    return filteredItems.slice(0, 3);
+  }, [filteredItems, itemSearch, mode, selectedItems]);
 
-const hasHiddenItems = useMemo(() => {
-  if (mode !== 'addon' || itemSearch.trim()) return false;
-  const selectedOnly = filteredItems.filter((item) => selectedItems[item._id]);
-  if (selectedOnly.length > 0) return false;
-  return filteredItems.length > displayItems.length;
-}, [filteredItems, displayItems, itemSearch, mode, selectedItems]);
+  const hasHiddenItems = useMemo(() => {
+    if (mode !== 'addon' || itemSearch.trim()) return false;
+    const selectedOnly = filteredItems.filter((item) => selectedItems[item._id]);
+    if (selectedOnly.length > 0) return false;
+    return filteredItems.length > displayItems.length;
+  }, [filteredItems, displayItems, itemSearch, mode, selectedItems]);
 
   const transactionItems = useMemo(() => {
     return Object.entries(selectedItems)
@@ -444,9 +443,9 @@ const hasHiddenItems = useMemo(() => {
         if (!product) return null;
         const components = product.isSet
           ? (product.setItems || []).map(setItem => ({
-              name: setItem?.product?.name || setItem?.productNameSnapshot || 'Unknown item',
-              quantity: Number(setItem?.quantity) || 1,
-            }))
+            name: setItem?.product?.name || setItem?.productNameSnapshot || 'Unknown item',
+            quantity: Number(setItem?.quantity) || 1,
+          }))
           : [];
         return {
           productId: product._id,
@@ -469,12 +468,12 @@ const hasHiddenItems = useMemo(() => {
     setSelectedItems(prev => {
       const current = prev[productId] || 0;
       const product = visibleItems.find(p => p._id === productId);
-      
+
       // For sets, quantity is always 1 (can't change)
       if (product?.isSet) {
         return prev;
       }
-      
+
       const maxStock = product?.stock || 0;
       const newQuantity = Math.max(0, Math.min(current + delta, maxStock));
       if (newQuantity === 0) {
@@ -568,7 +567,7 @@ const hasHiddenItems = useMemo(() => {
       }
 
       await response.json();
-      
+
       // Save transaction data for printing before resetting form
       setSavedTransactionItems(transactionItems);
       setSavedPaymentInfo({
@@ -577,7 +576,7 @@ const hasHiddenItems = useMemo(() => {
         remarks,
         totalAmount,
       });
-      
+
       // Fetch updated student data
       const studentRes = await fetch(apiUrl(`/api/users/${student.course}/${studentId}`));
       if (studentRes.ok) {
@@ -604,7 +603,7 @@ const hasHiddenItems = useMemo(() => {
       setPaymentMethod('cash');
       setIsPaid(true);
       setRemarks('');
-      
+
       // Show success message and close modal after 1.5 seconds
       setStatusMsg({ type: 'success', message: 'Transaction saved successfully!' });
       setTimeout(() => {
@@ -621,7 +620,7 @@ const hasHiddenItems = useMemo(() => {
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 flex items-center justify-center z-50 p-4"
       style={{ backgroundColor: 'rgba(15, 23, 42, 0.35)' }}
       onClick={onClose}
@@ -632,13 +631,13 @@ const hasHiddenItems = useMemo(() => {
         `}
       </style>
 
-      <div 
+      <div
         className={`bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col relative ${saving ? 'pointer-events-none' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
-        <button 
-          onClick={onClose} 
+        <button
+          onClick={onClose}
           className="absolute top-4 right-4 z-10 w-10 h-10 bg-white hover:bg-gray-100 rounded-full flex items-center justify-center cursor-pointer transition-colors no-print shadow-lg border border-gray-200"
         >
           <X size={20} className="text-gray-600" />
@@ -654,11 +653,10 @@ const hasHiddenItems = useMemo(() => {
 
         {/* Status Message */}
         {statusMsg.message && (
-          <div className={`mx-5 mt-3 p-3 rounded-lg text-xs font-medium ${
-            statusMsg.type === 'success'
+          <div className={`mx-5 mt-3 p-3 rounded-lg text-xs font-medium ${statusMsg.type === 'success'
               ? 'bg-green-50 text-green-700 border border-green-200'
               : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
+            }`}>
             {statusMsg.message}
           </div>
         )}
@@ -707,11 +705,10 @@ const hasHiddenItems = useMemo(() => {
                       return (
                         <div
                           key={item._id}
-                          className={`flex items-center justify-between gap-2 p-3 rounded-xl border-2 transition-all shadow-sm ${
-                            isSelected
+                          className={`flex items-center justify-between gap-2 p-3 rounded-xl border-2 transition-all shadow-sm ${isSelected
                               ? 'border-blue-500 bg-blue-50'
                               : 'border-blue-100 bg-white hover:border-blue-300'
-                          } ${isSet ? 'border-indigo-300 bg-indigo-50/60' : ''}`}
+                            } ${isSet ? 'border-indigo-300 bg-indigo-50/60' : ''}`}
                         >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-0.5">
@@ -778,11 +775,10 @@ const hasHiddenItems = useMemo(() => {
                                       setSelectedItems(prev => ({ ...prev, [item._id]: 1 }));
                                     }
                                   }}
-                                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors shadow ${
-                                    quantity > 0
+                                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors shadow ${quantity > 0
                                       ? 'bg-blue-600 text-white hover:bg-blue-500'
                                       : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                  }`}
+                                    }`}
                                 >
                                   {quantity > 0 ? 'Remove' : 'Add'}
                                 </button>
@@ -845,7 +841,7 @@ const hasHiddenItems = useMemo(() => {
                     </div>
                     Payment Details
                   </h3>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     {/* Payment Method Toggle */}
                     <div>
@@ -854,22 +850,20 @@ const hasHiddenItems = useMemo(() => {
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('cash')}
-                          className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${
-                            paymentMethod === 'cash'
+                          className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${paymentMethod === 'cash'
                               ? 'bg-blue-600 text-white shadow'
                               : 'text-blue-700 hover:bg-blue-50'
-                          }`}
+                            }`}
                         >
                           Cash
                         </button>
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('online')}
-                          className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${
-                            paymentMethod === 'online'
+                          className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${paymentMethod === 'online'
                               ? 'bg-blue-600 text-white shadow'
                               : 'text-blue-700 hover:bg-blue-50'
-                          }`}
+                            }`}
                         >
                           Online
                         </button>
@@ -880,8 +874,8 @@ const hasHiddenItems = useMemo(() => {
                     <div>
                       <label className="block text-xs font-medium  mb-2">Payment Status</label>
                       <div className="flex items-center gap-2 p-2.5 bg-white rounded-lg border border-blue-200 h-[42px]">
-                      <input
-                        type="checkbox"
+                        <input
+                          type="checkbox"
                           id="paid-checkbox"
                           checked={isPaid}
                           onChange={(e) => setIsPaid(e.target.checked)}
@@ -906,9 +900,9 @@ const hasHiddenItems = useMemo(() => {
                       className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       rows={2}
                     />
-              </div>
-            </div>
-          )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column - Receipt Preview */}
@@ -922,8 +916,8 @@ const hasHiddenItems = useMemo(() => {
                     Receipt Preview
                   </h3>
 
-              {/* Receipt Items Section - For printing */}
-              <div className="space-y-3">
+                  {/* Receipt Items Section - For printing */}
+                  <div className="space-y-3">
                     <div className="border-b border-gray-200 pb-2">
                       <h4 className="text-xs font-semibold  mb-2">Items Issued</h4>
                       <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
@@ -961,7 +955,7 @@ const hasHiddenItems = useMemo(() => {
                         ))}
                       </div>
                     </div>
-                    
+
                     {/* Total */}
                     <div className="flex justify-between items-center pt-2 border-t-2 border-blue-700">
                       <span className="text-xs font-bold text-blue-900">Total:</span>
@@ -1000,8 +994,8 @@ const hasHiddenItems = useMemo(() => {
                     </div>
                   </div>
                 </div>
-            </div>
-          )}
+              </div>
+            )}
           </div>
 
           {/* Thermal Printer Optimized Receipt Section */}
@@ -1012,9 +1006,9 @@ const hasHiddenItems = useMemo(() => {
                 <h2>{receiptConfig.receiptHeader}</h2>
                 <p>{receiptConfig.receiptSubheader}</p>
                 <p style={{ marginTop: '2mm', fontSize: '8px' }}>
-                  {new Date().toLocaleDateString('en-IN', { 
-                    day: '2-digit', 
-                    month: '2-digit', 
+                  {new Date().toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
                     year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'
@@ -1106,7 +1100,7 @@ const hasHiddenItems = useMemo(() => {
           <div className="flex gap-2">
             {savedTransactionItems.length > 0 && (
               <>
-                <button 
+                <button
                   onClick={handlePrint}
                   className="px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-lg hover:shadow-xl"
                   title="Print Receipt (Thermal Printer)"
@@ -1114,7 +1108,7 @@ const hasHiddenItems = useMemo(() => {
                   <Printer size={16} />
                   Print Receipt
                 </button>
-                <button 
+                <button
                   onClick={handleDownload}
                   className="px-4 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-lg hover:shadow-xl"
                   title="Download as PDF"
@@ -1125,11 +1119,11 @@ const hasHiddenItems = useMemo(() => {
               </>
             )}
           </div>
-          
+
           {/* Right side - Save button */}
           <div className="flex gap-3">
-            <button 
-              onClick={handleSaveTransaction} 
+            <button
+              onClick={handleSaveTransaction}
               disabled={transactionItems.length === 0 || saving}
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
             >
