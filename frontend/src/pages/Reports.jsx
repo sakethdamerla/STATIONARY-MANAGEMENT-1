@@ -1163,15 +1163,15 @@ const Reports = ({ currentUser }) => {
 
       // Header Section
       pdf.setFontSize(18);
-      pdf.setTextColor(30, 58, 138);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
       pdf.text(receiptSettings.receiptHeader, 105, 15, { align: 'center' });
       pdf.setFontSize(12);
-      pdf.setTextColor(100, 100, 100);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'normal');
       pdf.text(receiptSettings.receiptSubheader, 105, 22, { align: 'center' });
       pdf.setFontSize(14);
-      pdf.setTextColor(30, 58, 138);
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
       pdf.text('Stock Report', 105, 30, { align: 'center' });
 
@@ -1181,24 +1181,7 @@ const Reports = ({ currentUser }) => {
 
       let yPos = 42;
 
-      // Report Info Section
-      pdf.setFontSize(10);
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Report Information', 20, yPos);
-      yPos += 6;
-      pdf.setFont(undefined, 'normal');
-
-      if (reportFilters.course) {
-        pdf.text(`Course: ${reportFilters.course.toUpperCase()}`, 25, yPos);
-        yPos += 5;
-      }
-      if (reportFilters.productCategory) {
-        pdf.text(`Category: ${reportFilters.productCategory}`, 25, yPos);
-        yPos += 5;
-      }
-      pdf.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 25, yPos);
-      yPos += 8;
+      // Report Info Section - REMOVED
 
       // Summary Section
       if (reportFilters.includeSummary && products.length > 0) {
@@ -1207,91 +1190,72 @@ const Reports = ({ currentUser }) => {
         const lowStockCount = products.filter(p => (p.stock || 0) < 10).length;
         const outOfStockCount = products.filter(p => (p.stock || 0) === 0).length;
 
-        pdf.setFontSize(11);
+        pdf.setFontSize(9); // Slightly smaller to fit all info
         pdf.setFont(undefined, 'bold');
-        pdf.setFillColor(240, 240, 240);
-        pdf.rect(20, yPos - 4, 170, 6, 'F');
-        pdf.text('Summary Statistics', 20, yPos);
-        yPos += 7;
+        pdf.setFillColor(245, 245, 245);
+        pdf.rect(20, yPos - 4, 170, 8, 'F'); // Background for single line stats
+        pdf.text('Summary:', 22, yPos);
 
         pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(9);
-        pdf.text(`Total Products: ${products.length}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Total Stock Units: ${totalStock}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Total Stock Value: ${formatCurrencyForPDF(totalValue)}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Low Stock Items (<10 units): ${lowStockCount}`, 25, yPos);
-        yPos += 5;
-        pdf.text(`Out of Stock Items: ${outOfStockCount}`, 25, yPos);
-        yPos += 8;
+        // Combined stats on one line
+        const statsText = `Products: ${products.length} | Stock: ${totalStock} | Val: ${formatCurrencyForPDF(totalValue)} | LowStock: ${lowStockCount} | OutOfStock: ${outOfStockCount}`;
+        pdf.text(statsText, 45, yPos);
+
+        yPos += 10;
       }
 
       // Stock Details Table
       if (products.length > 0) {
-        pdf.setFontSize(11);
-        pdf.setFont(undefined, 'bold');
-        pdf.setFillColor(240, 240, 240);
-        pdf.rect(20, yPos - 4, 170, 6, 'F');
-        pdf.text('Stock Details', 20, yPos);
-        yPos += 7;
-
         // Table Headers
-        pdf.setFontSize(7);
+        pdf.setFontSize(8);
         pdf.setFont(undefined, 'bold');
         pdf.setFillColor(230, 230, 230);
-        pdf.rect(20, yPos - 3, 170, 5, 'F');
-        pdf.text('Product Name', 22, yPos);
-        pdf.text('Price', 100, yPos);
-        pdf.text('Stock', 130, yPos);
-        pdf.text('Value', 160, yPos);
-        yPos += 6;
+        pdf.rect(20, yPos - 3, 170, 6, 'F');
+        pdf.text('Product Name', 22, yPos + 1);
+        pdf.text('Price', 110, yPos + 1);
+        pdf.text('Stock', 140, yPos + 1);
+        pdf.text('Value', 170, yPos + 1);
+        yPos += 8;
 
         pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(7);
+        pdf.setFontSize(8);
 
         products.forEach((product, index) => {
           // Check if we need a new page
-          if (yPos > 270) {
+          if (yPos > 275) {
             pdf.addPage();
             yPos = 20;
             // Redraw table headers on new page
             pdf.setFont(undefined, 'bold');
             pdf.setFontSize(8);
             pdf.setFillColor(230, 230, 230);
-            pdf.rect(20, yPos - 3, 170, 5, 'F');
-            pdf.text('Product Name', 22, yPos);
-            pdf.text('Price', 100, yPos);
-            pdf.text('Stock', 130, yPos);
-            pdf.text('Value', 160, yPos);
-            yPos += 6;
+            pdf.rect(20, yPos - 3, 170, 6, 'F');
+            pdf.text('Product Name', 22, yPos + 1);
+            pdf.text('Price', 110, yPos + 1);
+            pdf.text('Stock', 140, yPos + 1);
+            pdf.text('Value', 170, yPos + 1);
+            yPos += 8;
             pdf.setFont(undefined, 'normal');
           }
 
-          const productName = (product.name || 'N/A').substring(0, 40);
+          const productName = (product.name || 'N/A').substring(0, 45);
           const price = formatCurrencyForPDF(product.price || 0);
           const stock = product.stock || 0;
           const value = formatCurrencyForPDF((product.stock || 0) * (product.price || 0));
 
           // Alternate row background
           if (index % 2 === 0) {
-            pdf.setFillColor(250, 250, 250);
-            pdf.rect(20, yPos - 3, 170, 5, 'F');
+            pdf.setFillColor(252, 252, 252);
+            pdf.rect(20, yPos - 4, 170, 6, 'F');
           }
 
           pdf.text(productName, 22, yPos);
-          pdf.text(price, 100, yPos);
-          pdf.text(stock.toString(), 130, yPos);
-          pdf.text(value, 160, yPos);
-          yPos += 5;
+          pdf.text(price, 110, yPos);
+          pdf.text(stock.toString(), 140, yPos);
+          pdf.text(value, 170, yPos);
+          yPos += 6;
 
-          // Draw separator line
-          if (index < products.length - 1) {
-            pdf.setDrawColor(220, 220, 220);
-            pdf.line(20, yPos, 190, yPos);
-            yPos += 2;
-          }
+          // Removed underlines
         });
       } else {
         pdf.setFontSize(10);
