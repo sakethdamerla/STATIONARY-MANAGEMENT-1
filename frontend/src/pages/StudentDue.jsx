@@ -430,6 +430,65 @@ const StudentDue = () => {
         return true;
       });
 
+      // Calculate Paid/Unpaid counts for the report summary
+      let reportPaidCount = 0;
+      let reportUnpaidCount = 0;
+      let reportTotalStudents = 0;
+
+      // Helper to check status (Paid/Unpaid) for filtered students
+      // We process all students matching the filters to get accurate counts
+      const studentsMatchingFilters = normalizedStudents.filter(student => {
+        const selectedCourse = normalizeValue(reportFilters.course);
+        const selectedYear = Number(reportFilters.year);
+        const selectedBranch = reportFilters.branch ? normalizeValue(reportFilters.branch) : null;
+        const selectedSemester = reportFilters.semester ? Number(reportFilters.semester) : null;
+
+        if (selectedCourse && normalizeValue(student.course) !== selectedCourse) return false;
+        if (!Number.isNaN(selectedYear) && selectedYear > 0 && Number(student.year) !== selectedYear) return false;
+        if (selectedBranch && normalizeValue(student.branch) !== selectedBranch) return false;
+        if (selectedSemester !== null && !Number.isNaN(selectedSemester) && selectedSemester > 0) {
+          const studentSemester = Number(student.semester);
+          if (Number.isNaN(studentSemester) || studentSemester !== selectedSemester) return false;
+        }
+        return true;
+      });
+
+      // Products map for faster lookup
+      const productsByCourse = new Map();
+      normalizedProducts.forEach(product => {
+        if (!product._normalizedCourse) return;
+        if (!productsByCourse.has(product._normalizedCourse)) {
+          productsByCourse.set(product._normalizedCourse, []);
+        }
+        productsByCourse.get(product._normalizedCourse).push(product);
+      });
+
+      studentsMatchingFilters.forEach(student => {
+        if (!student._normalizedCourse) return;
+        const courseProducts = productsByCourse.get(student._normalizedCourse) || [];
+        if (!courseProducts.length) return;
+
+        // Check if student has applicable products
+        const applicableProds = courseProducts.filter(product => {
+          if (product._years.length > 0 && !product._years.includes(student._year)) return false;
+          if (product._semesters.length > 0 && (!student._semester || !product._semesters.includes(student._semester))) return false;
+          if (product._normalizedBranches.length > 0 && !product._normalizedBranches.includes(student._normalizedBranch)) return false;
+          return true;
+        });
+
+        if (applicableProds.length === 0) return; // Not applicable for this student
+
+        reportTotalStudents++;
+
+        // Check availability
+        const hasPending = applicableProds.some(product => !student._itemsMap[product._key]);
+        if (hasPending) {
+          reportUnpaidCount++;
+        } else {
+          reportPaidCount++;
+        }
+      });
+
       // Generate PDF
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -441,7 +500,7 @@ const StudentDue = () => {
       pdf.setFontSize(16);
       pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
-      pdf.text('Pending Students List', 105, 15, { align: 'center' });
+      pdf.text('Stationary Pending Students List', 105, 15, { align: 'center' });
 
       // Draw line under header
       pdf.setDrawColor(200, 200, 200);
@@ -485,7 +544,8 @@ const StudentDue = () => {
         // Right side: Statistics (Merged into same line)
         if (reportFilters.includeSummary) {
           const totalPendingAmount = filteredForReport.reduce((sum, record) => sum + record.pendingValue, 0);
-          const statsText = `Total Students: ${filteredForReport.length}   |   Total Pending Amount: ${formatCurrencyForPDF(totalPendingAmount)}`;
+          // NEW SUMMARY FORMAT: Paid | Unpaid | Total Students | Pending Amount
+          const statsText = `Paid: ${reportPaidCount} | Unpaid: ${reportUnpaidCount} | Total Students: ${reportTotalStudents} | Amount: ${formatCurrencyForPDF(totalPendingAmount)}`;
 
           pdf.setFontSize(9); // Slightly smaller for stats
           pdf.text(statsText, 190, yPos, { align: 'right' });
