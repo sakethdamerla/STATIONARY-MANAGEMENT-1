@@ -113,24 +113,24 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
   const fetchVendors = async () => {
     try {
       const res = await fetch(apiUrl('/api/vendors?active=true'));
-      if (res.ok) {
-        const data = await res.json();
-        setVendors(data);
-      }
+      if (!res.ok) throw new Error('Failed to load vendors');
+      const data = await res.json();
+      setVendors(data);
     } catch (err) {
       console.error('Error fetching vendors:', err);
+      setStatusMsg({ type: 'error', message: 'Failed to load vendors' });
     }
   };
 
   const fetchColleges = async () => {
     try {
       const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
-      if (res.ok) {
-        const data = await res.json();
-        setColleges(data);
-      }
+      if (!res.ok) throw new Error(`Failed to load colleges (${res.status})`);
+      const data = await res.json();
+      setColleges(data);
     } catch (err) {
       console.error('Error fetching colleges:', err);
+      setStatusMsg({ type: 'error', message: 'Failed to load colleges list' });
     }
   };
 

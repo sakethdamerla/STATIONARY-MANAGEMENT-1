@@ -50,10 +50,9 @@ const Dashboard = () => {
     const fetchColleges = async () => {
       try {
         const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
-        if (res.ok) {
-          const data = await res.json();
-          setColleges(data);
-        }
+        if (!res.ok) throw new Error('Failed to load colleges');
+        const data = await res.json();
+        setColleges(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('Error fetching colleges:', err);
       }

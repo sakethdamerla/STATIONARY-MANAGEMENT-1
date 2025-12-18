@@ -21,10 +21,12 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
       (async () => {
         try {
           const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
-          if (res.ok) {
-            setColleges(await res.json());
-          }
-        } catch (e) { console.error(e); }
+          if (!res.ok) throw new Error('Failed to load colleges');
+          const data = await res.json();
+          setColleges(Array.isArray(data) ? data : []);
+        } catch (e) {
+          console.error("ManageStock: Error fetching colleges", e);
+        }
       })();
     }
   }, [isSuperAdmin]);
@@ -113,8 +115,8 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive
-                          ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                          : 'text-gray-600 hover:bg-gray-100'
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-100'
                         }`}
                     >
                       <IconComponent size={16} />

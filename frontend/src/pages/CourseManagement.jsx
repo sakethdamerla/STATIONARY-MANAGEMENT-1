@@ -39,6 +39,9 @@ const CourseManagement = ({ currentUser }) => {
         setLoading(true);
         // Fetch Colleges
         const collegeRes = await fetch(apiUrl('/api/stock-transfers/colleges'));
+        if (!collegeRes.ok) {
+          throw new Error(`Failed to load colleges (${collegeRes.status})`);
+        }
         const collegeData = await collegeRes.json();
 
         // Fetch All Configured Courses
@@ -60,7 +63,7 @@ const CourseManagement = ({ currentUser }) => {
 
       } catch (err) {
         console.error("Failed to load data", err);
-        setError("Failed to load colleges or courses configuration.");
+        setError(err.message || "Failed to load colleges or courses configuration.");
       } finally {
         setLoading(false);
       }
