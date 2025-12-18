@@ -9,17 +9,27 @@ const { Vendor } = require('../models/vendorModel');
  */
 const createStockEntry = async (req, res) => {
   try {
-    const { product, vendor, quantity, invoiceNumber, invoiceDate, purchasePrice, remarks, createdBy } = req.body;
+    const { 
+      // Shared fields
+      vendor, invoiceNumber, invoiceDate, remarks, createdBy, college, 
+      // Legacy single fields
+      product, quantity, purchasePrice,
+      // Batch fields
+      items 
+    } = req.body;
 
-    // Validate required fields
-    if (!product || !vendor || !quantity || quantity < 1) {
-      return res.status(400).json({ message: 'Product, vendor, and quantity (>=1) are required' });
+    // Normalize items into array
+    let stockItems = [];
+    if (items && Array.isArray(items) && items.length > 0) {
+      stockItems = items;
+    } else if (product && quantity) {
+      stockItems = [{ product, quantity, purchasePrice }];
+    } else {
+      return res.status(400).json({ message: 'No items provided for stock entry' });
     }
 
-    // Verify product exists
-    const productDoc = await Product.findById(product);
-    if (!productDoc) {
-      return res.status(404).json({ message: 'Product not found' });
+    if (!vendor) {
+      return res.status(400).json({ message: 'Vendor is required' });
     }
 
     // Verify vendor exists
@@ -28,32 +38,137 @@ const createStockEntry = async (req, res) => {
       return res.status(404).json({ message: 'Vendor not found' });
     }
 
-    // Calculate total cost
-    const totalCost = (purchasePrice || 0) * quantity;
+    // Verify college if provided
+    let collegeDoc = null;
+    if (college) {
+      const { College } = require('../models/collegeModel');
+      collegeDoc = await College.findById(college);
+      if (!collegeDoc) {
+        return res.status(404).json({ message: 'Destination college not found' });
+      }
+    }
 
-    const stockEntry = new StockEntry({
-      product,
-      vendor,
-      quantity,
-      invoiceNumber: invoiceNumber?.trim() || '',
-      invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
-      purchasePrice: purchasePrice || 0,
-      totalCost,
-      remarks: remarks?.trim() || '',
-      createdBy: createdBy?.trim() || 'System',
+    // Process each item
+    const createdEntries = [];
+    const errors = [];
+
+    // Pre-load current College stock if applicable
+    const collegeStockMap = new Map();
+    if (collegeDoc) {
+        collegeDoc.stock.forEach(s => collegeStockMap.set(s.product.toString(), s));
+    }
+
+    for (const item of stockItems) {
+      try {
+        if (!item.product || !item.quantity || item.quantity < 1) {
+           errors.push({ item, error: 'Invalid product or quantity' });
+           continue; 
+        }
+        
+        const productDoc = await Product.findById(item.product);
+        if (!productDoc) {
+           errors.push({ item, error: 'Product not found' });
+           continue;
+        }
+
+        const totalCost = (item.purchasePrice || 0) * item.quantity;
+
+        const stockEntry = new StockEntry({
+          product: item.product,
+          vendor,
+          college: college || null,
+          quantity: item.quantity,
+          invoiceNumber: invoiceNumber?.trim() || '',
+          invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
+          purchasePrice: item.purchasePrice || 0,
+          totalCost,
+          remarks: remarks?.trim() || '',
+          createdBy: createdBy?.trim() || 'System',
+        });
+
+        const savedEntry = await stockEntry.save();
+        createdEntries.push(savedEntry);
+
+        // Update Stock Logic
+        if (collegeDoc) {
+           // Update College Stock Memory Map first? No, direct update array
+           // Actually, saving college doc in loop might be race-condition prone if concurrent? 
+           // But here we are sequential.
+           // Better to update memory map and save ONCE after loop?
+           // Yes.
+           const pId = item.product.toString();
+           if (collegeStockMap.has(pId)) {
+               const s = collegeStockMap.get(pId);
+               s.quantity = (s.quantity || 0) + Number(item.quantity);
+           } else {
+               const newItem = { product: item.product, quantity: Number(item.quantity) };
+               collegeDoc.stock.push(newItem);
+               // Re-find to add to map reference?
+               // Since we pushed to array, we should be fine if we just save at end.
+               // But let's keep map updated if we might see same item twice in batch?
+               // If batch has duplicates, map helps.
+               // Refinding pushed item in mongoose array might be tricky without save.
+               // Let's simplified: Check map, update. If not in map, PUSH TO ARRAY and ADD TO MAP.
+               // Mongoose array push works. 
+               
+               // To be safe for duplicates in same batch:
+               // We need a stable reference.
+               // Mongoose array elements are subdocs.
+               // Let's rebuild map from current array state?
+               // Or simply:
+           }
+           // Optimization: Just accumulate changes in a local map and apply ONCE.
+           
+        } else {
+           // Update Central Stock - Update immediately
+           productDoc.stock = (productDoc.stock || 0) + Number(item.quantity);
+           await productDoc.save();
+        }
+
+      } catch (err) {
+        errors.push({ item, error: err.message });
+      }
+    }
+
+    // Save College Doc once if needed
+    if (collegeDoc) {
+        // We need to re-apply the logic properly.
+        // Let's iterate stockItems again to apply to collegeDoc to ensure we didn't miss anything or mess up async
+        // Actually, the previous loop didn't apply to collegeDoc correctly because of the map complexity.
+        // Let's do it cleanly:
+        
+        // 1. Map productID -> totalQty from the batch
+        const batchQtyMap = new Map();
+        createdEntries.forEach(entry => {
+             const pid = entry.product.toString();
+             const qty = entry.quantity;
+             batchQtyMap.set(pid, (batchQtyMap.get(pid) || 0) + qty);
+        });
+
+        // 2. Update College Doc
+        batchQtyMap.forEach((qty, pid) => {
+             const existingInfo = collegeDoc.stock.find(s => s.product.toString() === pid);
+             if (existingInfo) {
+                 existingInfo.quantity = (existingInfo.quantity || 0) + qty;
+             } else {
+                 collegeDoc.stock.push({ product: pid, quantity: qty });
+             }
+        });
+        
+        await collegeDoc.save();
+    }
+
+    if (createdEntries.length === 0 && errors.length > 0) {
+        return res.status(400).json({ message: 'Failed to create entries', errors });
+    }
+
+    // Return success (maybe partial)
+    res.status(201).json({ 
+        message: `Successfully created ${createdEntries.length} entries`, 
+        entries: createdEntries,
+        errors: errors.length > 0 ? errors : undefined
     });
 
-    const createdStockEntry = await stockEntry.save();
-
-    // Update product stock
-    productDoc.stock = (productDoc.stock || 0) + quantity;
-    await productDoc.save();
-
-    // Populate the created stock entry for response
-    await createdStockEntry.populate('product', 'name price');
-    await createdStockEntry.populate('vendor', 'name');
-
-    res.status(201).json(createdStockEntry);
   } catch (error) {
     console.error('Error in createStockEntry:', error);
     res.status(400).json({ message: 'Error creating stock entry', error: error.message });
@@ -81,6 +196,7 @@ const getStockEntries = async (req, res) => {
     const stockEntries = await StockEntry.find(filter)
       .populate('product', 'name price')
       .populate('vendor', 'name')
+      .populate('college', 'name')
       .sort({ createdAt: -1 });
 
     res.status(200).json(stockEntries);
@@ -99,7 +215,8 @@ const getStockEntryById = async (req, res) => {
   try {
     const stockEntry = await StockEntry.findById(req.params.id)
       .populate('product', 'name price stock')
-      .populate('vendor', 'name contactPerson email phone');
+      .populate('vendor', 'name contactPerson email phone')
+      .populate('college', 'name');
 
     if (stockEntry) {
       res.status(200).json(stockEntry);

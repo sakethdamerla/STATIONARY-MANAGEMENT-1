@@ -164,10 +164,11 @@ const Reports = ({ currentUser }) => {
       const response = await fetch(apiUrl(`/api/transactions?${queryParams.toString()}`));
       if (response.ok) {
         const data = await response.json();
+        const safeData = Array.isArray(data) ? data : [];
         // Filter by date range on client side if needed
-        let filteredData = data;
+        let filteredData = safeData;
         if (filters.startDate || filters.endDate) {
-          filteredData = data.filter(transaction => {
+          filteredData = safeData.filter(transaction => {
             const transDate = new Date(transaction.transactionDate);
             if (filters.startDate && transDate < new Date(filters.startDate)) return false;
             if (filters.endDate && transDate > new Date(filters.endDate + 'T23:59:59')) return false;
@@ -227,12 +228,21 @@ const Reports = ({ currentUser }) => {
   }, [filters]);
 
   const filteredTransactions = useMemo(() => {
+    if (!Array.isArray(transactions)) return [];
     return transactions.filter(transaction => {
       // Filter by transaction type if selected
       if (filters.transactionType) {
         const transType = transaction.transactionType || 'student';
         if (transType !== filters.transactionType) {
-          return false;
+          // Compatibility for college/branch transfers
+          const isTransferFilter = filters.transactionType === 'college_transfer' || filters.transactionType === 'branch_transfer';
+          const isTransferType = transType === 'college_transfer' || transType === 'branch_transfer';
+
+          if (isTransferFilter && isTransferType) {
+            // Allow match
+          } else {
+            return false;
+          }
         }
       }
 
@@ -240,18 +250,19 @@ const Reports = ({ currentUser }) => {
         transaction.transactionId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         transaction.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         transaction.student?.studentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.collegeTransfer?.collegeName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         transaction.branchTransfer?.branchName?.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesSearch;
     });
   }, [transactions, searchTerm, filters.transactionType]);
 
-  // Separate student transactions and branch transfers
+  // Separate student transactions and college transfers
   const studentTransactions = useMemo(() => {
     return filteredTransactions.filter(t => !t.transactionType || t.transactionType === 'student');
   }, [filteredTransactions]);
 
   const branchTransfers = useMemo(() => {
-    return filteredTransactions.filter(t => t.transactionType === 'branch_transfer');
+    return filteredTransactions.filter(t => t.transactionType === 'branch_transfer' || t.transactionType === 'college_transfer');
   }, [filteredTransactions]);
 
   // Pagination for student transactions
@@ -327,8 +338,8 @@ const Reports = ({ currentUser }) => {
 
   // Calculate day-end sales summary
   const calculateDayEndSales = useCallback((transactions) => {
-    // Exclude branch transfers from sales calculations (internal stock movements)
-    const revenueTransactions = transactions.filter(t => t.transactionType !== 'branch_transfer');
+    // Exclude branch/college transfers from sales calculations (internal stock movements)
+    const revenueTransactions = transactions.filter(t => t.transactionType !== 'branch_transfer' && t.transactionType !== 'college_transfer');
 
     // Aggregate items sold across all transactions
     // For sets, expand them into their component items
@@ -394,8 +405,8 @@ const Reports = ({ currentUser }) => {
 
   // Calculate statistics from filtered transactions
   const statistics = useMemo(() => {
-    // Exclude branch transfers from revenue calculations (internal stock movements)
-    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
+    // Exclude branch/college transfers from revenue calculations (internal stock movements)
+    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer' && t.transactionType !== 'college_transfer');
 
     const totalAmount = revenueTransactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
     const paidTransactions = revenueTransactions.filter(t => t.isPaid);
@@ -420,7 +431,7 @@ const Reports = ({ currentUser }) => {
 
   // Calculate monthly statistics with items sold and day-wise breakdown
   const monthlyStats = useMemo(() => {
-    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
+    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer' && t.transactionType !== 'college_transfer');
     const monthMap = new Map();
 
     revenueTransactions.forEach(transaction => {
@@ -594,7 +605,7 @@ const Reports = ({ currentUser }) => {
 
   // Enhanced Monthly Sales Report - Comprehensive table with all items and months
   const comprehensiveMonthlyReport = useMemo(() => {
-    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
+    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer' && t.transactionType !== 'college_transfer');
 
     // Get all months from transactions
     const allMonths = new Set();
@@ -770,7 +781,7 @@ const Reports = ({ currentUser }) => {
 
   // Calculate day-wise breakdown
   const dayWiseBreakdown = useMemo(() => {
-    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer');
+    const revenueTransactions = studentTransactions.filter(t => t.transactionType !== 'branch_transfer' && t.transactionType !== 'college_transfer');
     const dayMap = new Map();
 
     revenueTransactions.forEach(transaction => {
@@ -1670,7 +1681,7 @@ const Reports = ({ currentUser }) => {
                   >
                     <option value="">All Transactions</option>
                     <option value="student">Student Transactions</option>
-                    <option value="branch_transfer">Branch Transfers</option>
+                    <option value="college_transfer">College Transfers</option>
                   </select>
                   <select
                     value={filters.paymentMethod}
@@ -1928,7 +1939,7 @@ const Reports = ({ currentUser }) => {
                                     <span className="text-sm font-semibold text-gray-900">{formatCurrency(transaction.totalAmount)}</span>
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
-                                    {transaction.transactionType === 'branch_transfer' ? (
+                                    {transaction.transactionType === 'branch_transfer' || transaction.transactionType === 'college_transfer' ? (
                                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.isPaid
                                         ? 'bg-green-100 text-green-800'
                                         : 'bg-red-100 text-red-800'
@@ -2041,13 +2052,13 @@ const Reports = ({ currentUser }) => {
                 </div>
               )}
 
-              {/* Branch Transfers Table */}
-              {(filters.transactionType === '' || filters.transactionType === 'branch_transfer') && (
+              {/* College Transfers Table */}
+              {(filters.transactionType === '' || filters.transactionType === 'branch_transfer' || filters.transactionType === 'college_transfer') && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Branch Transfers</h3>
-                      <p className="text-sm text-gray-500">Review stock transfers to branches</p>
+                      <h3 className="text-lg font-semibold text-gray-900">College Transfers</h3>
+                      <p className="text-sm text-gray-500">Review stock transfers to colleges</p>
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
@@ -2083,18 +2094,18 @@ const Reports = ({ currentUser }) => {
                         {branchTransfers.length === 0 ? (
                           <div className="p-12 text-center">
                             <div className="text-6xl mb-4">📦</div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No branch transfers found</h3>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No college transfers found</h3>
                             <p className="text-gray-600">
                               {searchTerm || Object.values(filters).some(f => f !== '')
                                 ? 'Try adjusting your search criteria'
-                                : 'No branch transfers have been created yet'}
+                                : 'No college transfers have been created yet'}
                             </p>
                           </div>
                         ) : (
                           <table className="w-full">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">College</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
@@ -2108,12 +2119,12 @@ const Reports = ({ currentUser }) => {
                                 <tr key={transaction._id} className="hover:bg-gray-50 transition-colors">
                                   <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex flex-col">
-                                      <span className="text-sm font-medium text-gray-900">{transaction.branchTransfer?.branchName || 'N/A'}</span>
-                                      <span className="text-xs text-gray-500">Branch Transfer</span>
+                                      <span className="text-sm font-medium text-gray-900">{transaction.collegeTransfer?.collegeName || transaction.branchTransfer?.branchName || 'N/A'}</span>
+                                      <span className="text-xs text-gray-500">College Transfer</span>
                                     </div>
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className="text-sm text-gray-900">{transaction.branchTransfer?.branchLocation || 'N/A'}</span>
+                                    <span className="text-sm text-gray-900">{transaction.collegeTransfer?.collegeLocation || transaction.branchTransfer?.branchLocation || 'N/A'}</span>
                                   </td>
                                   <td className="px-6 py-4">
                                     <span className="text-sm text-gray-900">

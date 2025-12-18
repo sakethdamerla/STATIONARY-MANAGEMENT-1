@@ -27,6 +27,18 @@ const subAdminSchema = new mongoose.Schema(
       // e.g., ['dashboard:full', 'student-management:view', 'manage-stock:full', 'transactions:view']
       // Legacy format (without access level) is treated as 'full' for backward compatibility
     },
+    // Assigned College (New)
+    assignedCollege: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'College',
+      default: null,
+    },
+    // Legacy support for assignedBranch (Old)
+    assignedBranch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'College', // Referencing College as TransferBranch is deprecated
+      default: null,
+    },
   },
   { timestamps: true }
 );

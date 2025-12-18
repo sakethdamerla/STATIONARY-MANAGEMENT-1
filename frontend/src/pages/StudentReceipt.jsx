@@ -21,6 +21,7 @@ const StudentReceiptModal = ({
   onTransactionQueued,
   isOnline: isOnlineProp,
   mode = 'mapped',
+  currentUser,
 }) => {
   const receiptRef = useRef(null);
   const [selectedItems, setSelectedItems] = useState({});
@@ -558,6 +559,10 @@ const StudentReceiptModal = ({
           paymentMethod,
           isPaid,
           remarks,
+          createdBy: currentUser?.id,
+          collegeId: currentUser?.assignedCollege || currentUser?.assignedBranch?._id || currentUser?.assignedBranch || undefined,
+          // Support for legacy assignment
+          branchId: currentUser?.assignedCollege || currentUser?.assignedBranch?._id || currentUser?.assignedBranch || undefined,
         }),
       });
 
@@ -654,8 +659,8 @@ const StudentReceiptModal = ({
         {/* Status Message */}
         {statusMsg.message && (
           <div className={`mx-5 mt-3 p-3 rounded-lg text-xs font-medium ${statusMsg.type === 'success'
-              ? 'bg-green-50 text-green-700 border border-green-200'
-              : 'bg-red-50 text-red-700 border border-red-200'
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
             }`}>
             {statusMsg.message}
           </div>
@@ -706,8 +711,8 @@ const StudentReceiptModal = ({
                         <div
                           key={item._id}
                           className={`flex items-center justify-between gap-2 p-3 rounded-xl border-2 transition-all shadow-sm ${isSelected
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-blue-100 bg-white hover:border-blue-300'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-blue-100 bg-white hover:border-blue-300'
                             } ${isSet ? 'border-indigo-300 bg-indigo-50/60' : ''}`}
                         >
                           <div className="flex-1 min-w-0">
@@ -776,8 +781,8 @@ const StudentReceiptModal = ({
                                     }
                                   }}
                                   className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors shadow ${quantity > 0
-                                      ? 'bg-blue-600 text-white hover:bg-blue-500'
-                                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    ? 'bg-blue-600 text-white hover:bg-blue-500'
+                                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                                     }`}
                                 >
                                   {quantity > 0 ? 'Remove' : 'Add'}
@@ -851,8 +856,8 @@ const StudentReceiptModal = ({
                           type="button"
                           onClick={() => setPaymentMethod('cash')}
                           className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${paymentMethod === 'cash'
-                              ? 'bg-blue-600 text-white shadow'
-                              : 'text-blue-700 hover:bg-blue-50'
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'text-blue-700 hover:bg-blue-50'
                             }`}
                         >
                           Cash
@@ -861,8 +866,8 @@ const StudentReceiptModal = ({
                           type="button"
                           onClick={() => setPaymentMethod('online')}
                           className={`relative flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${paymentMethod === 'online'
-                              ? 'bg-blue-600 text-white shadow'
-                              : 'text-blue-700 hover:bg-blue-50'
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'text-blue-700 hover:bg-blue-50'
                             }`}
                         >
                           Online

@@ -1,22 +1,40 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Package, Plus, Building2, Archive, List, Lock } from 'lucide-react';
+import { Package, Plus, Building2, Archive, List, Lock, Filter } from 'lucide-react';
 import AddProduct from './stock/AddProduct';
 import AddStock from './stock/AddStock';
 import VendorManagement from './stock/VendorManagement';
 import StockEntries from './stock/StockEntries';
 import { hasViewAccess } from '../utils/permissions';
+import { apiUrl } from '../utils/api';
 
 const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, currentCourse, products = [], setProducts, currentUser }) => {
   // Check access level
   const isSuperAdmin = currentUser?.role === 'Administrator';
   const permissions = currentUser?.permissions || [];
-  
+
+  // View Context for SuperAdmin (Central vs College)
+  const [viewContext, setViewContext] = useState('central'); // 'central' or collegeId
+  const [colleges, setColleges] = useState([]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      (async () => {
+        try {
+          const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
+          if (res.ok) {
+            setColleges(await res.json());
+          }
+        } catch (e) { console.error(e); }
+      })();
+    }
+  }, [isSuperAdmin]);
+
   // Check for legacy manage-stock permission (without access level)
   const hasLegacyPermission = permissions.some(p => {
     if (typeof p !== 'string') return false;
     return p === 'manage-stock' || p.startsWith('manage-stock:');
   });
-  
+
   // Check permissions for each tab
   const canAccessProducts = isSuperAdmin || hasLegacyPermission || hasViewAccess(permissions, 'stock-products');
   const canAccessStock = isSuperAdmin || hasLegacyPermission || hasViewAccess(permissions, 'stock-add');
@@ -75,7 +93,7 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
                   const IconComponent = tab.icon;
                   const isActive = activeTab === tab.id;
                   const hasAccess = tab.canAccess;
-                  
+
                   if (!hasAccess) {
                     return (
                       <button
@@ -89,16 +107,15 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
                       </button>
                     );
                   }
-                  
+
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        isActive
+                      className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive
                           ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                           : 'text-gray-600 hover:bg-gray-100'
-                      }`}
+                        }`}
                     >
                       <IconComponent size={16} />
                       <span>{tab.label}</span>
@@ -108,6 +125,25 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
               </div>
             )}
           </div>
+
+          {/* Admin Context Selector */}
+          {isSuperAdmin && activeTab === 'products' && (
+            <div className="mt-4 flex items-center gap-2 justify-end">
+              <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                <Filter size={14} className="text-gray-500" /> View Stock For:
+              </span>
+              <select
+                className="text-sm border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                value={viewContext}
+                onChange={(e) => setViewContext(e.target.value)}
+              >
+                <option value="central">Central Warehouse</option>
+                {colleges.map(c => (
+                  <option key={c._id} value={c._id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {tabs.length === 0 && (
@@ -136,6 +172,7 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
                 products={products}
                 setProducts={setProducts}
                 currentUser={currentUser}
+                viewContext={viewContext} // Pass the context
               />
             )}
             {activeTab === 'stock' && canAccessStock && (

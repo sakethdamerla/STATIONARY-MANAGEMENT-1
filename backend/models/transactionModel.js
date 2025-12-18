@@ -9,11 +9,23 @@ const transactionSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    // Transaction type: 'student' or 'branch_transfer'
+    // Transaction type: 'student', 'branch_transfer' (legacy), 'college_transfer'
     transactionType: {
       type: String,
-      enum: ['student', 'branch_transfer'],
+      enum: ['student', 'branch_transfer', 'college_transfer'],
       default: 'student',
+    },
+    // The college where this transaction took place (deduct stock from here)
+    collegeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'College',
+      required: false,
+    },
+    // Legacy support
+    branchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'College',
+      required: false,
     },
     student: {
       userId: { 
@@ -27,11 +39,27 @@ const transactionSchema = new mongoose.Schema(
       year: { type: Number, required: function() { return this.transactionType === 'student'; } },
       branch: { type: String, default: '' },
     },
-    // Branch transfer details (for branch_transfer type)
+    // College transfer details
+    collegeTransfer: {
+      collegeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'College',
+        required: function() { return this.transactionType === 'college_transfer'; },
+      },
+      collegeName: {
+        type: String,
+        required: function() { return this.transactionType === 'college_transfer'; },
+      },
+      collegeLocation: {
+        type: String,
+        default: '',
+      },
+    },
+    // Legacy Branch transfer details
     branchTransfer: {
       branchId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'TransferBranch',
+        ref: 'College',
         required: function() { return this.transactionType === 'branch_transfer'; },
       },
       branchName: {
@@ -115,6 +143,7 @@ transactionSchema.index({ transactionId: 1 });
 transactionSchema.index({ transactionDate: -1 });
 transactionSchema.index({ transactionType: 1 });
 transactionSchema.index({ 'branchTransfer.branchId': 1 });
+transactionSchema.index({ branchId: 1 });
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 

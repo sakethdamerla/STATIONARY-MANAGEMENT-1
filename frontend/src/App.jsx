@@ -334,6 +334,8 @@ function App() {
         role: data.role || 'Editor',
         id: data._id,
         permissions: data.permissions || [],
+        assignedCollege: data.assignedCollege || data.assignedBranch || null,
+        assignedBranch: data.assignedCollege || data.assignedBranch || null, // Keep for backward compatibility
       };
 
       setCurrentUser(userData);
@@ -373,7 +375,7 @@ function App() {
           {/* Rotating ring */}
           <div className="absolute inset-0 w-20 h-20 mx-auto border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
         </div>
-        
+
         {/* Loading text with animation */}
         <div className="space-y-2">
           <h3 className="text-xl font-semibold text-gray-800 animate-pulse">Loading Application</h3>
@@ -388,178 +390,178 @@ function App() {
   );
 
   return (
-  <Suspense fallback={<LoadingScreen />}>
-    <div className={`min-h-screen bg-gray-50 ${!isOnline ? 'pt-16' : ''}`}>
-      {!isOnline && (
-        <div className="fixed top-2 left-0 right-0 z-[60] flex justify-center px-4 pointer-events-none">
-          <div className="bg-red-500 text-white  text-sm font-medium py-2.5 px-4 rounded-full shadow-lg pointer-events-auto flex items-center gap-2 max-w-4xl w-full justify-center">
-            <span className="text-base leading-none">📡</span>
-            <span className="text-center">
-              You’re offline. Showing cached data edits will sync as soon as you reconnect.
-            </span>
+    <Suspense fallback={<LoadingScreen />}>
+      <div className={`min-h-screen bg-gray-50 ${!isOnline ? 'pt-16' : ''}`}>
+        {!isOnline && (
+          <div className="fixed top-2 left-0 right-0 z-[60] flex justify-center px-4 pointer-events-none">
+            <div className="bg-red-500 text-white  text-sm font-medium py-2.5 px-4 rounded-full shadow-lg pointer-events-auto flex items-center gap-2 max-w-4xl w-full justify-center">
+              <span className="text-base leading-none">📡</span>
+              <span className="text-center">
+                You’re offline. Showing cached data edits will sync as soon as you reconnect.
+              </span>
+            </div>
           </div>
-        </div>
-      )}
-      {isAuthenticated ? (
-        <>
-          <Sidebar 
-            onLogout={handleLogout} 
-            isMobile={isMobile}
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-            currentUser={currentUser}
-          />
-          <main className={`
+        )}
+        {isAuthenticated ? (
+          <>
+            <Sidebar
+              onLogout={handleLogout}
+              isMobile={isMobile}
+              sidebarOpen={sidebarOpen}
+              setSidebarOpen={setSidebarOpen}
+              currentUser={currentUser}
+            />
+            <main className={`
             flex-1 min-h-screen bg-gray-50 flex justify-center items-start transition-all duration-300
             ${isMobile ? 'ml-0' : (sidebarOpen ? 'ml-52' : 'ml-20')}
             ${isMobile ? 'pt-20 px-4' : 'px-8'}
             }
           `}>
-            {isMobile && (
-              <button 
-                className="fixed top-4 left-4 z-50 w-12 h-12 rounded-xl bg-primary-500 border-none text-white flex items-center justify-center cursor-pointer shadow-strong transition-all duration-200 hover:bg-primary-600 hover:scale-105"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-              >
-                <Menu size={24} />
-              </button>
-            )}
-            <div className="w-full  mx-auto">
-              <Routes>
-                {/* Dashboard is the default route for authenticated users */}
-                <Route
-                  path="/"
-                  element={<DefaultRoute currentUser={currentUser} />}
-                />
-                <Route
-                  path="/students-dashboard"
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermissions={["student-dashboard", "course-dashboard"]}>
-                      <StudentDashboard
-                        initialStudents={students}
-                        isOnline={isOnline}
-                        currentUser={currentUser}
-                      />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/student/:id"
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermissions={["student-management", "student-dashboard", "course-dashboard"]}>
-                      <StudentDetail
-                        students={students}
-                        setStudents={setStudents}
-                        products={products}
-                        setProducts={setProducts}
-                        onQueueTransaction={queueOfflineTransaction}
-                        isOnline={isOnline}
-                        pendingTransactions={pendingTransactions}
-                        currentUser={currentUser}
-                      />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/add-student"
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="add-student">
-                      <AddStudent addStudent={addStudent} currentUser={currentUser} />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/student-management"
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="student-management">
-                      <StudentManagement
-                        students={students}
-                        setStudents={setStudents}
-                        addStudent={addStudent}
-                        refreshStudents={fetchStudentsData}
-                        currentUser={currentUser}
-                      />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/sub-admin-management"
-                  element={
-                    <ProtectedRoute currentUser={currentUser} superAdminOnly={true}>
-                      <SubAdminManagement currentUser={currentUser} />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/manage-stock"
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermissions={['stock-products', 'stock-add', 'stock-entries', 'stock-vendors', 'manage-stock']}>
-                      <ManageStock itemCategories={itemCategories} addItemCategory={addItemCategory} setItemCategories={setItemCategories} currentCourse={currentCourse} products={products} setProducts={setProducts} currentUser={currentUser} />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route 
-                  path="/courses" 
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="courses">
-                      <CourseManagement currentUser={currentUser} />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/transactions" 
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
-                      <Reports currentUser={currentUser} />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/student-due" 
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
-                      <StudentDue currentUser={currentUser} />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/audit-logs" 
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermissions={['audit-log-entry', 'audit-log-approval', 'audit-logs']}>
-                      <AuditLogs currentUser={currentUser} />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/settings" 
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="settings">
-                      <Settings currentUser={currentUser} />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/stock-transfers" 
-                  element={
-                    <ProtectedRoute currentUser={currentUser} requiredPermission="stock-transfers">
-                      <StockTransfers currentUser={currentUser} />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </div>
-          </main>
-        </>
-      ) : (
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<Login onLogin={handleLogin} />} />
-          {/* Unauthenticated users attempting to access any other path are redirected to HomePage ('/') */}
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      )}
-    </div>
-  </Suspense>
+              {isMobile && (
+                <button
+                  className="fixed top-4 left-4 z-50 w-12 h-12 rounded-xl bg-primary-500 border-none text-white flex items-center justify-center cursor-pointer shadow-strong transition-all duration-200 hover:bg-primary-600 hover:scale-105"
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                >
+                  <Menu size={24} />
+                </button>
+              )}
+              <div className="w-full  mx-auto">
+                <Routes>
+                  {/* Dashboard is the default route for authenticated users */}
+                  <Route
+                    path="/"
+                    element={<DefaultRoute currentUser={currentUser} />}
+                  />
+                  <Route
+                    path="/students-dashboard"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermissions={["student-dashboard", "course-dashboard"]}>
+                        <StudentDashboard
+                          initialStudents={students}
+                          isOnline={isOnline}
+                          currentUser={currentUser}
+                        />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/student/:id"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermissions={["student-management", "student-dashboard", "course-dashboard"]}>
+                        <StudentDetail
+                          students={students}
+                          setStudents={setStudents}
+                          products={products}
+                          setProducts={setProducts}
+                          onQueueTransaction={queueOfflineTransaction}
+                          isOnline={isOnline}
+                          pendingTransactions={pendingTransactions}
+                          currentUser={currentUser}
+                        />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/add-student"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="add-student">
+                        <AddStudent addStudent={addStudent} currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/student-management"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="student-management">
+                        <StudentManagement
+                          students={students}
+                          setStudents={setStudents}
+                          addStudent={addStudent}
+                          refreshStudents={fetchStudentsData}
+                          currentUser={currentUser}
+                        />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/sub-admin-management"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} superAdminOnly={true}>
+                        <SubAdminManagement currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/manage-stock"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermissions={['stock-products', 'stock-add', 'stock-entries', 'stock-vendors', 'manage-stock']}>
+                        <ManageStock itemCategories={itemCategories} addItemCategory={addItemCategory} setItemCategories={setItemCategories} currentCourse={currentCourse} products={products} setProducts={setProducts} currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/courses"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="courses">
+                        <CourseManagement currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/transactions"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
+                        <Reports currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/student-due"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="transactions">
+                        <StudentDue currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/audit-logs"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermissions={['audit-log-entry', 'audit-log-approval', 'audit-logs']}>
+                        <AuditLogs currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="settings">
+                        <Settings currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/stock-transfers"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="stock-transfers">
+                        <StockTransfers currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </div>
+            </main>
+          </>
+        ) : (
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<Login onLogin={handleLogin} />} />
+            {/* Unauthenticated users attempting to access any other path are redirected to HomePage ('/') */}
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        )}
+      </div>
+    </Suspense>
   );
 }
 

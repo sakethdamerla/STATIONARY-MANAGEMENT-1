@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, GraduationCap, Package, ShoppingCart, DollarSign, 
+import {
+  Users, GraduationCap, Package, ShoppingCart, DollarSign,
   TrendingUp, AlertCircle, Activity, Calendar, ArrowRight,
-  CreditCard, Wallet, TrendingDown, FileText, BarChart3, Lock, X
+  CreditCard, Wallet, TrendingDown, FileText, BarChart3, Lock, X, Building2
 } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 
@@ -34,32 +34,79 @@ const Dashboard = () => {
   const [activeModal, setActiveModal] = useState(null); // 'products', 'stockValue', 'lowStock', 'vendors'
   const navigate = useNavigate();
 
+  const [colleges, setColleges] = useState([]);
+  const [selectedCollege, setSelectedCollege] = useState(''); // '' means Central/Global view
+
+  // Load initial view preference for SubAdmins
+  useEffect(() => {
+    if (!isSuperAdmin && currentUser?.assignedCollege) {
+      // Handle both ObjectId string or populated object
+      setSelectedCollege(typeof currentUser.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser.assignedCollege);
+    }
+  }, [isSuperAdmin, currentUser]);
+
+  // Fetch Colleges
+  useEffect(() => {
+    const fetchColleges = async () => {
+      try {
+        const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
+        if (res.ok) {
+          const data = await res.json();
+          setColleges(data);
+        }
+      } catch (err) {
+        console.error('Error fetching colleges:', err);
+      }
+    };
+    fetchColleges();
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      
+
       try {
-        // Fetch all data in parallel
+        // Prepare promises based on selection
+        const promises = [
+          fetch(apiUrl('/api/users')),
+          fetch(apiUrl('/api/transactions')),
+          fetch(apiUrl('/api/vendors')),
+          fetch(apiUrl('/api/products')),
+          // Stock depends on selection
+          selectedCollege
+            ? fetch(apiUrl(`/api/stock-transfers/colleges/${selectedCollege}/stock`))
+            : Promise.resolve(null)
+        ];
+
         const [
           studentsRes,
           transactionsRes,
-          productsRes,
           vendorsRes,
-          stockEntriesRes
-        ] = await Promise.all([
-          fetch(apiUrl('/api/users')),
-          fetch(apiUrl('/api/transactions')),
-          fetch(apiUrl('/api/products')),
-          fetch(apiUrl('/api/vendors')),
-          fetch(apiUrl('/api/stock-entries'))
-        ]);
+          productsRes,
+          stockRes
+        ] = await Promise.all(promises);
 
-        // Process students
+        // --- Active College for Course Filtering ---
+        let activeCollegeCourses = null;
+        if (selectedCollege) {
+          const activeCol = colleges.find(c => c._id === selectedCollege);
+          if (activeCol && activeCol.courses && activeCol.courses.length > 0) {
+            // Normalize courses for comparison
+            activeCollegeCourses = new Set(activeCol.courses.map(c => c.toLowerCase().trim()));
+          }
+        }
+
+        // --- Process Students ---
         let totalStudents = 0;
         let paidStudents = 0;
         let unpaidStudents = 0;
         if (studentsRes.ok) {
-          const students = await studentsRes.json();
+          const allStudents = await studentsRes.json();
+          // Filter students if a college is selected (by course)
+          const students = activeCollegeCourses
+            ? allStudents.filter(s => s.course && activeCollegeCourses.has(s.course.toLowerCase().trim()))
+            : allStudents;
+
           totalStudents = students.length;
           students.forEach(student => {
             if (student.paid) paidStudents += 1;
@@ -67,25 +114,50 @@ const Dashboard = () => {
           });
         }
 
-        // Process transactions
+        // --- Process Transactions ---
         let totalTransactions = 0;
         let totalRevenue = 0;
         let pendingRevenue = 0;
         let todayTransactions = 0;
         let todayRevenue = 0;
         const recent = [];
+
         if (transactionsRes.ok) {
-          const transactions = await transactionsRes.json();
-          totalTransactions = transactions.length;
-          
+          let allTransactions = await transactionsRes.json();
+          const transactionsData = Array.isArray(allTransactions) ? allTransactions : [];
+
+          let filteredTransactions = transactionsData;
+
+          if (selectedCollege) {
+            filteredTransactions = transactionsData.filter(t => {
+              // Ensure ID comparison matches regardless of type (string vs object)
+              const tColId = t.collegeId ? (typeof t.collegeId === 'object' ? t.collegeId._id : t.collegeId) : null;
+              const selId = selectedCollege;
+
+              if (tColId && String(tColId) === String(selId)) return true;
+
+              // Also check transfer destination
+              if (t.transactionType === 'college_transfer') {
+                const transferColId = t.collegeTransfer?.collegeId ? (typeof t.collegeTransfer.collegeId === 'object' ? t.collegeTransfer.collegeId._id : t.collegeTransfer.collegeId) : null;
+                if (transferColId && String(transferColId) === String(selId)) return true;
+              }
+
+              return false;
+            });
+          }
+
+          totalTransactions = filteredTransactions.length;
+
           const today = new Date();
           today.setHours(0, 0, 0, 0);
 
-          transactions.forEach(transaction => {
-            // Exclude branch transfers from revenue calculations (internal stock movements)
-            const isBranchTransfer = transaction.transactionType === 'branch_transfer';
-            
-            if (!isBranchTransfer) {
+          filteredTransactions.forEach(transaction => {
+            // Exclude transfers from revenue calculations? 
+            // If viewing a College Dashboard, a Transfer IN might be relevant, but technically revenue comes from 'student' transactions.
+            // Branch/College transfers are internal movements.
+            const isRevenueTransaction = transaction.transactionType === 'student';
+
+            if (isRevenueTransaction) {
               if (transaction.isPaid) {
                 totalRevenue += transaction.totalAmount || 0;
               } else {
@@ -101,23 +173,48 @@ const Dashboard = () => {
               }
             }
 
-            // Get recent 5 transactions (including branch transfers for display)
+            // Get recent 5 transactions
             if (recent.length < 5) {
               recent.push(transaction);
             }
           });
-          
+
           recent.sort((a, b) => new Date(b.transactionDate) - new Date(a.transactionDate));
           setRecentTransactions(recent.slice(0, 5));
         }
 
-        // Process products
+        // --- Process Products / Stock ---
         let totalProducts = 0;
         let totalStockValue = 0;
         let lowStockItems = 0;
+        let productsData = [];
+
         if (productsRes.ok) {
-          const productsData = await productsRes.json();
-          setProducts(Array.isArray(productsData) ? productsData : []);
+          const allProducts = await productsRes.json();
+          productsData = Array.isArray(allProducts) ? allProducts : [];
+
+          if (selectedCollege && stockRes && stockRes.ok) {
+            // College Stock Response: { _id, name, stock: [{ product: {...}, quantity: 10 }] }
+            const stockRaw = await stockRes.json();
+
+            // Map college stock for quick lookup
+            const collegeStockMap = new Map();
+            if (stockRaw.stock && Array.isArray(stockRaw.stock)) {
+              stockRaw.stock.forEach(item => {
+                const pId = item.product ? (item.product._id || item.product) : null;
+                if (pId) collegeStockMap.set(String(pId), item.quantity);
+              });
+            }
+
+            // Update products with college stock
+            productsData = productsData.map(product => ({
+              ...product,
+              stock: collegeStockMap.get(String(product._id)) || 0
+            }));
+          }
+          // If central, stock is already in product.stock (from allProducts)
+
+          setProducts(productsData);
           totalProducts = productsData.length;
           productsData.forEach(product => {
             const stockValue = (product.stock || 0) * (product.price || 0);
@@ -129,7 +226,8 @@ const Dashboard = () => {
           });
         }
 
-        // Process vendors
+
+        // --- Process Vendors ---
         let totalVendors = 0;
         if (vendorsRes.ok) {
           const vendorsData = await vendorsRes.json();
@@ -159,7 +257,7 @@ const Dashboard = () => {
     };
 
     fetchData();
-  }, []);
+  }, [selectedCollege, colleges]);
 
   const formatCurrency = (amount) => {
     return `₹${Number(amount || 0).toFixed(2)}`;
@@ -193,9 +291,32 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Welcome to Stationery Management System</p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+            <p className="text-gray-600">Welcome to Stationery Management System</p>
+          </div>
+
+          {isSuperAdmin && (
+            <div className="relative min-w-[250px]">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+              <select
+                value={selectedCollege}
+                onChange={(e) => setSelectedCollege(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none cursor-pointer"
+              >
+                <option value="">Central Warehouse (Global)</option>
+                {colleges.map(college => (
+                  <option key={college._id} value={college._id}>
+                    {college.name}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Key Statistics Cards */}
@@ -245,11 +366,11 @@ const Dashboard = () => {
               <TrendingUp size={20} className="opacity-80" />
             </div>
             <div className="text-3xl font-bold mb-1">
-            {loading ? (
+              {loading ? (
                 <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
+              ) : (
                 formatCurrency(stats.totalRevenue)
-            )}
+              )}
             </div>
             <div className="text-green-100 text-sm font-medium">Total Revenue (Paid)</div>
           </div>
@@ -263,11 +384,11 @@ const Dashboard = () => {
               <TrendingDown size={20} className="opacity-80" />
             </div>
             <div className="text-3xl font-bold mb-1">
-            {loading ? (
+              {loading ? (
                 <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
+              ) : (
                 formatCurrency(stats.pendingRevenue)
-            )}
+              )}
             </div>
             <div className="text-orange-100 text-sm font-medium">Pending Payments</div>
           </div>
@@ -276,7 +397,7 @@ const Dashboard = () => {
         {/* Secondary Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Total Products */}
-          <div 
+          <div
             onClick={() => setActiveModal('products')}
             className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
           >
@@ -295,7 +416,7 @@ const Dashboard = () => {
           </div>
 
           {/* Stock Value */}
-          <div 
+          <div
             onClick={() => setActiveModal('stockValue')}
             className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md hover:border-green-300 transition-all cursor-pointer"
           >
@@ -314,7 +435,7 @@ const Dashboard = () => {
           </div>
 
           {/* Low Stock Alert */}
-          <div 
+          <div
             onClick={() => setActiveModal('lowStock')}
             className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md hover:border-red-300 transition-all cursor-pointer"
           >
@@ -333,7 +454,7 @@ const Dashboard = () => {
           </div>
 
           {/* Total Vendors */}
-          <div 
+          <div
             onClick={() => setActiveModal('vendors')}
             className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md hover:border-purple-300 transition-all cursor-pointer"
           >
@@ -482,11 +603,10 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-white">{formatCurrency(transaction.totalAmount)}</p>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          transaction.isPaid
-                            ? 'bg-green-400/30 text-green-100 border border-green-300/50'
-                            : 'bg-red-400/30 text-red-100 border border-red-300/50'
-                        }`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${transaction.isPaid
+                          ? 'bg-green-400/30 text-green-100 border border-green-300/50'
+                          : 'bg-red-400/30 text-red-100 border border-red-300/50'
+                          }`}>
                           {transaction.isPaid ? 'Paid' : 'Unpaid'}
                         </span>
                       </div>
@@ -514,7 +634,7 @@ const Dashboard = () => {
             </div>
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4">
-                <button 
+                <button
                   onClick={() => navigate('/add-student')}
                   className="flex flex-col items-center justify-center p-4 bg-white/20 rounded-xl hover:bg-white/30 transition-colors group backdrop-blur-sm"
                 >
@@ -523,7 +643,7 @@ const Dashboard = () => {
                   </div>
                   <span className="text-sm font-medium text-white">Add Student</span>
                 </button>
-                <button 
+                <button
                   onClick={() => navigate('/manage-stock')}
                   className="flex flex-col items-center justify-center p-4 bg-white/20 rounded-xl hover:bg-white/30 transition-colors group backdrop-blur-sm"
                 >
@@ -532,7 +652,7 @@ const Dashboard = () => {
                   </div>
                   <span className="text-sm font-medium text-white">Manage Stock</span>
                 </button>
-                <button 
+                <button
                   onClick={() => navigate('/transactions')}
                   className="flex flex-col items-center justify-center p-4 bg-white/20 rounded-xl hover:bg-white/30 transition-colors group backdrop-blur-sm"
                 >
@@ -541,7 +661,7 @@ const Dashboard = () => {
                   </div>
                   <span className="text-sm font-medium text-white">Transactions</span>
                 </button>
-                <button 
+                <button
                   onClick={() => navigate('/student-management')}
                   className="flex flex-col items-center justify-center p-4 bg-white/20 rounded-xl hover:bg-white/30 transition-colors group backdrop-blur-sm"
                 >
@@ -590,11 +710,10 @@ const Dashboard = () => {
                     <div key={product._id} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-semibold text-gray-900">{product.name}</h3>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          (product.stock || 0) < (product.lowStockThreshold || 10)
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
+                        <span className={`px-2 py-1 text-xs rounded-full ${(product.stock || 0) < (product.lowStockThreshold || 10)
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-green-100 text-green-700'
+                          }`}>
                           Stock: {product.stock || 0}
                         </span>
                       </div>
@@ -729,11 +848,10 @@ const Dashboard = () => {
                             <td className="px-4 py-3 text-sm text-gray-600 text-right">{threshold}</td>
                             <td className="px-4 py-3 text-sm text-gray-900 text-right">{formatCurrency(product.price || 0)}</td>
                             <td className="px-4 py-3 text-right">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                isOutOfStock
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-orange-100 text-orange-800'
-                              }`}>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${isOutOfStock
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-orange-100 text-orange-800'
+                                }`}>
                                 {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
                               </span>
                             </td>

@@ -3,7 +3,7 @@ import { Plus, Search, Filter, Package, Eye, Edit, Trash2, X, Save, Calendar, Do
 import { apiUrl } from '../../utils/api';
 import { hasFullAccess } from '../../utils/permissions';
 
-const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, currentCourse, products = [], setProducts, currentUser }) => {
+const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, currentCourse, products = [], setProducts, currentUser, viewContext = 'central' }) => {
   // Check access level
   const isSuperAdmin = currentUser?.role === 'Administrator';
   const permissions = currentUser?.permissions || [];
@@ -96,6 +96,58 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
     });
   }, [products, selectedCourse, selectedYear, searchQuery, productTypeFilter]);
 
+  // Fetch college stock for sub-admins OR super-admins viewing specific college
+  const [collegeStockMap, setCollegeStockMap] = useState({});
+  const [activeCollegeId, setActiveCollegeId] = useState(null);
+
+  useEffect(() => {
+    let targetCollegeId = null;
+
+    if (!isSuperAdmin && currentUser?.assignedCollege) {
+      targetCollegeId = typeof currentUser.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser.assignedCollege;
+    } else if (isSuperAdmin && viewContext !== 'central') {
+      targetCollegeId = viewContext;
+    }
+
+    setActiveCollegeId(targetCollegeId);
+
+    if (targetCollegeId) {
+      const fetchCollegeStock = async () => {
+        try {
+          const res = await fetch(apiUrl(`/api/stock-transfers/colleges/${targetCollegeId}/stock`));
+          if (res.ok) {
+            const data = await res.json();
+            // Create a map of ProductID -> Quantity
+            const map = {};
+            (data.stock || []).forEach(item => {
+              const pId = typeof item.product === 'object' ? item.product._id : item.product;
+              map[pId] = item.quantity;
+            });
+            setCollegeStockMap(map);
+          }
+        } catch (err) {
+          console.error("Error fetching college stock:", err);
+          setCollegeStockMap({});
+        }
+      };
+      fetchCollegeStock();
+    } else {
+      setCollegeStockMap({});
+    }
+  }, [isSuperAdmin, currentUser, viewContext]);
+
+  // Helper to get display stock
+  const getDisplayStock = (product) => {
+    if (product.isSet) return { label: 'Set', value: 'N/A' };
+
+    // Central Stock (SuperAdmin default view)
+    if (!activeCollegeId) {
+      return { label: 'Central Stock', value: product.stock || 0 };
+    }
+
+    // College Stock (SubAdmin or SuperAdmin viewing college)
+    return { label: 'College Stock', value: collegeStockMap[product._id] || 0 };
+  };
   const availableSetProducts = useMemo(() => {
     const selectedIds = new Set((formData.setItems || []).map(item => item.productId));
     return (products || []).filter(p => {
@@ -151,7 +203,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         remarks: selectedProduct.remarks || '',
         forCourse: selectedProduct.forCourse || '',
         years: productYears,
-        years: productYears,
+
         branch: Array.isArray(selectedProduct.branch) ? selectedProduct.branch : (selectedProduct.branch ? [selectedProduct.branch] : []),
         semesters: selectedProduct.semesters || [],
         isSet: Boolean(selectedProduct.isSet),
@@ -177,7 +229,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         remarks: '',
         forCourse: selectedCourse || '',
         years: selectedYear ? [Number(selectedYear)] : [],
-        years: selectedYear ? [Number(selectedYear)] : [],
+
         branch: [],
         semesters: [],
         isSet: false,
@@ -666,14 +718,10 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Stock</span>
-                    {product.isSet ? (
-                      <span className="font-medium text-purple-600">Derived from items</span>
-                    ) : (
-                      <span className={`font-semibold ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {product.stock || 0}
-                      </span>
-                    )}
+                    <span className="text-gray-500">{getDisplayStock(product).label}</span>
+                    <span className={`font-semibold ${getDisplayStock(product).value > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {getDisplayStock(product).value}
+                    </span>
                   </div>
                   {product.isSet && (
                     <div className="text-xs text-gray-600">
@@ -770,8 +818,8 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         {product.isSet ? (
                           <span className="text-sm font-medium text-purple-600">Derived</span>
                         ) : (
-                          <span className={`font-semibold ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {product.stock || 0}
+                          <span className={`font-semibold ${getDisplayStock(product).value > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {getDisplayStock(product).value}
                           </span>
                         )}
                       </td>

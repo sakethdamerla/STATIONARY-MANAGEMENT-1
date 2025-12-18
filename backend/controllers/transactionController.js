@@ -1,6 +1,8 @@
 const { Transaction } = require('../models/transactionModel');
 const { User } = require('../models/userModel');
 const { Product } = require('../models/productModel');
+const { College } = require('../models/collegeModel');
+const { SubAdmin } = require('../models/subAdminModel');
 const asyncHandler = require('express-async-handler');
 
 // Helpers for stock management (supports set products)
@@ -11,6 +13,9 @@ const accumulateStockChange = (changeMap, productId, delta) => {
   changeMap.set(key, currentDelta + delta);
 };
 
+// Helper: Get projected stock for a product from a specific college
+// stockMap: Map<productId, quantity> (from college stock)
+// changeMap: Map<productId, delta> (pending changes in this transaction)
 const getProjectedStock = (productId, stockMap, changeMap) => {
   const key = productId.toString();
   const baseStock = stockMap.has(key) ? stockMap.get(key) : 0;
@@ -18,23 +23,60 @@ const getProjectedStock = (productId, stockMap, changeMap) => {
   return baseStock + pending;
 };
 
-const applyStockChanges = async (changeMap) => {
-  if (!changeMap || changeMap.size === 0) return;
+// Helper: Apply stock changes to the College (not global Product)
+// changeMap: Map<productId, delta> (negative delta means deduction)
+// collegeId: ObjectId of the college to update
+const applyStockChanges = async (changeMap, collegeId) => {
+  if (!changeMap || changeMap.size === 0 || !collegeId) return;
 
-  const bulkOps = [];
-  changeMap.forEach((delta, productId) => {
-    if (!delta) return;
-    bulkOps.push({
-      updateOne: {
-        filter: { _id: productId },
-        update: { $inc: { stock: delta } },
-      },
+  const college = await College.findById(collegeId);
+  if (!college) throw new Error('College not found during stock update');
+
+  // Convert map to array for easier processing
+  // College stock structure is array of { product: ObjectId, quantity: Number }
+  // We need to update this array efficiently
+  
+  // First, map existing stock for easier lookup
+  const collegeStockMap = new Map();
+  if (college.stock) {
+    college.stock.forEach(item => {
+      collegeStockMap.set(item.product.toString(), item.quantity);
     });
+  }
+
+  // Apply changes
+  changeMap.forEach((delta, productId) => {
+    const current = collegeStockMap.get(productId) || 0;
+    const newQty = Math.max(0, current + delta); // Prevent negative
+    collegeStockMap.set(productId, newQty);
   });
 
-  if (bulkOps.length > 0) {
-    await Product.bulkWrite(bulkOps, { ordered: false });
+  // Re-construct the stock array
+  const updatedStock = [];
+  collegeStockMap.forEach((qty, productId) => {
+    if (qty > 0) { // Optional: remove items with 0 stock to keep array clean? Or keep as 0? 
+      // Keeping as 0 allows tracking out-of-stock items explicitly if needed, but removing saves space.
+      updatedStock.push({ product: productId, quantity: qty });
+    }
+  });
+
+  college.stock = updatedStock;
+  await college.save();
+};
+
+const loadCollegeStock = async (collegeId, productIds) => {
+  if (!collegeId) return new Map();
+  
+  const college = await College.findById(collegeId).select('stock');
+  if (!college) return new Map();
+
+  const stockMap = new Map();
+  if (college.stock) {
+    college.stock.forEach(item => {
+      stockMap.set(item.product.toString(), item.quantity);
+    });
   }
+  return stockMap;
 };
 
 const loadProductsWithComponents = async (productIds) => {
@@ -89,7 +131,14 @@ const loadProductsWithComponents = async (productIds) => {
  * @access  Public
  */
 const createTransaction = asyncHandler(async (req, res) => {
+  // Check for branchId in input (legacy compat) or collegeId
   const { studentId, items, paymentMethod, isPaid, remarks } = req.body;
+  let { collegeId, branchId } = req.body;
+  
+  // Consolidate to collegeId
+  if (!collegeId && branchId) {
+    collegeId = branchId;
+  }
 
   if (!studentId || !items || !Array.isArray(items) || items.length === 0) {
     res.status(400);
@@ -103,8 +152,40 @@ const createTransaction = asyncHandler(async (req, res) => {
     throw new Error('Student not found');
   }
 
+  // Determine College context
+  // If `staffId` is provided (e.g., from auth middleware), check assignedCollege
+  // For now, assume the request *might* include `collegeId` directly or we lookup based on logged-in user if available
+  // To make this robust without full auth middleware context in this snippet, we'll check body first then fallback
+  let targetCollegeId = collegeId;
+
+  // If no collegeId in body, and we have a user (staff) in request (if auth middleware attached it)
+  if (!targetCollegeId && req.user && req.user.assignedCollege) {
+    targetCollegeId = req.user.assignedCollege;
+  }
+  
+  // If still no collegeId, check if `createdBy` is passed (admin ID) and lookup
+  if (!targetCollegeId && req.body.createdBy) {
+     const admin = await SubAdmin.findById(req.body.createdBy);
+     if (admin && admin.assignedCollege) {
+       targetCollegeId = admin.assignedCollege;
+     }
+  }
+
+  // Critical: If college-wise management is active, we MUST have a collegeId for stock deduction
+  // unless we decide to fallback to Global Stock (which defeats the purpose).
+  // For safety during migration, if no collegeId is found, we might throw Error or fallback.
+  // Let's enforce College ID.
+  if (!targetCollegeId) {
+    res.status(400);
+    throw new Error('Transaction must be associated with a College for stock deduction. Please ensure Staff is assigned to a College.');
+  }
+
   const requestedProductIds = new Set(items.map((item) => item.productId));
-  const { productMap, stockMap } = await loadProductsWithComponents(requestedProductIds);
+  // Load product definitions (for names, sets, prices) - Global
+  const { productMap, stockMap: globalStockMap } = await loadProductsWithComponents(requestedProductIds);
+  
+  // Load College Stock - Local
+  const collegeStockMap = await loadCollegeStock(targetCollegeId, requestedProductIds);
 
   // Calculate total and validate items
   let totalAmount = 0;
@@ -145,7 +226,9 @@ const createTransaction = asyncHandler(async (req, res) => {
 
         const componentId = component._id.toString();
         const required = requestedQuantity * (Number(setItem.quantity) || 1);
-        const available = getProjectedStock(componentId, stockMap, stockChanges);
+        
+        // CHECK COLLEGE STOCK INSTEAD OF GLOBAL STOCK
+        const available = getProjectedStock(componentId, collegeStockMap, stockChanges);
 
         let taken = true;
         let reason;
@@ -153,7 +236,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         if (available < required) {
           taken = false;
           itemStatus = 'partial';
-          reason = `Insufficient stock at issuance (required ${required}, available ${Math.max(available, 0)})`;
+          reason = `Insufficient stock at college (required ${required}, available ${Math.max(available, 0)})`;
         } else {
           accumulateStockChange(stockChanges, componentId, -required);
         }
@@ -167,9 +250,10 @@ const createTransaction = asyncHandler(async (req, res) => {
         });
       }
     } else {
-      if (getProjectedStock(productId, stockMap, stockChanges) < requestedQuantity) {
+      // CHECK COLLEGE STOCK INSTEAD OF GLOBAL STOCK
+      if (getProjectedStock(productId, collegeStockMap, stockChanges) < requestedQuantity) {
         res.status(400);
-        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${requestedQuantity}`);
+        throw new Error(`Insufficient stock for ${product.name} at this college. Available: ${collegeStockMap.get(productId) || 0}, Requested: ${requestedQuantity}`);
       }
 
       accumulateStockChange(stockChanges, productId, -requestedQuantity);
@@ -194,8 +278,8 @@ const createTransaction = asyncHandler(async (req, res) => {
     validatedItems.push(transactionItem);
   }
 
-  // Apply stock changes after validation
-  await applyStockChanges(stockChanges);
+  // Apply stock changes after validation to the COLLEGE
+  await applyStockChanges(stockChanges, targetCollegeId);
 
   // Generate unique transaction ID
   const timestamp = Date.now();
@@ -206,6 +290,7 @@ const createTransaction = asyncHandler(async (req, res) => {
   const transaction = await Transaction.create({
     transactionId,
     transactionType: 'student', // Explicitly set for student transactions
+    collegeId: targetCollegeId, // Record the college
     student: {
       userId: student._id,
       name: student.name,
@@ -254,7 +339,12 @@ const getAllTransactions = asyncHandler(async (req, res) => {
   const filter = {};
   
   if (transactionType) {
-    filter.transactionType = transactionType;
+    // Legacy support: if 'branch_transfer', assume 'college_transfer' or handle legacy data
+    if (transactionType === 'branch_transfer') {
+      filter.transactionType = { $in: ['branch_transfer', 'college_transfer'] };
+    } else {
+      filter.transactionType = transactionType;
+    }
   }
   
   // Only apply student-related filters if transaction type is student or not specified
@@ -288,7 +378,7 @@ const getAllTransactions = asyncHandler(async (req, res) => {
   const transactions = await Transaction.find(filter)
     .populate('items.productId', 'name price imageUrl')
     .populate('student.userId', 'name studentId course year branch')
-    .populate('branchTransfer.branchId', 'name location')
+    .populate('collegeTransfer.collegeId', 'name location')
     .sort({ transactionDate: -1 });
 
   res.status(200).json(transactions);
@@ -365,7 +455,9 @@ const updateTransaction = asyncHandler(async (req, res) => {
         }
       }
 
-      await applyStockChanges(restoreChanges);
+      // Check if transaction has collegeId, if not fallback to transaction.branchId
+      const colId = transaction.collegeId || transaction.branchId;
+      await applyStockChanges(restoreChanges, colId);
     }
 
     const newProductIds = new Set(items.map((item) => item.productId));
@@ -483,7 +575,8 @@ const updateTransaction = asyncHandler(async (req, res) => {
       validatedItems.push(transactionItem);
     }
 
-    await applyStockChanges(stockChanges);
+    const colId = transaction.collegeId || transaction.branchId;
+    await applyStockChanges(stockChanges, colId);
 
     transaction.items = validatedItems;
     transaction.totalAmount = totalAmount;
@@ -576,7 +669,8 @@ const deleteTransaction = asyncHandler(async (req, res) => {
       }
     }
 
-    await applyStockChanges(restoreChanges);
+    const colId = transaction.collegeId || transaction.branchId;
+    await applyStockChanges(restoreChanges, colId);
   }
 
   await Transaction.findByIdAndDelete(req.params.id);
@@ -611,4 +705,3 @@ module.exports = {
   deleteTransaction,
   getTransactionsByStudent,
 };
-

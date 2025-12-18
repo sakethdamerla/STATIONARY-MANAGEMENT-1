@@ -41,7 +41,20 @@ module.exports = { getAcademicConfig, upsertAcademicConfig };
 // GET /api/academic-config/courses
 const listCourses = asyncHandler(async (req, res) => {
   const cfg = await getSingleton();
-  res.json(cfg.courses);
+  let courses = cfg.courses;
+
+  // Filter for Sub-Admins assigned to a college
+  if (req.user && req.user.role !== 'Administrator' && req.user.assignedCollege) {
+    const { College } = require('../models/collegeModel');
+    const assignedCollege = await College.findById(req.user.assignedCollege);
+    
+    if (assignedCollege && assignedCollege.courses && assignedCollege.courses.length > 0) {
+       // Filter courses where course.name is in assignedCollege.courses
+       courses = courses.filter(c => assignedCollege.courses.includes(c.name));
+    }
+  }
+
+  res.json(courses);
 });
 
 // POST /api/academic-config/courses

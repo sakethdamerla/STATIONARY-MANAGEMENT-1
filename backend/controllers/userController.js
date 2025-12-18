@@ -67,12 +67,30 @@ const registerUser = asyncHandler(async (req, res) => {
  * @route   GET /api/users/:course
  * @access  Private/Admin (Should be protected in a real app)
  */
+// GET /api/users/:course
 const getUsersByCourse = asyncHandler(async (req, res) => {
   const { course } = req.params;
   
   if (!course) {
     res.status(400);
     throw new Error('Course parameter is required');
+  }
+
+  // Access control for Sub-Admins
+  if (req.user && req.user.role !== 'Administrator' && req.user.assignedCollege) {
+    const { College } = require('../models/collegeModel');
+    const assignedCollege = await College.findById(req.user.assignedCollege);
+    
+    // If college has restricted courses, ensure the requested course is allowed
+    // Normalize course names for comparison
+    const requestedCourse = course.toLowerCase().trim();
+    if (assignedCollege && assignedCollege.courses && assignedCollege.courses.length > 0) {
+      const allowedCourses = assignedCollege.courses.map(c => c.toLowerCase().trim());
+      if (!allowedCourses.includes(requestedCourse)) {
+        res.status(403);
+        throw new Error('Access denied: This course is not assigned to your college.');
+      }
+    }
   }
 
   const users = await User.find({ course });

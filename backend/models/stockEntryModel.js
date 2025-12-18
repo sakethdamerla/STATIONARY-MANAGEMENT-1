@@ -12,6 +12,11 @@ const stockEntrySchema = new mongoose.Schema(
       required: [true, 'Please provide a vendor'],
       ref: 'Vendor',
     },
+    college: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'College',
+      default: null, // Null implies Central Stock
+    },
     quantity: {
       type: Number,
       required: [true, 'Please provide quantity'],

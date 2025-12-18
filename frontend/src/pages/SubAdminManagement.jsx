@@ -57,17 +57,17 @@ const normalizePermissions = (perms = []) => {
     const parsed = parsePermission(p);
     return parsed.key === 'manage-stock';
   });
-  
+
   // Convert to object format for easier manipulation
   const permObj = permissionsToObject(list);
-  
+
   // Handle legacy audit-logs permission
   if (hasLegacyAudit && !permObj['audit-log-entry'] && !permObj['audit-log-approval']) {
     permObj['audit-log-entry'] = permObj['audit-logs'] || 'full';
     permObj['audit-log-approval'] = permObj['audit-logs'] || 'full';
   }
   delete permObj['audit-logs'];
-  
+
   // Handle legacy manage-stock permission
   if (hasLegacyManageStock) {
     const stockAccess = permObj['manage-stock'] || 'full';
@@ -78,7 +78,7 @@ const normalizePermissions = (perms = []) => {
     if (!permObj['stock-vendors']) permObj['stock-vendors'] = stockAccess;
   }
   delete permObj['manage-stock'];
-  
+
   // Convert back to array
   return objectToPermissions(permObj);
 };
@@ -90,20 +90,21 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
   const [role, setRole] = useState(subAdmin?.role || 'Editor');
   const [permissions, setPermissions] = useState({}); // Object format: { 'key': 'view' | 'full' }
   const [courses, setCourses] = useState([]);
+  const [colleges, setColleges] = useState([]);
+  const [assignedCollege, setAssignedCollege] = useState(subAdmin?.assignedCollege?._id || subAdmin?.assignedCollege || subAdmin?.assignedBranch?._id || subAdmin?.assignedBranch || '');
   const [coursePermissions, setCoursePermissions] = useState({}); // Object format: { 'course-name': 'view' | 'full' }
 
-  // Fetch courses when modal opens
+  // Fetch courses and branches when modal opens
   useEffect(() => {
     if (isOpen) {
-      const fetchCourses = async () => {
+      const fetchData = async () => {
+        // Fetch Courses
         try {
           let res = await fetch(apiUrl('/api/academic-config/courses'));
           if (res.ok) {
             const data = await res.json();
             setCourses(Array.isArray(data) ? data : []);
-            return;
-          }
-          if (res.status === 404) {
+          } else if (res.status === 404) {
             res = await fetch(apiUrl('/api/config/academic'));
             if (res.ok) {
               const data = await res.json();
@@ -113,8 +114,19 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
         } catch (e) {
           console.error('Failed to fetch courses:', e);
         }
+
+        // Fetch Colleges (Hardware/Inventory Locations)
+        try {
+          const res = await fetch(apiUrl('/api/stock-transfers/colleges'));
+          if (res.ok) {
+            const data = await res.json();
+            setColleges(Array.isArray(data) ? data : []);
+          }
+        } catch (e) {
+          console.error('Failed to fetch colleges:', e);
+        }
       };
-      fetchCourses();
+      fetchData();
     }
   }, [isOpen]);
 
@@ -128,7 +140,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
       // Convert to object format for easier state management
       const permsObj = permissionsToObject(normalized);
       setPermissions(permsObj);
-      
+
       // Extract course-specific permissions
       const coursePerms = {};
       Object.keys(permsObj).forEach(key => {
@@ -138,6 +150,9 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
         }
       });
       setCoursePermissions(coursePerms);
+
+      // Set assigned branch
+      setAssignedCollege(subAdmin?.assignedCollege?._id || subAdmin?.assignedCollege || subAdmin?.assignedBranch?._id || subAdmin?.assignedBranch || '');
     }
   }, [isOpen, subAdmin]);
 
@@ -174,7 +189,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
   const handleCoursePermissionChange = (courseName, access) => {
     const normalizedCourse = normalizeCourseName(courseName);
     const courseKey = `course-dashboard-${normalizedCourse}`;
-    
+
     setCoursePermissions(prev => {
       const newCoursePerms = { ...prev };
       if (access === null) {
@@ -219,6 +234,8 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
       name,
       role: submissionRole,
       permissions: cleanedPermissions,
+      assignedCollege: assignedCollege || null,
+      assignedBranch: assignedCollege || null, // Send both for compatibility
       ...(password && { password }),
     });
     onClose();
@@ -257,8 +274,32 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
               placeholder={subAdmin ? "Enter new password to change" : "Enter password"}
               required={!subAdmin} // Password is required only for new sub-admins
             />
+
           </div>
-          
+
+          <div className="mb-6">
+            <label htmlFor="assignedCollege" className="block text-sm font-semibold text-gray-700 mb-2">Assigned College (Optional)</label>
+            <p className="text-xs text-gray-500 mb-2">Assigning a college links stock deductions to that specific location.</p>
+            <div className="relative">
+              <select
+                id="assignedCollege"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 appearance-none bg-white"
+                value={assignedCollege}
+                onChange={(e) => setAssignedCollege(e.target.value)}
+              >
+                <option value="">-- No College Assigned (Global/Admin) --</option>
+                {colleges.map((college) => (
+                  <option key={college._id} value={college._id}>
+                    {college.name} {college.location ? `(${college.location})` : ''}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+              </div>
+            </div>
+          </div>
+
           {/* Permissions Section */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -277,7 +318,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
               <div className="max-h-[500px] overflow-y-auto">
                 <table className="w-full">
@@ -320,11 +361,10 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                                     <button
                                       type="button"
                                       onClick={() => handlePermissionAccessChange(child.key, null)}
-                                      className={`w-10 h-10 rounded-full border-2 transition-all ${
-                                        !access
-                                          ? 'bg-gray-200 border-gray-400 shadow-inner'
-                                          : 'bg-white border-gray-300 hover:border-gray-400'
-                                      }`}
+                                      className={`w-10 h-10 rounded-full border-2 transition-all ${!access
+                                        ? 'bg-gray-200 border-gray-400 shadow-inner'
+                                        : 'bg-white border-gray-300 hover:border-gray-400'
+                                        }`}
                                       title="No Access"
                                     />
                                   </td>
@@ -332,11 +372,10 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                                     <button
                                       type="button"
                                       onClick={() => handlePermissionAccessChange(child.key, access === 'view' ? null : 'view')}
-                                      className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
-                                        access === 'view'
-                                          ? 'bg-blue-500 border-blue-600 shadow-md'
-                                          : 'bg-white border-gray-300 hover:border-blue-200 hover:bg-blue-50'
-                                      }`}
+                                      className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${access === 'view'
+                                        ? 'bg-blue-500 border-blue-600 shadow-md'
+                                        : 'bg-white border-gray-300 hover:border-blue-200 hover:bg-blue-50'
+                                        }`}
                                       title="View Access"
                                     >
                                       {access === 'view' && <Eye size={16} className="text-white" />}
@@ -346,11 +385,10 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                                     <button
                                       type="button"
                                       onClick={() => handlePermissionAccessChange(child.key, access === 'full' ? null : 'full')}
-                                      className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
-                                        access === 'full'
-                                          ? 'bg-green-500 border-green-600 shadow-md'
-                                          : 'bg-white border-gray-300 hover:border-green-200 hover:bg-green-50'
-                                      }`}
+                                      className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${access === 'full'
+                                        ? 'bg-green-500 border-green-600 shadow-md'
+                                        : 'bg-white border-gray-300 hover:border-green-200 hover:bg-green-50'
+                                        }`}
                                       title="Full Access"
                                     >
                                       {access === 'full' && <Edit2 size={16} className="text-white" />}
@@ -367,7 +405,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                       const access = getPermissionAccess(item.key);
                       const isCourseDashboard = item.key === 'course-dashboard';
                       const hasCourseDashboardAccess = access === 'view' || access === 'full';
-                      
+
                       return (
                         <React.Fragment key={item.key}>
                           <tr className="hover:bg-gray-50 transition-colors">
@@ -378,11 +416,10 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                               <button
                                 type="button"
                                 onClick={() => handlePermissionAccessChange(item.key, null)}
-                                className={`w-10 h-10 rounded-full border-2 transition-all ${
-                                  !access
-                                    ? 'bg-gray-200 border-gray-400 shadow-inner'
-                                    : 'bg-white border-gray-300 hover:border-gray-400'
-                                }`}
+                                className={`w-10 h-10 rounded-full border-2 transition-all ${!access
+                                  ? 'bg-gray-200 border-gray-400 shadow-inner'
+                                  : 'bg-white border-gray-300 hover:border-gray-400'
+                                  }`}
                                 title="No Access"
                               />
                             </td>
@@ -390,11 +427,10 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                               <button
                                 type="button"
                                 onClick={() => handlePermissionAccessChange(item.key, access === 'view' ? null : 'view')}
-                                className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
-                                  access === 'view'
-                                    ? 'bg-blue-500 border-blue-600 shadow-md'
-                                    : 'bg-white border-gray-300 hover:border-blue-200 hover:bg-blue-50'
-                                }`}
+                                className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${access === 'view'
+                                  ? 'bg-blue-500 border-blue-600 shadow-md'
+                                  : 'bg-white border-gray-300 hover:border-blue-200 hover:bg-blue-50'
+                                  }`}
                                 title="View Access"
                               >
                                 {access === 'view' && <Eye size={16} className="text-white" />}
@@ -404,11 +440,10 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                               <button
                                 type="button"
                                 onClick={() => handlePermissionAccessChange(item.key, access === 'full' ? null : 'full')}
-                                className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
-                                  access === 'full'
-                                    ? 'bg-green-500 border-green-600 shadow-md'
-                                    : 'bg-white border-gray-300 hover:border-green-200 hover:bg-green-50'
-                                }`}
+                                className={`w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${access === 'full'
+                                  ? 'bg-green-500 border-green-600 shadow-md'
+                                  : 'bg-white border-gray-300 hover:border-green-200 hover:bg-green-50'
+                                  }`}
                                 title="Full Access"
                               >
                                 {access === 'full' && <Edit2 size={16} className="text-white" />}
@@ -461,11 +496,10 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                                                   e.stopPropagation();
                                                   handleCoursePermissionChange(courseName, courseAccess === 'view' ? 'full' : 'view');
                                                 }}
-                                                className={`px-2 py-1 text-xs rounded transition-colors ${
-                                                  courseAccess === 'view'
-                                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
-                                                }`}
+                                                className={`px-2 py-1 text-xs rounded transition-colors ${courseAccess === 'view'
+                                                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                  }`}
                                                 title={courseAccess === 'view' ? 'View Only - Click for Full Access' : 'Full Access - Click for View Only'}
                                               >
                                                 {courseAccess === 'view' ? 'View' : 'Full'}
@@ -493,7 +527,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                 </table>
               </div>
             </div>
-            
+
             {Object.keys(permissions).length === 0 && (
               <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-xs text-amber-700 flex items-center gap-2">
@@ -502,7 +536,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
                 </p>
               </div>
             )}
-            
+
             {Object.keys(permissions).length > 0 && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-700">
@@ -511,7 +545,7 @@ const SubAdminModal = ({ isOpen, onClose, onSave, subAdmin }) => {
               </div>
             )}
           </div>
-          
+
           <div className="flex justify-end gap-4 mt-8">
             <button type="button" onClick={onClose} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors duration-200">
               Cancel
@@ -530,7 +564,7 @@ const SubAdminManagement = ({ currentUser }) => {
   const [subAdmins, setSubAdmins] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSubAdmin, setEditingSubAdmin] = useState(null);
-  
+
   // Check if current user is super admin
   const isSuperAdmin = currentUser?.role === 'Administrator';
 
@@ -546,8 +580,9 @@ const SubAdminManagement = ({ currentUser }) => {
           throw new Error('Unexpected response from server');
         }
         const data = await response.json();
+        const list = Array.isArray(data) ? data : [];
         setSubAdmins(
-          (data || []).map(sa => ({
+          list.map(sa => ({
             ...sa,
             id: sa._id,
             permissions: normalizePermissions(sa.permissions),
@@ -595,8 +630,8 @@ const SubAdminManagement = ({ currentUser }) => {
 
       if (!response.ok) {
         // Try to parse error JSON, but fallback to status text if it fails
-        const errorData = await response.json().catch(() => ({ 
-          message: `Request failed with status: ${response.status} ${response.statusText}` 
+        const errorData = await response.json().catch(() => ({
+          message: `Request failed with status: ${response.status} ${response.statusText}`
         }));
         throw new Error(errorData.message || 'Save operation failed');
       }
@@ -674,7 +709,14 @@ const SubAdminManagement = ({ currentUser }) => {
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">{subAdmin.name}</h3>
-                          <p className="text-sm text-gray-500">Sub-Administrator</p>
+                          <div className="text-sm text-gray-500 flex flex-col gap-0.5">
+                            <span>{subAdmin.role || 'Sub-Administrator'}</span>
+                            {subAdmin.assignedBranch && (
+                              <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full w-fit">
+                                📍 {subAdmin.assignedBranch.name || 'Branch Assigned'}
+                              </span>
+                            )}
+                          </div>
                           {Array.isArray(subAdmin.permissions) && subAdmin.permissions.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1">
                               {subAdmin.permissions.slice(0, 3).map((perm) => {
@@ -682,13 +724,12 @@ const SubAdminManagement = ({ currentUser }) => {
                                 const label = PERMISSION_LABELS[parsed.key];
                                 if (!label) return null;
                                 return (
-                                  <span 
-                                    key={perm} 
-                                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                      parsed.access === 'full'
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-blue-100 text-blue-700'
-                                    }`}
+                                  <span
+                                    key={perm}
+                                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${parsed.access === 'full'
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-blue-100 text-blue-700'
+                                      }`}
                                     title={parsed.access === 'full' ? 'Full Access' : 'View Only'}
                                   >
                                     {label} {parsed.access === 'view' && '(View)'}

@@ -8,15 +8,15 @@ const StockEntries = ({ currentUser }) => {
   const user = currentUser || JSON.parse(localStorage.getItem('currentUser') || 'null');
   const isSuperAdmin = user?.role === 'Administrator';
   const permissions = user?.permissions || [];
-  
+
   // Check for legacy manage-stock permission
   const hasLegacyPermission = permissions.some(p => {
     if (typeof p !== 'string') return false;
     return p === 'manage-stock' || p.startsWith('manage-stock:');
   });
-  
+
   const canEditStockEntries = isSuperAdmin || hasLegacyPermission || hasFullAccess(permissions, 'stock-entries');
-  
+
   const [stockEntries, setStockEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -352,17 +352,67 @@ const StockEntries = ({ currentUser }) => {
     return filteredEntries.reduce((sum, entry) => sum + (entry.totalCost || 0), 0);
   }, [filteredEntries]);
 
+  // Group entries by Invoice
+  const groupedEntries = useMemo(() => {
+    const groups = [];
+    const invoiceMap = new Map();
+
+    filteredEntries.forEach(entry => {
+      // Use Invoice Number as grouping key if present
+      const invoiceNum = entry.invoiceNumber ? entry.invoiceNumber.trim() : null;
+
+      if (invoiceNum) {
+        // Compound key to be safe: Invoice + Vendor
+        const key = `${invoiceNum}-${entry.vendor?._id || 'unknown'}`;
+
+        if (!invoiceMap.has(key)) {
+          const group = {
+            id: key,
+            isGroup: true,
+            invoiceNumber: invoiceNum,
+            invoiceDate: entry.invoiceDate,
+            vendor: entry.vendor,
+            college: entry.college, // Assuming homogenous location for invoice
+            createdAt: entry.createdAt,
+            items: [],
+            totalCost: 0,
+            totalQuantity: 0,
+            remarks: entry.remarks // Use first remark
+          };
+          invoiceMap.set(key, group);
+          groups.push(group);
+        }
+
+        const group = invoiceMap.get(key);
+        group.items.push(entry);
+        group.totalCost += (entry.totalCost || 0);
+        group.totalQuantity += (entry.quantity || 0);
+      } else {
+        // No invoice number -> Treat as standalone
+        groups.push({
+          id: entry._id,
+          isGroup: false,
+          ...entry,
+          items: [entry]
+        });
+      }
+    });
+
+    // Sort by most recent
+    return groups.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [filteredEntries]);
+
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-            <Package size={20} className="text-white" />
+            <FileText size={20} className="text-white" />
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Stock Entries</h2>
-            <p className="text-gray-600 text-sm mt-1">View and manage all stock entry history</p>
+            <p className="text-gray-600 text-sm mt-1">View and manage stock history (grouped by Invoice)</p>
           </div>
         </div>
         {filteredEntries.length > 0 && (
@@ -438,106 +488,112 @@ const StockEntries = ({ currentUser }) => {
         </div>
       </div>
 
-      {/* Stock Entries List */}
+      {/* Stock Entries List (Grouped) */}
       {loading ? (
         <div className="text-center py-12">
           <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading stock entries...</p>
         </div>
-      ) : filteredEntries.length > 0 ? (
-        <div className="space-y-3">
-          {filteredEntries.map((entry) => (
+      ) : groupedEntries.length > 0 ? (
+        <div className="space-y-4">
+          {groupedEntries.map((group) => (
             <div
-              key={entry._id}
-              className="bg-white p-4 border-b border-gray-100"
+              key={group.id}
+              className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <Package className="w-5 h-5 text-blue-600" />
-                    <h3 className="font-semibold text-gray-900">
-                      {entry.product?.name || 'Unknown Product'}
+              {/* Card Header */}
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${group.isGroup ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
+                    {group.isGroup ? <FileText size={18} /> : <Package size={18} />}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                      {group.invoiceNumber ? `Invoice #${group.invoiceNumber}` : 'Direct Entry'}
+                      <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-white border border-gray-300 text-gray-600">
+                        {formatDate(group.createdAt)}
+                      </span>
                     </h3>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-2">
-                    {entry.vendor?.name || 'Unknown Vendor'}
-                  </p>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Quantity</p>
-                      <p className="text-sm font-semibold text-green-600">+{entry.quantity}</p>
-                    </div>
-                    {entry.purchasePrice > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Unit Price</p>
-                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(entry.purchasePrice)}</p>
-                      </div>
-                    )}
-                    {entry.totalCost > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Total Cost</p>
-                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(entry.totalCost)}</p>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Date</p>
-                      <p className="text-sm font-medium text-gray-900">{formatDate(entry.createdAt)}</p>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-0.5">
+                      <span className="font-medium text-gray-800">{group.vendor?.name || 'Unknown Vendor'}</span>
+                      <span>•</span>
+                      <span className={`flex items-center gap-1 ${group.college ? 'text-purple-600' : 'text-blue-600'}`}>
+                        {group.college ? (
+                          <><Building2 size={12} /> {group.college.name}</>
+                        ) : (
+                          <><Building2 size={12} /> Central Warehouse</>
+                        )}
+                      </span>
                     </div>
                   </div>
+                </div>
 
-                  {entry.invoiceNumber && (
-                    <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                      <FileText size={14} />
-                      <span>Invoice: {entry.invoiceNumber}</span>
-                      {entry.invoiceDate && (
-                        <span className="text-gray-400">
-                          ({new Date(entry.invoiceDate).toLocaleDateString()})
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 uppercase font-semibold">Total Cost</p>
+                  <p className="text-lg font-bold text-gray-900">{formatCurrency(group.totalCost || group.totalCost)}</p>
+                </div>
+              </div>
+
+              {/* Card Body - Items List */}
+              <div className="divide-y divide-gray-100">
+                {group.items.map((entry) => (
+                  <div key={entry._id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{entry.product?.name || 'Unknown Product'}</span>
+                        <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-medium">
+                          +{entry.quantity} Qty
                         </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1 flex gap-3">
+                        <span>Unit: {formatCurrency(entry.purchasePrice)}</span>
+                        <span>Subtotal: {formatCurrency(entry.totalCost)}</span>
+                      </div>
+                    </div>
+
+                    {/* Actions for Line Item */}
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => setSelectedEntry(entry)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        onClick={() => handlePrint(entry)}
+                        className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                        title="Print Receipt"
+                      >
+                        <Printer size={16} />
+                      </button>
+                      {canEditStockEntries && (
+                        <>
+                          <button
+                            onClick={() => handleEdit(entry)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                            title="Edit Item"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(entry._id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete Item"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
                       )}
                     </div>
-                  )}
+                  </div>
+                ))}
 
-                  {entry.remarks && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">Remarks</p>
-                      <p className="text-sm text-gray-700">{entry.remarks}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2 ml-4">
-                  <button
-                    onClick={() => setSelectedEntry(entry)}
-                    className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
-                    title="View Details"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  <button
-                    onClick={() => handlePrint(entry)}
-                    className="px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-                    title="Print entry"
-                  >
-                    <Printer size={16} />
-                  </button>
-                  {canEditStockEntries && (
-                    <button
-                      onClick={() => handleEdit(entry)}
-                      className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
-                      title="Edit Entry"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(entry._id)}
-                    className="px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                {group.remarks && (
+                  <div className="px-4 py-2 bg-gray-50 text-xs text-gray-500 italic border-t border-gray-100">
+                    Note: {group.remarks}
+                  </div>
+                )}
               </div>
             </div>
           ))}

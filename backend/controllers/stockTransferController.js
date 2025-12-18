@@ -1,14 +1,15 @@
-const { StockTransfer, TransferBranch } = require('../models/stockTransferModel');
+const { StockTransfer } = require('../models/stockTransferModel');
+const { College } = require('../models/collegeModel');
 const { Product } = require('../models/productModel');
 const { Transaction } = require('../models/transactionModel');
 const asyncHandler = require('express-async-handler');
 
 /**
- * @desc    Get all transfer branches (campuses/stations)
- * @route   GET /api/stock-transfers/branches
+ * @desc    Get all transfer colleges (campuses/stations)
+ * @route   GET /api/stock-transfers/colleges
  * @access  Public
  */
-const getBranches = asyncHandler(async (req, res) => {
+const getColleges = asyncHandler(async (req, res) => {
   const { activeOnly, withStock } = req.query;
   const filter = {};
   
@@ -16,38 +17,38 @@ const getBranches = asyncHandler(async (req, res) => {
     filter.isActive = true;
   }
 
-  let query = TransferBranch.find(filter);
+  let query = College.find(filter);
 
   if (withStock === 'true') {
     query = query.populate('stock.product', 'name price category');
   }
 
-  const branches = await query.sort({ name: 1 });
+  const colleges = await query.sort({ name: 1 });
 
-  res.json(branches);
+  res.json(colleges);
 });
 
 /**
- * @desc    Get branch stock for a specific product
- * @route   GET /api/stock-transfers/branches/:id/stock/:productId
+ * @desc    Get college stock for a specific product
+ * @route   GET /api/stock-transfers/colleges/:id/stock/:productId
  * @access  Public
  */
-const getBranchStock = asyncHandler(async (req, res) => {
-  const branch = await TransferBranch.findById(req.params.id)
+const getCollegeStock = asyncHandler(async (req, res) => {
+  const college = await College.findById(req.params.id)
     .populate('stock.product', 'name price category');
 
-  if (!branch) {
+  if (!college) {
     res.status(404);
-    throw new Error('Branch not found');
+    throw new Error('College not found');
   }
 
   const { productId } = req.params;
-  const stockEntry = branch.stock.find(
+  const stockEntry = college.stock.find(
     (s) => s.product._id.toString() === productId
   );
 
   res.json({
-    branch: branch.name,
+    college: college.name,
     productId,
     quantity: stockEntry ? stockEntry.quantity : 0,
     product: stockEntry ? stockEntry.product : null,
@@ -55,144 +56,146 @@ const getBranchStock = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Get all products stock for a branch
- * @route   GET /api/stock-transfers/branches/:id/stock
+ * @desc    Get all products stock for a college
+ * @route   GET /api/stock-transfers/colleges/:id/stock
  * @access  Public
  */
-const getBranchStockAll = asyncHandler(async (req, res) => {
-  const branch = await TransferBranch.findById(req.params.id)
+const getCollegeStockAll = asyncHandler(async (req, res) => {
+  const college = await College.findById(req.params.id)
     .populate('stock.product', 'name price category stock');
 
-  if (!branch) {
+  if (!college) {
     res.status(404);
-    throw new Error('Branch not found');
+    throw new Error('College not found');
   }
 
   res.json({
-    branch: {
-      _id: branch._id,
-      name: branch.name,
-      location: branch.location,
+    college: {
+      _id: college._id,
+      name: college.name,
+      location: college.location,
     },
-    stock: branch.stock || [],
+    stock: college.stock || [],
   });
 });
 
 /**
- * @desc    Create a new transfer branch (campus/station)
- * @route   POST /api/stock-transfers/branches
+ * @desc    Create a new transfer college (campus/station)
+ * @route   POST /api/stock-transfers/colleges
  * @access  Public
  */
-const createBranch = asyncHandler(async (req, res) => {
+const createCollege = asyncHandler(async (req, res) => {
   const { name, location, description } = req.body;
 
   if (!name || !name.trim()) {
     res.status(400);
-    throw new Error('Branch name is required');
+    throw new Error('College name is required');
   }
 
-  // Check if branch with same name already exists
-  const existingBranch = await TransferBranch.findOne({ 
+  // Check if college with same name already exists
+  const existingCollege = await College.findOne({ 
     name: name.trim() 
   });
 
-  if (existingBranch) {
+  if (existingCollege) {
     res.status(400);
-    throw new Error('Branch with this name already exists');
+    throw new Error('College with this name already exists');
   }
 
-  const branch = new TransferBranch({
+  const college = new College({
     name: name.trim(),
     location: location?.trim() || '',
     description: description?.trim() || '',
+    courses: req.body.courses || [],
     isActive: true,
   });
 
-  const createdBranch = await branch.save();
-  res.status(201).json(createdBranch);
+  const createdCollege = await college.save();
+  res.status(201).json(createdCollege);
 });
 
 /**
- * @desc    Update a transfer branch
- * @route   PUT /api/stock-transfers/branches/:id
+ * @desc    Update a transfer college
+ * @route   PUT /api/stock-transfers/colleges/:id
  * @access  Public
  */
-const updateBranch = asyncHandler(async (req, res) => {
-  const branch = await TransferBranch.findById(req.params.id);
+const updateCollege = asyncHandler(async (req, res) => {
+  const college = await College.findById(req.params.id);
 
-  if (!branch) {
+  if (!college) {
     res.status(404);
-    throw new Error('Branch not found');
+    throw new Error('College not found');
   }
 
-  const { name, location, description, isActive } = req.body;
+  const { name, location, description, isActive, courses } = req.body;
 
   if (name !== undefined && name.trim()) {
-    // Check if another branch with this name exists
-    const existingBranch = await TransferBranch.findOne({ 
+    // Check if another college with this name exists
+    const existingCollege = await College.findOne({ 
       name: name.trim(),
       _id: { $ne: req.params.id }
     });
 
-    if (existingBranch) {
+    if (existingCollege) {
       res.status(400);
-      throw new Error('Branch with this name already exists');
+      throw new Error('College with this name already exists');
     }
 
-    branch.name = name.trim();
+    college.name = name.trim();
   }
 
-  if (location !== undefined) branch.location = location.trim();
-  if (description !== undefined) branch.description = description.trim();
-  if (isActive !== undefined) branch.isActive = Boolean(isActive);
+  if (location !== undefined) college.location = location.trim();
+  if (description !== undefined) college.description = description.trim();
+  if (isActive !== undefined) college.isActive = Boolean(isActive);
+  if (courses !== undefined && Array.isArray(courses)) college.courses = courses;
 
-  const updated = await branch.save();
+  const updated = await college.save();
   res.json(updated);
 });
 
 /**
- * @desc    Delete a transfer branch
- * @route   DELETE /api/stock-transfers/branches/:id
+ * @desc    Delete a transfer college
+ * @route   DELETE /api/stock-transfers/colleges/:id
  * @access  Public
  */
-const deleteBranch = asyncHandler(async (req, res) => {
-  const branch = await TransferBranch.findById(req.params.id);
+const deleteCollege = asyncHandler(async (req, res) => {
+  const college = await College.findById(req.params.id);
 
-  if (!branch) {
+  if (!college) {
     res.status(404);
-    throw new Error('Branch not found');
+    throw new Error('College not found');
   }
 
-  // Check if branch is used in any transfers
+  // Check if college is used in any transfers
   const transfersCount = await StockTransfer.countDocuments({
-    toBranch: req.params.id
+    toCollege: req.params.id
   });
 
   if (transfersCount > 0) {
     res.status(400);
-    throw new Error(`Cannot delete branch. It is used in ${transfersCount} transfer(s).`);
+    throw new Error(`Cannot delete college. It is used in ${transfersCount} transfer(s).`);
   }
 
-  // Check if branch has any stock
-  if (branch.stock && branch.stock.length > 0) {
-    const totalStock = branch.stock.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  // Check if college has any stock
+  if (college.stock && college.stock.length > 0) {
+    const totalStock = college.stock.reduce((sum, item) => sum + (item.quantity || 0), 0);
     if (totalStock > 0) {
       res.status(400);
-      throw new Error(`Cannot delete branch. It has ${totalStock} items in stock. Please transfer or clear stock first.`);
+      throw new Error(`Cannot delete college. It has ${totalStock} items in stock. Please transfer or clear stock first.`);
     }
   }
 
-  await TransferBranch.findByIdAndDelete(req.params.id);
-  res.json({ message: 'Branch deleted successfully' });
+  await College.findByIdAndDelete(req.params.id);
+  res.json({ message: 'College deleted successfully' });
 });
 
 /**
- * @desc    Create a new stock transfer (from central stock to branch)
+ * @desc    Create a new stock transfer (from central stock to college)
  * @route   POST /api/stock-transfers
  * @access  Public
  */
 const createStockTransfer = asyncHandler(async (req, res) => {
-  const { items, toBranch, transferDate, isPaid, deductFromCentral, includeInRevenue, remarks, createdBy } = req.body;
+  const { items, toCollege, fromCollege, transferDate, isPaid, deductFromCentral, includeInRevenue, remarks, createdBy } = req.body;
 
   // Validate required fields
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -200,16 +203,30 @@ const createStockTransfer = asyncHandler(async (req, res) => {
     throw new Error('At least one product item is required');
   }
 
-  if (!toBranch) {
+  if (!toCollege) {
     res.status(400);
-    throw new Error('Destination branch is required');
+    throw new Error('Destination college is required');
   }
 
-  // Verify branch exists and is active
-  const toBranchDoc = await TransferBranch.findById(toBranch);
-  if (!toBranchDoc || !toBranchDoc.isActive) {
+  // Verify college exists and is active
+  const toCollegeDoc = await College.findById(toCollege);
+  if (!toCollegeDoc || !toCollegeDoc.isActive) {
     res.status(404);
-    throw new Error('Destination branch not found or inactive');
+    throw new Error('Destination college not found or inactive');
+  }
+
+  // Validate fromCollege if provided
+  let fromCollegeDoc = null;
+  if (fromCollege) {
+    if (fromCollege === toCollege) {
+      res.status(400);
+      throw new Error('Source and Destination colleges cannot be the same');
+    }
+    fromCollegeDoc = await College.findById(fromCollege);
+    if (!fromCollegeDoc || !fromCollegeDoc.isActive) {
+      res.status(404);
+      throw new Error('Source college not found or inactive');
+    }
   }
 
   // Validate and verify products
@@ -244,8 +261,18 @@ const createStockTransfer = asyncHandler(async (req, res) => {
       throw new Error(`Product ${item.product} not found`);
     }
 
-    // Only check stock if we're going to deduct from central
-    if (shouldDeductStock && product.stock < quantity) {
+    // Only check stock if we're going to deduct
+    // Case 1: Deduct from Source College
+    if (fromCollegeDoc) {
+      const stockEntry = fromCollegeDoc.stock.find(s => s.product.toString() === item.product.toString());
+      const available = stockEntry ? stockEntry.quantity : 0;
+      if (available < quantity) {
+        res.status(400);
+        throw new Error(`Insufficient stock for ${product.name} at ${fromCollegeDoc.name}. Available: ${available}, Requested: ${quantity}`);
+      }
+    }
+    // Case 2: Deduct from Central (only if fromCollege is NOT set and deductFromCentral is true)
+    else if (shouldDeductStock && product.stock < quantity) {
       res.status(400);
       throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${quantity}`);
     }
@@ -259,7 +286,7 @@ const createStockTransfer = asyncHandler(async (req, res) => {
   // Create transfer (status: pending)
   const stockTransfer = new StockTransfer({
     items: transferItems,
-    toBranch,
+    toCollege,
     transferDate: transferDate ? new Date(transferDate) : new Date(),
     isPaid: isPaid !== undefined ? Boolean(isPaid) : false,
     deductFromCentral: deductFromCentral !== undefined ? Boolean(deductFromCentral) : true,
@@ -267,13 +294,14 @@ const createStockTransfer = asyncHandler(async (req, res) => {
     remarks: remarks?.trim() || '',
     createdBy: createdBy?.trim() || 'System',
     status: 'pending',
+    fromCollege: fromCollege || null,
   });
 
   const createdTransfer = await stockTransfer.save();
 
-  // Populate the products and branch for response
+  // Populate the products and college for response
   await createdTransfer.populate('items.product', 'name price stock category');
-  await createdTransfer.populate('toBranch', 'name location');
+  await createdTransfer.populate('toCollege', 'name location');
 
   res.status(201).json(createdTransfer);
 });
@@ -284,11 +312,11 @@ const createStockTransfer = asyncHandler(async (req, res) => {
  * @access  Public
  */
 const getStockTransfers = asyncHandler(async (req, res) => {
-  const { product, toBranch, status, isPaid, startDate, endDate } = req.query;
+  const { product, toCollege, status, isPaid, startDate, endDate } = req.query;
   const filter = {};
 
   if (product) filter['items.product'] = product;
-  if (toBranch) filter.toBranch = toBranch;
+  if (toCollege) filter.toCollege = toCollege;
   if (status) filter.status = status;
   if (isPaid !== undefined && isPaid !== '') filter.isPaid = isPaid === 'true';
   if (startDate || endDate) {
@@ -299,7 +327,7 @@ const getStockTransfers = asyncHandler(async (req, res) => {
 
   const stockTransfers = await StockTransfer.find(filter)
     .populate('items.product', 'name price stock category')
-    .populate('toBranch', 'name location')
+    .populate('toCollege', 'name location')
     .populate('transactionId', 'transactionId totalAmount paymentMethod isPaid transactionType')
     .sort({ transferDate: -1, createdAt: -1 });
 
@@ -314,7 +342,7 @@ const getStockTransfers = asyncHandler(async (req, res) => {
 const getStockTransferById = asyncHandler(async (req, res) => {
   const stockTransfer = await StockTransfer.findById(req.params.id)
     .populate('items.product', 'name price stock category')
-    .populate('toBranch', 'name location description')
+    .populate('toCollege', 'name location description')
     .populate('transactionId', 'transactionId totalAmount paymentMethod isPaid transactionType createdAt');
 
   if (!stockTransfer) {
@@ -369,7 +397,7 @@ const updateStockTransfer = asyncHandler(async (req, res) => {
 
     // If completing a transfer, we can optionally update product stock here
     // For now, we'll just record the transfer status
-    // Future enhancement: Implement branch-specific stock tracking
+    // Future enhancement: Implement college-specific stock tracking
   }
 
   if (isPaid !== undefined) {
@@ -400,7 +428,7 @@ const updateStockTransfer = asyncHandler(async (req, res) => {
 
   const updated = await stockTransfer.save();
   await updated.populate('items.product', 'name price stock category');
-  await updated.populate('toBranch', 'name location');
+  await updated.populate('toCollege', 'name location');
   await updated.populate('transactionId', 'transactionId totalAmount paymentMethod isPaid transactionType');
 
   res.json(updated);
@@ -414,7 +442,7 @@ const updateStockTransfer = asyncHandler(async (req, res) => {
 const deleteStockTransfer = asyncHandler(async (req, res) => {
   const stockTransfer = await StockTransfer.findById(req.params.id)
     .populate('items.product')
-    .populate('toBranch');
+    .populate('toCollege');
   
   if (!stockTransfer) {
     res.status(404);
@@ -424,10 +452,29 @@ const deleteStockTransfer = asyncHandler(async (req, res) => {
   // If transfer is completed, revert stock changes
   if (stockTransfer.status === 'completed') {
     const shouldDeductStock = stockTransfer.deductFromCentral !== false; // Default to true if not set
-    const toBranch = stockTransfer.toBranch;
+    const toCollege = stockTransfer.toCollege;
     
     // Revert central stock (add back if it was deducted)
-    if (shouldDeductStock && stockTransfer.items && stockTransfer.items.length > 0) {
+    // Revert stock changes
+    if (stockTransfer.fromCollege && stockTransfer.items && stockTransfer.items.length > 0) {
+      // Revert to Source College
+      const fromCollege = await College.findById(stockTransfer.fromCollege);
+      if (fromCollege) {
+         const collegeStock = fromCollege.stock || [];
+         const productStockMap = new Map();
+         collegeStock.forEach(s => productStockMap.set(s.product.toString(), s.quantity));
+
+         for (const item of stockTransfer.items) {
+           const pid = item.product.toString();
+           const qty = productStockMap.get(pid) || 0;
+           productStockMap.set(pid, qty + item.quantity);
+         }
+         
+         fromCollege.stock = Array.from(productStockMap.entries()).map(([p, q]) => ({ product: p, quantity: q }));
+         await fromCollege.save();
+      }
+    } else if (shouldDeductStock && stockTransfer.items && stockTransfer.items.length > 0) {
+      // Revert central stock (add back if it was deducted)
       const stockReverts = [];
       
       for (const item of stockTransfer.items) {
@@ -449,13 +496,13 @@ const deleteStockTransfer = asyncHandler(async (req, res) => {
       }
     }
     
-    // Revert branch stock (remove if it was added)
-    if (toBranch && toBranch.stock && stockTransfer.items && stockTransfer.items.length > 0) {
-      const branchStock = toBranch.stock || [];
+    // Revert college stock (remove if it was added)
+    if (toCollege && toCollege.stock && stockTransfer.items && stockTransfer.items.length > 0) {
+      const collegeStock = toCollege.stock || [];
       const productStockMap = new Map();
       
       // Create a map of existing stock
-      for (const stockItem of branchStock) {
+      for (const stockItem of collegeStock) {
         const productId = stockItem.product?.toString() || stockItem.product;
         if (productId) {
           productStockMap.set(productId, stockItem.quantity || 0);
@@ -477,13 +524,13 @@ const deleteStockTransfer = asyncHandler(async (req, res) => {
       }
       
       // Convert map back to array format
-      const updatedBranchStock = Array.from(productStockMap.entries()).map(([productId, quantity]) => ({
+      const updatedCollegeStock = Array.from(productStockMap.entries()).map(([productId, quantity]) => ({
         product: productId,
         quantity,
       }));
       
-      toBranch.stock = updatedBranchStock;
-      await toBranch.save();
+      toCollege.stock = updatedCollegeStock;
+      await toCollege.save();
     }
     
     // Delete associated transaction if exists
@@ -506,7 +553,7 @@ const deleteStockTransfer = asyncHandler(async (req, res) => {
 const completeStockTransfer = asyncHandler(async (req, res) => {
   const stockTransfer = await StockTransfer.findById(req.params.id)
     .populate('items.product')
-    .populate('toBranch');
+    .populate('toCollege');
   
   if (!stockTransfer) {
     res.status(404);
@@ -518,21 +565,21 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
     throw new Error(`Transfer is already ${stockTransfer.status}`);
   }
 
-  const toBranch = stockTransfer.toBranch;
-  const shouldDeductStock = stockTransfer.deductFromCentral !== false; // Default to true if not set
-  const shouldIncludeInRevenue = stockTransfer.includeInRevenue !== false; // Default to true if not set
+  const toCollege = stockTransfer.toCollege;
+  const shouldDeductStock = stockTransfer.deductFromCentral !== false;
+  const shouldIncludeInRevenue = stockTransfer.includeInRevenue !== false;
   
-  // Re-fetch products to get latest stock values (populated data might be stale)
+  // Re-fetch products to get latest stock values
   const productIds = stockTransfer.items.map(item => item.product._id || item.product);
   const currentProducts = await Product.find({ _id: { $in: productIds } });
   const productMap = new Map(currentProducts.map(p => [p._id.toString(), p]));
   
-  // Validate stock for all items (only if deducting from central)
   const stockUpdates = [];
-  const branchStockUpdates = [];
+  const collegeStockUpdates = [];
   const transactionItems = [];
   let totalAmount = 0;
 
+  // 1. Prepare Data & Validate Central Stock (if needed)
   for (const item of stockTransfer.items) {
     const productId = item.product._id?.toString() || item.product?.toString();
     const product = productMap.get(productId);
@@ -543,33 +590,30 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
       throw new Error(`Product not found: ${productId}`);
     }
 
-    // Check if stock is still sufficient (only if deducting from central)
-    if (shouldDeductStock && product.stock < quantity) {
-      res.status(400);
-      throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Required: ${quantity}`);
+    // Prepare Central Stock Update (only if NO Source College AND Deduct is TRUE)
+    if (!stockTransfer.fromCollege && shouldDeductStock) {
+        if (product.stock < quantity) {
+            res.status(400);
+            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Required: ${quantity}`);
+        }
+        stockUpdates.push({
+            updateOne: {
+            filter: { 
+                _id: product._id,
+                stock: { $gte: quantity } 
+            },
+            update: { $inc: { stock: -quantity } },
+            },
+        });
     }
 
-    // Prepare stock deduction with atomic operation to prevent race conditions
-    // Using $inc with condition to ensure stock doesn't go negative
-    if (shouldDeductStock) {
-      stockUpdates.push({
-        updateOne: {
-          filter: { 
-            _id: product._id,
-            stock: { $gte: quantity } // Only update if stock is sufficient
-          },
-          update: { $inc: { stock: -quantity } },
-        },
-      });
-    }
-
-    // Prepare branch stock addition (always add to branch regardless)
-    branchStockUpdates.push({
+    // Prepare Destination College Update (Always)
+    collegeStockUpdates.push({
       productId: product._id.toString(),
       quantity,
     });
 
-    // Prepare transaction item (always record for transaction history, regardless of revenue inclusion)
+    // Prepare Transaction Item
     const itemTotal = product.price * quantity;
     totalAmount += itemTotal;
     transactionItems.push({
@@ -583,21 +627,42 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
     });
   }
 
-  // Deduct from central stock for all products (only if deducting from central)
-  // Use atomic operations to prevent race conditions
-  if (shouldDeductStock && stockUpdates.length > 0) {
+  // 2. Execute Deduction
+  if (stockTransfer.fromCollege) {
+      // Deduct from Source College
+      const fromCollege = await College.findById(stockTransfer.fromCollege);
+      if (!fromCollege) throw new Error('Source college not found');
+      
+      const collegeStock = fromCollege.stock || [];
+      const productStockMap = new Map();
+      collegeStock.forEach(s => productStockMap.set(s.product.toString(), s.quantity));
+
+      for (const item of stockTransfer.items) {
+        const pid = item.product._id?.toString() || item.product?.toString();
+        const currentQty = productStockMap.get(pid) || 0;
+        if (currentQty < item.quantity) {
+             throw new Error(`Insufficient stock at ${fromCollege.name} for product ${item.product.name}`);
+        }
+        productStockMap.set(pid, currentQty - item.quantity);
+      }
+      
+      fromCollege.stock = Array.from(productStockMap.entries())
+        .map(([p, q]) => ({ product: p, quantity: q }))
+        .filter(x => x.quantity > 0);
+      await fromCollege.save();
+
+  } else if (shouldDeductStock && stockUpdates.length > 0) {
+    // Deduct from Central Stock
     const bulkResult = await Product.bulkWrite(stockUpdates, { ordered: false });
     
     // Check if all updates were successful
     const failedUpdates = stockUpdates.length - (bulkResult.modifiedCount || 0);
     if (failedUpdates > 0) {
-      // Some updates failed, likely due to insufficient stock (race condition)
-      // Re-fetch products to get current stock levels
+      // Re-fetch and throw specific error
       const productIds = stockTransfer.items.map(item => item.product._id);
       const currentProducts = await Product.find({ _id: { $in: productIds } });
       const productMap = new Map(currentProducts.map(p => [p._id.toString(), p]));
       
-      // Find which products have insufficient stock
       const insufficientStock = [];
       for (const item of stockTransfer.items) {
         const product = productMap.get(item.product._id.toString());
@@ -605,41 +670,36 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
           insufficientStock.push(`${product.name} (Available: ${product.stock}, Required: ${item.quantity})`);
         }
       }
-      
       res.status(400);
-      throw new Error(`Insufficient stock detected. This may be due to concurrent transfers. ${insufficientStock.join(', ')}`);
+      throw new Error(`Insufficient stock detected. ${insufficientStock.join(', ')}`);
     }
   }
 
-  // Add stock to branch inventory
-  // Ensure no duplicate products in branch stock array
-  const branchStock = toBranch.stock || [];
+  // 3. Add to Destination College
+  const collegeStock = toCollege.stock || [];
   const productStockMap = new Map();
   
-  // First, create a map of existing stock
-  for (const stockItem of branchStock) {
+  for (const stockItem of collegeStock) {
     const productId = stockItem.product?.toString() || stockItem.product;
     if (productId) {
       productStockMap.set(productId, stockItem.quantity || 0);
     }
   }
   
-  // Add or update stock quantities
-  for (const update of branchStockUpdates) {
+  for (const update of collegeStockUpdates) {
     const currentQty = productStockMap.get(update.productId) || 0;
     productStockMap.set(update.productId, currentQty + update.quantity);
   }
   
-  // Convert map back to array format
-  const updatedBranchStock = Array.from(productStockMap.entries()).map(([productId, quantity]) => ({
+  const updatedCollegeStock = Array.from(productStockMap.entries()).map(([productId, quantity]) => ({
     product: productId,
     quantity,
   }));
   
-  toBranch.stock = updatedBranchStock;
-  await toBranch.save();
+  toCollege.stock = updatedCollegeStock;
+  await toCollege.save();
 
-  // Always create transaction for the transfer (for record-keeping, regardless of revenue inclusion)
+  // 4. Create Transaction
   let createdTransaction = null;
   if (transactionItems.length > 0) {
     const timestamp = Date.now();
@@ -648,19 +708,21 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
     
     const transaction = new Transaction({
       transactionId,
-      transactionType: 'branch_transfer',
-      branchTransfer: {
-        branchId: toBranch._id,
-        branchName: toBranch.name,
-        branchLocation: toBranch.location || '',
+      transactionType: 'college_transfer',
+      collegeId: stockTransfer.fromCollege || null, // Source College
+      collegeTransfer: {
+        collegeId: toCollege._id,
+        collegeName: toCollege.name,
+        collegeLocation: toCollege.location || '',
       },
+      collegeId: stockTransfer.fromCollege || null, // Record source college if applicable
       items: transactionItems,
       totalAmount,
       paymentMethod: 'transfer',
       isPaid: stockTransfer.isPaid || false,
       paidAt: stockTransfer.isPaid ? new Date() : null,
       transactionDate: new Date(),
-      remarks: `Stock transfer to ${toBranch.name}${stockTransfer.remarks ? ` - ${stockTransfer.remarks}` : ''}${shouldIncludeInRevenue ? '' : ' (Not included in revenue)'}`,
+      remarks: `Stock transfer ${stockTransfer.fromCollege ? `from ${stockTransfer.fromCollege} ` : ''}to ${toCollege.name}${stockTransfer.remarks ? ` - ${stockTransfer.remarks}` : ''}${shouldIncludeInRevenue ? '' : ' (Not included in revenue)'}`,
     });
 
     createdTransaction = await transaction.save();
@@ -669,13 +731,16 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
     stockTransfer.transactionId = createdTransaction._id;
   }
 
-  // Update transfer status and mark as completed
+  // 5. Update Transfer Status
   stockTransfer.status = 'completed';
   stockTransfer.completedAt = new Date();
   
   const updated = await stockTransfer.save();
   await updated.populate('items.product', 'name price stock category');
-  await updated.populate('toBranch', 'name location');
+  await updated.populate('toCollege', 'name location');
+  if (stockTransfer.fromCollege) {
+      await updated.populate('fromCollege', 'name location');
+  }
   if (createdTransaction) {
     await updated.populate('transactionId', 'transactionId totalAmount paymentMethod isPaid transactionType');
   }
@@ -684,12 +749,12 @@ const completeStockTransfer = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  getBranches,
-  createBranch,
-  updateBranch,
-  deleteBranch,
-  getBranchStock,
-  getBranchStockAll,
+  getColleges,
+  createCollege,
+  updateCollege,
+  deleteCollege,
+  getCollegeStock,
+  getCollegeStockAll,
   createStockTransfer,
   getStockTransfers,
   getStockTransferById,

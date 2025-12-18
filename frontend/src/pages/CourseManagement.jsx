@@ -1,528 +1,662 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, GraduationCap, BookOpen, Edit2, X } from 'lucide-react';
+import { School, Check, Save, AlertCircle, BookOpen, GraduationCap, X, Plus, Trash2, Edit2, MapPin, XCircle, CheckCircle } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 import { hasFullAccess } from '../utils/permissions';
 
 const CourseManagement = ({ currentUser }) => {
-  // Check access level
   const isSuperAdmin = currentUser?.role === 'Administrator';
-  const canEdit = isSuperAdmin || hasFullAccess(currentUser?.permissions || [], 'courses');
+  // Permission check - reusing 'courses' permission but contextually it's 'college-courses'
+  // If user is sub-admin, they probably shouldn't be here unless they can manage their own college (which is rare).
+  // Assuming this page is mostly for SuperAdmins or high-level admins to configure mappings.
+  const canEdit = isSuperAdmin;
 
-  const [courses, setCourses] = useState([]);
-  const [name, setName] = useState('');
-  const [branchesText, setBranchesText] = useState('');
-  const [yearsText, setYearsText] = useState('');
+  // State
+  const [colleges, setColleges] = useState([]);
+  const [allCourses, setAllCourses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editName, setEditName] = useState('');
-  const [editBranchesText, setEditBranchesText] = useState('');
-  const [editYearsText, setEditYearsText] = useState('');
 
+  const [selectedCollegeId, setSelectedCollegeId] = useState(null);
+  const [selectedCourseCodes, setSelectedCourseCodes] = useState(new Set());
+
+  // College Management State
+  const [showCollegeModal, setShowCollegeModal] = useState(false);
+  const [showEditCollegeModal, setShowEditCollegeModal] = useState(false);
+  const [editingCollege, setEditingCollege] = useState(null);
+  const [collegeFormData, setCollegeFormData] = useState({
+    name: '',
+    location: '',
+    description: '',
+  });
+  const [collegeSubmitting, setCollegeSubmitting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState({ type: '', message: '' });
+
+  // Initial Data Fetch
   useEffect(() => {
-    const fetchCourses = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        // Prefer new endpoint
-        let res = await fetch(apiUrl('/api/academic-config/courses'));
-        if (res.ok) {
-          const data = await res.json();
-          setCourses(Array.isArray(data) ? data : []);
-          return;
-        }
-        // Fallback to legacy singleton config
-        if (res.status === 404) {
-          res = await fetch(apiUrl('/api/config/academic'));
-          if (res.ok) {
-            const data = await res.json();
-            setCourses(Array.isArray(data?.courses) ? data.courses : []);
-            return;
+        // Fetch Colleges
+        const collegeRes = await fetch(apiUrl('/api/stock-transfers/colleges'));
+        const collegeData = await collegeRes.json();
+
+        // Fetch All Configured Courses
+        const courseRes = await fetch(apiUrl('/api/academic-config/courses'));
+        let courseData = [];
+        if (courseRes.ok) {
+          courseData = await courseRes.json();
+        } else if (courseRes.status === 404) {
+          // Fallback
+          const legacyRes = await fetch(apiUrl('/api/config/academic'));
+          if (legacyRes.ok) {
+            const legacyData = await legacyRes.json();
+            courseData = legacyData.courses || [];
           }
         }
-      } catch (e) {
-        // ignore load errors silently for now
+
+        setColleges(Array.isArray(collegeData) ? collegeData : []);
+        setAllCourses(Array.isArray(courseData) ? courseData : []);
+
+      } catch (err) {
+        console.error("Failed to load data", err);
+        setError("Failed to load colleges or courses configuration.");
       } finally {
         setLoading(false);
       }
     };
-    fetchCourses();
+
+    fetchData();
   }, []);
 
-  const resetForm = () => {
-    setName('');
-    setBranchesText('');
-    setYearsText('');
+  // Handle College Selection
+  const handleSelectCollege = (college) => {
+    setSelectedCollegeId(college._id);
+    // Initialize checked state from college's existing courses
+    // stored as array of strings (course codes/names)
+    const existing = new Set(college.courses || []);
+    setSelectedCourseCodes(existing);
     setError('');
   };
 
-  const handleAddCourse = async (e) => {
-    e.preventDefault();
-    const trimmedName = name.trim();
-    const normalizedNameCode = trimmedName.toLowerCase();
-    const parsedBranches = branchesText
-      .split(',')
-      .map(b => b.trim())
-      .filter(Boolean);
-    const parsedYears = yearsText
-      .split(',')
-      .map(y => parseInt(y, 10))
-      .filter(n => Number.isFinite(n) && n > 0);
-    if (!trimmedName) {
-      setError('Course name is required.');
-      return;
+  // Handle Checkbox Toggle
+  const toggleCourse = (courseName) => {
+    const next = new Set(selectedCourseCodes);
+    if (next.has(courseName)) {
+      next.delete(courseName);
+    } else {
+      next.add(courseName);
     }
-    if (courses.some(c => (c.name || '').toLowerCase() === normalizedNameCode)) {
-      setError('A course with this code already exists.');
-      return;
-    }
+    setSelectedCourseCodes(next);
+  };
+
+  // Save Mapping
+  const handleSave = async () => {
+    if (!selectedCollegeId) return;
+
     try {
-      setLoading(true);
+      setSaving(true);
       setError('');
-      let res = await fetch(apiUrl('/api/academic-config/courses'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: normalizedNameCode, displayName: trimmedName, years: parsedYears, branches: parsedBranches }),
-      });
-      if (res.ok) {
-        const saved = await res.json();
-        setCourses(prev => [...prev, saved]);
-        resetForm();
-        return;
-      }
-      // Fallback path using legacy config if new endpoint not present
-      if (res.status === 404) {
-        // Load current config
-        const getRes = await fetch(apiUrl('/api/config/academic'));
-        if (!getRes.ok) throw new Error('Failed to load config');
-        const cfg = await getRes.json();
-        const nextCourses = Array.isArray(cfg?.courses) ? cfg.courses.slice() : [];
-        if (nextCourses.some(c => (c.name || '').toLowerCase() === normalizedNameCode)) {
-          throw new Error('Course already exists');
-        }
-        nextCourses.push({ name: normalizedNameCode, displayName: trimmedName, years: parsedYears.length ? parsedYears : [1], branches: parsedBranches });
-        const putRes = await fetch(apiUrl('/api/config/academic'), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ courses: nextCourses }),
-        });
-        if (!putRes.ok) throw new Error('Failed to save config');
-        const savedCfg = await putRes.json();
-        setCourses(Array.isArray(savedCfg?.courses) ? savedCfg.courses : nextCourses);
-        resetForm();
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || 'Failed to add course');
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleDelete = async (courseId, courseCode) => {
-    if (!window.confirm('Delete this course?')) return;
-    try {
-      // If there is no _id (legacy config), skip directly to fallback path
-      if (!courseId) {
-        throw { status: 404 };
-      }
-      let res = await fetch(`/api/academic-config/courses/${courseId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setCourses(prev => prev.filter(c => c._id !== courseId));
-        return;
-      }
-      if (res.status === 404) {
-        // Fallback delete via legacy config
-        const getRes = await fetch(apiUrl('/api/config/academic'));
-        if (!getRes.ok) throw new Error('Failed to load config');
-        const cfg = await getRes.json();
-        const before = Array.isArray(cfg?.courses) ? cfg.courses.length : 0;
-        const nextCourses = (cfg?.courses || []).filter(c => String(c._id) !== String(courseId) && (c.name !== courseCode && (c.name || '').toLowerCase() !== String(courseCode || '').toLowerCase()));
-        if (nextCourses.length === before) throw new Error('Course not found');
-        const putRes = await fetch(apiUrl('/api/config/academic'), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ courses: nextCourses }),
-        });
-        if (!putRes.ok) throw new Error('Failed to save config');
-        setCourses(nextCourses);
-        return;
-      }
-      throw new Error('Failed to delete');
-    } catch (e) {
-      if (e && e.status === 404) {
-        // go to fallback logic
-        try {
-          const getRes = await fetch(apiUrl('/api/config/academic'));
-          if (!getRes.ok) throw new Error('Failed to load config');
-          const cfg = await getRes.json();
-          const before = Array.isArray(cfg?.courses) ? cfg.courses.length : 0;
-          const nextCourses = (cfg?.courses || []).filter(c => String(c._id) !== String(courseId) && (c.name !== courseCode && (c.name || '').toLowerCase() !== String(courseCode || '').toLowerCase()));
-          if (nextCourses.length === before) throw new Error('Course not found');
-          const putRes = await fetch(apiUrl('/api/config/academic'), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ courses: nextCourses }),
-          });
-          if (!putRes.ok) throw new Error('Failed to save config');
-          setCourses(nextCourses);
-          return;
-        } catch (inner) {
-          setError(inner.message);
-          return;
-        }
-      }
-      setError(e.message);
-    }
-  };
+      const college = colleges.find(c => c._id === selectedCollegeId);
+      if (!college) return;
 
-  const startEdit = (course) => {
-    const key = course._id || course.name;
-    setEditingId(key);
-    setEditName(course.displayName || course.name || '');
-    setEditBranchesText((course.branches || []).join(', '));
-    setEditYearsText((course.years || []).join(', '));
-  };
+      const coursesArray = Array.from(selectedCourseCodes);
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditName('');
-    setEditBranchesText('');
-    setEditYearsText('');
-  };
-
-  const saveEdit = async (course) => {
-    try {
-      setLoading(true);
-      setError('');
-      const normalizedNameCode = String(editName || '').trim().toLowerCase();
-      if (!normalizedNameCode) throw new Error('Course name is required');
-      const parsedBranches = editBranchesText
-        .split(',')
-        .map(b => b.trim())
-        .filter(Boolean);
-      const parsedYears = editYearsText
-        .split(',')
-        .map(y => parseInt(y, 10))
-        .filter(n => Number.isFinite(n) && n > 0);
-
-      const key = course._id || course.name;
-      const nextCourses = (courses || []).map(c => {
-        const cKey = c._id || c.name;
-        if (String(cKey) !== String(key)) return c;
-        return {
-          ...c,
-          name: normalizedNameCode,
-          displayName: editName.trim(),
-          branches: parsedBranches,
-          years: parsedYears.length ? parsedYears : [1],
-        };
-      });
-
-      const putRes = await fetch(apiUrl('/api/config/academic'), {
+      const response = await fetch(apiUrl(`/api/stock-transfers/colleges/${selectedCollegeId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courses: nextCourses }),
+        body: JSON.stringify({
+          courses: coursesArray
+        })
       });
-      if (!putRes.ok) throw new Error('Failed to save');
-      const savedCfg = await putRes.json(); // eslint-disable-line
-      setCourses(nextCourses);
-      cancelEdit();
-    } catch (e) {
-      setError(e.message);
+
+      if (!response.ok) {
+        throw new Error('Failed to update college courses');
+      }
+
+      const updatedCollege = await response.json();
+
+      // Update local state
+      setColleges(prev => prev.map(c => c._id === updatedCollege._id ? updatedCollege : c));
+
+      alert('Course mapping updated successfully!');
+
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to save changes');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
+  // --- College Management Handlers ---
+
+  const handleCreateCollege = async (e) => {
+    e.preventDefault();
+
+    if (!collegeFormData.name || !collegeFormData.name.trim()) {
+      setStatusMsg({ type: 'error', message: 'College name is required' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+      return;
+    }
+
+    setCollegeSubmitting(true);
+    try {
+      const res = await fetch(apiUrl('/api/stock-transfers/colleges'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(collegeFormData),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to create college');
+      }
+
+      const newCollege = await res.json();
+      setColleges(prev => [...prev, newCollege].sort((a, b) => a.name.localeCompare(b.name)));
+      setShowCollegeModal(false);
+      setCollegeFormData({ name: '', location: '', description: '' });
+      setStatusMsg({ type: 'success', message: 'College created successfully' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+    } catch (error) {
+      console.error('Error creating college:', error);
+      setStatusMsg({ type: 'error', message: error.message || 'Failed to create college' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+    } finally {
+      setCollegeSubmitting(false);
+    }
+  };
+
+  const handleEditCollege = (college, e) => {
+    e.stopPropagation(); // Prevent selection
+    setEditingCollege(college);
+    setCollegeFormData({
+      name: college.name || '',
+      location: college.location || '',
+      description: college.description || '',
+    });
+    setShowEditCollegeModal(true);
+  };
+
+  const handleUpdateCollege = async (e) => {
+    e.preventDefault();
+
+    if (!collegeFormData.name || !collegeFormData.name.trim()) {
+      setStatusMsg({ type: 'error', message: 'College name is required' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+      return;
+    }
+
+    setCollegeSubmitting(true);
+    try {
+      const res = await fetch(apiUrl(`/api/stock-transfers/colleges/${editingCollege._id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(collegeFormData),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to update college');
+      }
+
+      const updatedCollege = await res.json();
+      setColleges(prev => prev.map(c => c._id === editingCollege._id ? updatedCollege : c).sort((a, b) => a.name.localeCompare(b.name)));
+      // If updated college was selected, update selection too
+      if (selectedCollegeId === editingCollege._id) {
+        // Re-trigger selection logic if needed, but simple update is fine
+      }
+      setShowEditCollegeModal(false);
+      setEditingCollege(null);
+      setCollegeFormData({ name: '', location: '', description: '' });
+      setStatusMsg({ type: 'success', message: 'College updated successfully' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+    } catch (error) {
+      console.error('Error updating college:', error);
+      setStatusMsg({ type: 'error', message: error.message || 'Failed to update college' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+    } finally {
+      setCollegeSubmitting(false);
+    }
+  };
+
+  const handleDeleteCollege = async (collegeId, e) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this college? This action cannot be undone if the college is not used in any transfers.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(apiUrl(`/api/stock-transfers/colleges/${collegeId}`), {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setColleges(prev => prev.filter(c => c._id !== collegeId));
+        if (selectedCollegeId === collegeId) setSelectedCollegeId(null);
+        setStatusMsg({ type: 'success', message: 'College deleted successfully' });
+        setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to delete college');
+      }
+    } catch (error) {
+      console.error('Error deleting college:', error);
+      setStatusMsg({ type: 'error', message: error.message || 'Error deleting college' });
+      setTimeout(() => setStatusMsg({ type: '', message: '' }), 3000);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading Configuration...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const selectedCollege = colleges.find(c => c._id === selectedCollegeId);
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto">
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white text-2xl shadow-lg">
-                <GraduationCap size={24} />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Course Management</h1>
-                <p className="text-gray-600 mt-1">
-                  {courses.length} {courses.length === 1 ? 'course' : 'courses'} configured
-                </p>
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gray-50 p-6 flex flex-col">
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <School className="text-blue-600" />
+            College & Course Management
+          </h1>
+          <p className="text-gray-600 mt-1">Manage colleges and their course offerings.</p>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
-              <BookOpen size={20} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Courses</p>
-              <p className="text-xl font-semibold text-gray-900">{courses.length}</p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center">
-              <GraduationCap size={20} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Branches</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {courses.reduce((sum, c) => sum + (c.branches?.length || 0), 0)}
-              </p>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center">
-              <BookOpen size={20} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Years</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {Array.from(new Set(courses.flatMap(c => c.years || []))).length}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Add Course Card - Only show if user has full access */}
         {canEdit && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm border-2 border-blue-200 p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Plus className="text-white" size={18} />
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900">Add New Course</h2>
-          </div>
-          <form className="grid grid-cols-1 lg:grid-cols-4 gap-4" onSubmit={handleAddCourse}>
-            <div className="lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Course Name</label>
-              <input
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
-                placeholder="e.g., B.Tech"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Branches</label>
-              <input
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
-                placeholder="e.g., CSE, ECE"
-                value={branchesText}
-                onChange={(e) => setBranchesText(e.target.value)}
-              />
-            </div>
-            <div className="lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Years</label>
-              <input
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
-                placeholder="e.g., 1,2,3,4"
-                value={yearsText}
-                onChange={(e) => setYearsText(e.target.value)}
-              />
-            </div>
-            <div className="lg:col-span-1 flex items-end">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus size={16} />
-                Add Course
-              </button>
-            </div>
-          </form>
-          {error && <p className="text-red-600 mt-3 text-sm font-medium">{error}</p>}
-        </div>
+          <button
+            onClick={() => setShowCollegeModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+          >
+            <Plus size={20} />
+            Add College
+          </button>
         )}
+      </div>
 
-        {/* Courses List Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <BookOpen size={20} className="text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">All Courses</h3>
-                  <p className="text-sm text-gray-600">Manage course configurations</p>
-                </div>
+      {error && (
+        <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6 flex items-center gap-2 border border-red-200">
+          <AlertCircle size={20} />
+          {error}
+        </div>
+      )}
+
+      {statusMsg.message && (
+        <div
+          className={`px-4 py-3 mb-6 rounded-lg border flex items-center gap-2 ${statusMsg.type === 'success'
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+        >
+          {statusMsg.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+          {statusMsg.message}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+        {/* Left Column: Colleges List */}
+        <div className="lg:col-span-4 flex flex-col gap-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 font-semibold text-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <School size={18} />
+                Select College
               </div>
-              <span className="px-4 py-2 text-sm font-medium text-gray-700 bg-blue-50 border border-blue-200 rounded-lg">
-                {courses.length} {courses.length === 1 ? 'course' : 'courses'}
-              </span>
+              {canEdit && (
+                <button
+                  onClick={() => setShowCollegeModal(true)}
+                  className="p-1 hover:bg-gray-200 rounded-lg text-blue-600 transition-colors"
+                  title="Add New College"
+                >
+                  <Plus size={18} />
+                </button>
+              )}
             </div>
-          </div>
-          
-          <div className="p-6">
-            {loading && courses.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4" />
-                <p className="text-gray-600">Loading courses...</p>
-              </div>
-            ) : courses.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <BookOpen className="text-gray-400" size={32} />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No courses yet</h3>
-                <p className="text-gray-600 mb-6">Start by adding your first course above</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {courses.map(c => {
-                  const key = c._id || c.name;
-                  const isEditing = String(editingId) === String(key);
+            <div className="divide-y divide-gray-100 max-h-[calc(100vh-250px)] overflow-y-auto">
+              {colleges.length === 0 ? (
+                <div className="p-8 text-center text-gray-400 text-sm">No colleges found</div>
+              ) : (
+                colleges.map(college => {
+                  const isActive = college._id === selectedCollegeId;
+                  const assignedCount = (college.courses || []).length;
                   return (
-                    <div key={key} className="bg-gradient-to-r from-gray-50 to-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-all">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          {isEditing ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Course Name</label>
-                                <input 
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
-                                  value={editName} 
-                                  onChange={e => setEditName(e.target.value)} 
-                                  placeholder="Course name" 
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Branches</label>
-                                <input 
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
-                                  value={editBranchesText} 
-                                  onChange={e => setEditBranchesText(e.target.value)} 
-                                  placeholder="Branches (comma-separated)" 
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Years</label>
-                                <input 
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all"
-                                  value={editYearsText} 
-                                  onChange={e => setEditYearsText(e.target.value)} 
-                                  placeholder="Years (comma-separated numbers)" 
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white text-lg font-bold shadow-md">
-                                  {(c.displayName || c.name || 'C')
-                                    .split(' ')
-                                    .map(n => n[0])
-                                    .join('')
-                                    .toUpperCase()
-                                    .slice(0, 2)}
-                                </div>
-                                <div>
-                                  <h3 className="font-semibold text-gray-900 text-lg">{c.displayName || c.name}</h3>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
-                                      {c.branches?.length || 0} branches
-                                    </span>
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
-                                      {c.years?.length || 1} years
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap gap-4 pl-16">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <span className="font-semibold text-gray-700">Branches:</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {(c.branches || []).length > 0 ? (
-                                      (c.branches || []).map((branch, idx) => (
-                                        <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                                          {branch}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="text-gray-400 italic">No branches</span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <span className="font-semibold text-gray-700">Years:</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {(c.years || [1]).map((year, idx) => (
-                                      <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                                        Year {year}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                    <button
+                      key={college._id}
+                      onClick={() => handleSelectCollege(college)}
+                      className={`w-full text-left px-4 py-4 flex items-center justify-between transition-colors group
+                               ${isActive ? 'bg-blue-50 border-l-4 border-blue-600' : 'hover:bg-gray-50 border-l-4 border-transparent'}
+                             `}
+                    >
+                      <div>
+                        <div className={`font-medium ${isActive ? 'text-blue-900' : 'text-gray-900'}`}>
+                          {college.name}
                         </div>
-                        
-                        <div className="flex items-center gap-2 shrink-0">
-                          {isEditing ? (
-                            <>
-                              <button 
-                                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg text-sm font-medium"
-                                onClick={() => saveEdit(c)}
-                                disabled={loading}
-                              >
-                                <Plus size={14} />
-                                Save
-                              </button>
-                              <button 
-                                className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                                onClick={cancelEdit}
-                              >
-                                <X size={14} />
-                                Cancel
-                              </button>
-                            </>
-                          ) : canEdit ? (
-                            <>
-                              <button 
-                                className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                                onClick={() => startEdit(c)}
-                              >
-                                <Edit2 size={14} />
-                                Edit
-                              </button>
-                              <button 
-                                className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium shadow-md hover:shadow-lg"
-                                onClick={() => handleDelete(c._id, c.name)}
-                              >
-                                <Trash2 size={14} />
-                                Delete
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-2 rounded-lg">
-                              View Only
-                            </span>
-                          )}
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {college.location || 'No location'}
                         </div>
                       </div>
-                    </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`px-2 py-1 rounded text-xs font-medium 
+                                ${assignedCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}
+                              `}>
+                          {assignedCount}
+                        </div>
+                        {canEdit && (
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => handleEditCollege(college, e)}
+                              className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-md"
+                              title="Edit College"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteCollege(college._id, e)}
+                              className="p-1.5 hover:bg-red-100 text-red-600 rounded-md"
+                              title="Delete College"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Course Selection */}
+        <div className="lg:col-span-8 flex flex-col">
+          {selectedCollege ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">{selectedCollege.name}</h2>
+                  <p className="text-sm text-gray-500">Manage allowed courses for this college</p>
+                </div>
+
+                {canEdit && (
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm font-medium"
+                  >
+                    {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
+                    Save Changes
+                  </button>
+                )}
+              </div>
+
+              {/* Course Grid */}
+              <div className="p-6 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {allCourses.map(course => {
+                    const isSelected = selectedCourseCodes.has(course.name);
+                    const courseName = course.displayName || course.name;
+
+                    return (
+                      <label
+                        key={course.name}
+                        className={`
+                                 flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer select-none
+                                 ${isSelected
+                            ? 'bg-blue-50 border-blue-200 shadow-sm ring-1 ring-blue-200'
+                            : 'bg-white border-gray-200 hover:border-blue-200 hover:bg-gray-50'}
+                               `}
+                      >
+                        <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors
+                                   ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}
+                                `}>
+                          {isSelected && <Check size={12} className="text-white" />}
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={isSelected}
+                          onChange={() => canEdit && toggleCourse(course.name)}
+                          disabled={!canEdit}
+                        />
+                        <div className="flex-1">
+                          <div className={`font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+                            {courseName}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-1">
+                            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 border border-gray-200">
+                              {(course.years || []).length} Years
+                            </span>
+                            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 border border-gray-200">
+                              {(course.branches || []).length} Branches
+                            </span>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {allCourses.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    No courses found in global configuration.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <School size={24} className="text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900">No College Selected</h3>
+              <p className="max-w-xs mx-auto mt-2">Select a college from the left to configure its course mappings.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+
+      {/* Master Course List */}
+      <div className="mt-8 pt-8 border-t border-gray-200">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <BookOpen size={20} className="text-gray-500" />
+          Global Course Configuration
+        </h2>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3">Course Code</th>
+                  <th className="px-6 py-3">Display Name</th>
+                  <th className="px-6 py-3">Years</th>
+                  <th className="px-6 py-3">Branches</th>
+                  <th className="px-6 py-3 text-right">Mapping Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {allCourses.map(course => {
+                  const mappedColleges = colleges.filter(c => (c.courses || []).includes(course.name));
+                  return (
+                    <tr key={course.name} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-3 font-medium text-gray-900">{course.name}</td>
+                      <td className="px-6 py-3 text-gray-600">{course.displayName || course.name}</td>
+                      <td className="px-6 py-3 text-gray-600">
+                        <div className="flex flex-wrap gap-1">
+                          {(course.years || []).map(y => (
+                            <span key={y} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 border border-green-100">
+                              Year {y}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 text-gray-600">
+                        <div className="flex flex-wrap gap-1">
+                          {(course.branches || []).map(b => (
+                            <span key={b} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700 border border-blue-100">
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        {mappedColleges.length > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            <Check size={12} />
+                            Mapped to {mappedColleges.length} {mappedColleges.length === 1 ? 'College' : 'Colleges'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            Unassigned
+                          </span>
+                        )}
+                      </td>
+                    </tr>
                   );
                 })}
-              </div>
-            )}
+                {allCourses.length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-8 text-center text-gray-400">
+                      No global courses configured.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Footnote about Add Course */}
+      <div className="mt-8 text-center text-xs text-gray-400 pb-8">
+        Global course configurations are managed via SQL/Database directly.
+      </div>
+
+      {/* Add College Modal */}
+      {
+        showCollegeModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }} onClick={() => setShowCollegeModal(false)}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Add New College</h2>
+                <button onClick={() => setShowCollegeModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <XCircle size={24} />
+                </button>
+              </div>
+              <form onSubmit={handleCreateCollege} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">College Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={collegeFormData.name}
+                    onChange={(e) => setCollegeFormData({ ...collegeFormData, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Pydah College of Engineering"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      value={collegeFormData.location}
+                      onChange={(e) => setCollegeFormData({ ...collegeFormData, location: e.target.value })}
+                      className="w-full pl-9 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., Kakinada"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowCollegeModal(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={collegeSubmitting}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {collegeSubmitting ? 'Creating...' : 'Create College'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Edit College Modal */}
+      {
+        showEditCollegeModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }} onClick={() => setShowEditCollegeModal(false)}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Edit College</h2>
+                <button onClick={() => setShowEditCollegeModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <XCircle size={24} />
+                </button>
+              </div>
+              <form onSubmit={handleUpdateCollege} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">College Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={collegeFormData.name}
+                    onChange={(e) => setCollegeFormData({ ...collegeFormData, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={collegeFormData.location}
+                    onChange={(e) => setCollegeFormData({ ...collegeFormData, location: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditCollegeModal(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={collegeSubmitting}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {collegeSubmitting ? 'Updating...' : 'Update College'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 };
 
 export default CourseManagement;
-
-

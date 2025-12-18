@@ -13,6 +13,7 @@ const StudentDetail = ({
   onQueueTransaction,
   isOnline,
   pendingTransactions = [],
+  currentUser,
 }) => {
   const { id } = useParams();
   const navigate = useNavigate();
