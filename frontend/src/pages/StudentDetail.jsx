@@ -783,9 +783,10 @@ const StudentDetail = ({
                       });
 
                       return (
-                        <div key={transaction._id}>
+                        <>
                           <div
-                            className="border border-gray-200 rounded-lg p-4  hover:bg-blue-50 transition-colors"
+                            key={transaction._id}
+                            className="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 transition-colors"
                           >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex-1 min-w-0">
@@ -804,19 +805,24 @@ const StudentDetail = ({
                                     }`}>
                                     {transaction.isPaid ? 'Paid' : 'Unpaid'}
                                   </span>
-                                  {!transaction.isPaid && !transaction.isPending && (
+                                  {transaction.isPaid && !transaction.stockDeducted && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200 animate-pulse">
+                                      Stock Pending
+                                    </span>
+                                  )}
+                                  {(!transaction.isPaid || (transaction.isPaid && !transaction.stockDeducted)) && !transaction.isPending && (
                                     <button
                                       onClick={() => handleMarkAsPaid(transaction)}
                                       disabled={!isOnline || componentUpdating === `paid:${transaction._id || transaction.id}`}
                                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-green-600 text-white hover:bg-green-500 transition-colors disabled:opacity-50 no-print"
-                                      title="Click to deduct stock and mark as paid"
+                                      title={transaction.isPaid ? "Click to retry stock deduction" : "Click to deduct stock and mark as paid"}
                                     >
                                       {componentUpdating === `paid:${transaction._id || transaction.id}` ? (
                                         <Loader2 size={10} className="animate-spin" />
                                       ) : (
                                         <DollarSign size={10} />
                                       )}
-                                      Mark Paid
+                                      {transaction.isPaid ? 'Deduct Stock' : 'Mark Paid'}
                                     </button>
                                   )}
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${transaction.paymentMethod === 'cash'
@@ -863,7 +869,7 @@ const StudentDetail = ({
                               </div>
                             </div>
 
-                            {/* Transaction Items - Collapsible or compact view */}
+                            {/* Transaction Items */}
                             {transaction.items && transaction.items.length > 0 && (
                               <div className="mt-2 pt-2 border-t border-blue-100 space-y-2">
                                 {transaction.items.map((item, idx) => {
@@ -994,7 +1000,6 @@ const StudentDetail = ({
                                   max-width: 80mm !important;
                                   margin: 0 !important;
                                   padding: 0 !important;
-                                  /* Use bold-friendly fonts for thermal printing */
                                   font-family: 'Arial Black', 'Helvetica Bold', 'Arial', sans-serif !important;
                                   font-size: 11px !important;
                                   font-weight: 700 !important;
@@ -1065,7 +1070,6 @@ const StudentDetail = ({
                                 .thermal-table tbody tr {
                                   border-bottom: 1px solid #000 !important;
                                 }
-                                /* Remove border for single item */
                                 .thermal-table tbody tr.single-item,
                                 .thermal-table tbody tr:only-child {
                                   border-bottom: none !important;
@@ -1120,7 +1124,6 @@ const StudentDetail = ({
                               }
                             `}</style>
 
-                            {/* Thermal Header */}
                             <div className="thermal-header">
                               <h1>{receiptConfig.receiptHeader}</h1>
                               <p style={{ textAlign: 'center', fontSize: '10px', marginTop: '1mm' }}>
@@ -1134,13 +1137,11 @@ const StudentDetail = ({
                               </p>
                             </div>
 
-                            {/* Student Info */}
                             <div className="thermal-info">
                               <p><span>Name:</span> <span>{transaction.student?.name || student.name}</span></p>
                               <p><span>ID: {transaction.student?.studentId || student.studentId}</span> <span>{(transaction.student?.course || student.course)?.toUpperCase()}{((transaction.student?.branch || student.branch) ? ` | ${transaction.student?.branch || student.branch}` : '')} | Year {transaction.student?.year || student.year}</span></p>
                             </div>
 
-                            {/* Items Table */}
                             <table className="thermal-table">
                               <thead>
                                 <tr>
@@ -1179,25 +1180,22 @@ const StudentDetail = ({
                               </tbody>
                             </table>
 
-                            {/* Total with Payment Type */}
                             <div className="thermal-total">
                               <span>TOTAL ({transaction.paymentMethod === 'cash' ? 'CASH' : 'ONLINE'}):</span>
                               <span>₹{Number(transaction.totalAmount).toFixed(2)}</span>
                             </div>
 
-                            {/* Remarks if any */}
                             {transaction.remarks && (
                               <div className="thermal-payment">
                                 <p style={{ display: 'block' }}><span>Note: {transaction.remarks}</span></p>
                               </div>
                             )}
 
-                            {/* Footer */}
                             <div className="thermal-footer">
                               <p>Thank you! 💖 PydahSoft 💖</p>
                             </div>
                           </div>
-                        </div>
+                        </>
                       );
                     };
 
@@ -1211,38 +1209,40 @@ const StudentDetail = ({
       </div>
 
       {/* Transaction Modal */}
-      {showTransactionModal && student && (
-        <StudentReceiptModal
-          student={student}
-          products={products}
-          prefilledItems={prefillProducts}
-          mode={transactionMode}
-          isOnline={isOnline}
-          currentUser={currentUser}
-          onClose={() => {
-            setShowTransactionModal(false);
-            setPrefillProducts([]);
-            setTransactionMode('mapped');
-          }}
-          onTransactionSaved={(updatedStudent) => {
-            setStudent(updatedStudent);
-            setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-            // Force refresh transactions after saving
-            fetchStudentTransactions(true);
-          }}
-          onTransactionQueued={(queuedTransaction, optimisticStudent) => {
-            if (onQueueTransaction) {
-              onQueueTransaction(queuedTransaction, optimisticStudent);
-            }
-            setStudent(optimisticStudent);
-            setStudents(prev => prev.map(s => s.id === optimisticStudent.id ? optimisticStudent : s));
-            // Force refresh to show new transaction
-            fetchStudentTransactions(true);
-          }}
-          onProductsUpdated={refreshProducts}
-        />
-      )}
-    </div>
+      {
+        showTransactionModal && student && (
+          <StudentReceiptModal
+            student={student}
+            products={products}
+            prefilledItems={prefillProducts}
+            mode={transactionMode}
+            isOnline={isOnline}
+            currentUser={currentUser}
+            onClose={() => {
+              setShowTransactionModal(false);
+              setPrefillProducts([]);
+              setTransactionMode('mapped');
+            }}
+            onTransactionSaved={(updatedStudent) => {
+              setStudent(updatedStudent);
+              setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+              // Force refresh transactions after saving
+              fetchStudentTransactions(true);
+            }}
+            onTransactionQueued={(queuedTransaction, optimisticStudent) => {
+              if (onQueueTransaction) {
+                onQueueTransaction(queuedTransaction, optimisticStudent);
+              }
+              setStudent(optimisticStudent);
+              setStudents(prev => prev.map(s => s.id === optimisticStudent.id ? optimisticStudent : s));
+              // Force refresh to show new transaction
+              fetchStudentTransactions(true);
+            }}
+            onProductsUpdated={refreshProducts}
+          />
+        )
+      }
+    </div >
   );
 };
 

@@ -205,7 +205,7 @@ const createTransaction = asyncHandler(async (req, res) => {
   const stockChanges = new Map();
 
   for (const item of items) {
-    if (!item.productId || !item.quantity || !item.price) {
+    if (!item.productId || item.quantity === undefined || item.price === undefined) {
       res.status(400);
       throw new Error('Each item must have productId, quantity, and price');
     }
@@ -276,11 +276,11 @@ const createTransaction = asyncHandler(async (req, res) => {
     } else {
       // CHECK COLLEGE STOCK IF PAID
       if (isPaid) {
-        if (getProjectedStock(productId, collegeStockMap, stockChanges) < requestedQuantity) {
-          res.status(400);
-          throw new Error(`Insufficient stock for ${product.name} at this college. Available: ${collegeStockMap.get(productId) || 0}, Requested: ${requestedQuantity}`);
+        if (getProjectedStock(productId, collegeStockMap, stockChanges) >= requestedQuantity) {
+          accumulateStockChange(stockChanges, productId, -requestedQuantity);
+        } else {
+          itemStatus = 'partial'; // Mark as partial if stock is insufficient even if paid
         }
-        accumulateStockChange(stockChanges, productId, -requestedQuantity);
       }
     }
 
@@ -331,10 +331,19 @@ const createTransaction = asyncHandler(async (req, res) => {
     paymentMethod: paymentMethod || 'cash',
     isPaid: isPaid || false,
     paidAt: isPaid ? new Date() : null,
-    stockDeducted: isPaid || false,
+    stockDeducted: (isPaid && stockChanges.size > 0 && Array.from(stockChanges.values()).every(v => v < 0)) || false, 
+    // Wait, the logic for stockDeducted should be: did we actually apply changes?
+    // Let's refine this below.
     transactionDate: new Date(),
     remarks: remarks || '',
   });
+
+  // Re-evaluate stockDeducted based on whether applyStockChanges was called
+  if (isPaid && stockChanges.size > 0) {
+    await applyStockChanges(stockChanges, targetCollegeId);
+    transaction.stockDeducted = true;
+    await transaction.save();
+  }
 
   // Update student's items map based on transaction items
   const updatedItems = { ...(student.items || {}) };
@@ -499,7 +508,7 @@ const updateTransaction = asyncHandler(async (req, res) => {
     const stockChanges = new Map();
 
     for (const item of items) {
-      if (!item.productId || !item.quantity || !item.price) {
+      if (!item.productId || item.quantity === undefined || item.price === undefined) {
         res.status(400);
         throw new Error('Each item must have productId, quantity, and price');
       }
@@ -558,13 +567,11 @@ const updateTransaction = asyncHandler(async (req, res) => {
           if (taken) {
             // ONLY check and deduct stock if PAID
             if (targetIsPaid) {
-              if (getProjectedStock(componentId, newStockMap, stockChanges) < required) {
-                res.status(400);
-                throw new Error(
-                  `Insufficient stock for ${component.name} in set ${product.name}. Required: ${required}, Available: ${component.stock}`
-                );
-              }
+              if (getProjectedStock(componentId, newStockMap, stockChanges) >= required) {
               accumulateStockChange(stockChanges, componentId, -required);
+            } else {
+              itemStatus = 'partial';
+            }
             }
           } else {
             itemStatus = 'partial';
@@ -583,12 +590,11 @@ const updateTransaction = asyncHandler(async (req, res) => {
         }
       } else {
         if (targetIsPaid) {
-          if (getProjectedStock(productId, newStockMap, stockChanges) < requestedQuantity) {
-            res.status(400);
-            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${requestedQuantity}`);
+          if (getProjectedStock(productId, newStockMap, stockChanges) >= requestedQuantity) {
+            accumulateStockChange(stockChanges, productId, -requestedQuantity);
+          } else {
+            itemStatus = 'partial';
           }
-
-          accumulateStockChange(stockChanges, productId, -requestedQuantity);
         }
       }
 
@@ -666,24 +672,22 @@ const updateTransaction = asyncHandler(async (req, res) => {
               if (!comp.taken) continue;
               const compId = comp.productId.toString();
               const req = Number(comp.quantity) || 0;
-              if (getProjectedStock(compId, stockMap, stockChanges) < req) {
-                res.status(400);
-                throw new Error(`Insufficient stock for ${comp.name} during payment processing.`);
+              if (getProjectedStock(compId, stockMap, stockChanges) >= req) {
+                accumulateStockChange(stockChanges, compId, -req);
               }
-              accumulateStockChange(stockChanges, compId, -req);
             }
           } else {
-            if (getProjectedStock(productId, stockMap, stockChanges) < item.quantity) {
-              res.status(400);
-              throw new Error(`Insufficient stock for ${product.name} during payment processing.`);
+            if (getProjectedStock(productId, stockMap, stockChanges) >= item.quantity) {
+              accumulateStockChange(stockChanges, productId, -item.quantity);
             }
-            accumulateStockChange(stockChanges, productId, -item.quantity);
           }
         }
 
         const colId = transaction.collegeId || transaction.branchId;
-        await applyStockChanges(stockChanges, colId);
-        transaction.stockDeducted = true;
+        if (stockChanges.size > 0) {
+          await applyStockChanges(stockChanges, colId);
+          transaction.stockDeducted = true;
+        }
       } else if (!isPaid && prevDeducted) {
         // Mark as unpaid, need to restore stock
         const currentProductIds = new Set(transaction.items.map(i => i.productId));
