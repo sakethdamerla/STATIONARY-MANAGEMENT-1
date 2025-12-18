@@ -187,9 +187,15 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
       return;
     }
 
-    if (!isSuperAdmin && (!formData.targetLocation || (currentUser.assignedCollege && formData.targetLocation !== currentUser.assignedCollege))) {
-      setStatusMsg({ type: 'error', message: 'You can only add stock to your assigned college.' });
-      return;
+    if (!isSuperAdmin) {
+      const userCollegeId = currentUser.assignedCollege
+        ? (typeof currentUser.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser.assignedCollege)
+        : null;
+
+      if (String(formData.targetLocation || '') !== String(userCollegeId || '')) {
+        setStatusMsg({ type: 'error', message: 'You can only add stock to your assigned college.' });
+        return;
+      }
     }
 
     if (!formData.vendor) {
@@ -329,7 +335,9 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
                     <div className="w-full pl-3 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 flex items-center gap-2">
                       <Building2 size={16} className="text-blue-500" />
                       <span className="font-medium">
-                        {colleges.find(c => c._id === formData.targetLocation)?.name || 'Loading College...'}
+                        {formData.targetLocation === ''
+                          ? 'Central Warehouse (Global)'
+                          : (colleges.find(c => c._id === formData.targetLocation)?.name || 'Loading College...')}
                       </span>
                     </div>
                   )}
