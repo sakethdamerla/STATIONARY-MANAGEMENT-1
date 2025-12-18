@@ -1,4 +1,5 @@
 const { Product } = require('../models/productModel');
+const { College } = require('../models/collegeModel');
 
 const sanitizeSetItems = async (setItems) => {
   if (!Array.isArray(setItems) || setItems.length === 0) return [];
@@ -52,7 +53,7 @@ const createProduct = async (req, res) => {
   } catch (diagErr) {
     console.warn('Could not read Product schema year options:', diagErr);
   }
-  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters } = req.body;
+  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters, collegeId } = req.body;
   // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
   let parsedYears = [];
   if (years && Array.isArray(years)) {
@@ -107,9 +108,21 @@ const createProduct = async (req, res) => {
       setItems: sanitizedSetItems,
       lowStockThreshold: Boolean(isSet) ? 0 : thresholdNumber,
       semesters: (semesters || []).map(Number).filter(s => s === 1 || s === 2),
+      stock: collegeId ? 0 : parsedStock, // If collegeId, central stock is 0
     });
 
     const createdProduct = await product.save();
+
+    // If collegeId is provided and there's initial stock, add it to the college
+    if (collegeId && parsedStock > 0) {
+      const college = await College.findById(collegeId);
+      if (college) {
+        if (!college.stock) college.stock = [];
+        college.stock.push({ product: createdProduct._id, quantity: parsedStock });
+        await college.save();
+        console.log(`Initialized stock for product ${name} in college ${college.name} with ${parsedStock}`);
+      }
+    }
     await createdProduct.populate({ path: 'setItems.product', select: 'name price isSet' });
     console.log('Created product id:', createdProduct._id);
     res.status(201).json(createdProduct);
@@ -178,7 +191,8 @@ const updateProduct = async (req, res) => {
     // Track old name for updating transactions if name changes
     const oldName = product.name;
 
-  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters } = req.body;
+    const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters, collegeId } = req.body;
+    
   // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
   let parsedYears = undefined;
   if (years !== undefined && Array.isArray(years)) {
@@ -225,7 +239,30 @@ const updateProduct = async (req, res) => {
     product.name = name ?? product.name;
     product.description = description ?? product.description;
     product.price = newPrice;
-    product.stock = stock ?? product.stock;
+
+    // If collegeId is provided, we update college stock instead of global stock
+    if (collegeId) {
+      const college = await College.findById(collegeId);
+      if (college) {
+        if (!college.stock) college.stock = [];
+        
+        const stockIndex = college.stock.findIndex(item => item.product.toString() === product._id.toString());
+        const newQuantity = stock !== undefined && stock !== null && stock !== '' ? Number(stock) : 0;
+        
+        if (stockIndex !== -1) {
+          college.stock[stockIndex].quantity = newQuantity;
+        } else {
+          college.stock.push({ product: product._id, quantity: newQuantity });
+        }
+        
+        await college.save();
+        console.log(`Updated stock for product ${product.name} in college ${college.name} to ${newQuantity}`);
+      }
+    } else {
+      // Only update product.stock if NOT updating a specific college
+      product.stock = stock ?? product.stock;
+    }
+
     product.imageUrl = imageUrl ?? product.imageUrl;
     product.forCourse = forCourse ?? product.forCourse;
     if (parsedBranches !== undefined) {

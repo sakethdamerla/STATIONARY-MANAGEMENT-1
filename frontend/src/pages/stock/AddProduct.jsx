@@ -100,6 +100,28 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
   const [collegeStockMap, setCollegeStockMap] = useState({});
   const [activeCollegeId, setActiveCollegeId] = useState(null);
 
+  const fetchCollegeStock = async (targetId) => {
+    if (!targetId) {
+      setCollegeStockMap({});
+      return;
+    }
+    try {
+      const res = await fetch(apiUrl(`/api/stock-transfers/colleges/${targetId}/stock`));
+      if (res.ok) {
+        const data = await res.json();
+        const map = {};
+        (data.stock || []).forEach(item => {
+          const pId = typeof item.product === 'object' ? item.product._id : item.product;
+          map[pId] = item.quantity;
+        });
+        setCollegeStockMap(map);
+      }
+    } catch (err) {
+      console.error("Error fetching college stock:", err);
+      setCollegeStockMap({});
+    }
+  };
+
   useEffect(() => {
     let targetCollegeId = null;
 
@@ -110,30 +132,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
     }
 
     setActiveCollegeId(targetCollegeId);
-
-    if (targetCollegeId) {
-      const fetchCollegeStock = async () => {
-        try {
-          const res = await fetch(apiUrl(`/api/stock-transfers/colleges/${targetCollegeId}/stock`));
-          if (res.ok) {
-            const data = await res.json();
-            // Create a map of ProductID -> Quantity
-            const map = {};
-            (data.stock || []).forEach(item => {
-              const pId = typeof item.product === 'object' ? item.product._id : item.product;
-              map[pId] = item.quantity;
-            });
-            setCollegeStockMap(map);
-          }
-        } catch (err) {
-          console.error("Error fetching college stock:", err);
-          setCollegeStockMap({});
-        }
-      };
-      fetchCollegeStock();
-    } else {
-      setCollegeStockMap({});
-    }
+    fetchCollegeStock(targetCollegeId);
   }, [isSuperAdmin, currentUser, viewContext]);
 
   // Helper to get display stock
@@ -195,11 +194,12 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
   useEffect(() => {
     if (selectedProduct && showProductDetail) {
       const productYears = selectedProduct.years || (selectedProduct.year ? [selectedProduct.year] : []);
+      const displayStockInfo = getDisplayStock(selectedProduct);
       setFormData({
         name: selectedProduct.name || '',
         description: selectedProduct.description || '',
         price: selectedProduct.price || 0,
-        stock: selectedProduct.stock || 0,
+        stock: displayStockInfo.value || 0,
         remarks: selectedProduct.remarks || '',
         forCourse: selectedProduct.forCourse || '',
         years: productYears,
@@ -217,7 +217,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
       setSetItemToAdd('');
       setIsEditing(false);
     }
-  }, [selectedProduct, showProductDetail]);
+  }, [selectedProduct, showProductDetail, collegeStockMap]);
 
   useEffect(() => {
     if (showAddProduct) {
@@ -452,6 +452,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
               }))
               : [],
             lowStockThreshold: formData.isSet ? 0 : formData.lowStockThreshold,
+            collegeId: activeCollegeId || undefined,
           }),
         });
 
@@ -461,6 +462,10 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         }
 
         const updated = await response.json();
+        if (activeCollegeId) {
+          fetchCollegeStock(activeCollegeId);
+        }
+
         handleProductUpdate(updated);
       } else if (isCreateOperation) {
         // Create new product (with price, but stock stays 0)
@@ -472,7 +477,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             name: formData.name,
             description: formData.description || '',
             price: formData.price || 0,
-            stock: 0, // Default stock - should be added via Add Stock tab
+            stock: formData.stock || 0,
             remarks: formData.remarks || '',
             forCourse: formData.forCourse || undefined,
             years: formData.years || [],
@@ -486,6 +491,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
               }))
               : [],
             lowStockThreshold: formData.isSet ? 0 : formData.lowStockThreshold,
+            collegeId: activeCollegeId || undefined,
           }),
         });
 
@@ -495,6 +501,9 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
         }
 
         const created = await response.json();
+        if (activeCollegeId) {
+          fetchCollegeStock(activeCollegeId);
+        }
         handleProductCreate(created);
         setShowAddProduct(false);
       } else {
@@ -983,7 +992,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
 
                   {/* Stock */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Stock</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">{getDisplayStock(selectedProduct).label}</label>
                     {isEditing ? (
                       formData.isSet ? (
                         <p className="text-xs text-gray-600 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
@@ -1006,7 +1015,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                           Derived from component items
                         </p>
                       ) : (
-                        <p className="text-gray-700 bg-gray-50 p-2 rounded-lg">{selectedProduct.stock || 0}</p>
+                        <p className="text-gray-700 bg-gray-50 p-2 rounded-lg">{getDisplayStock(selectedProduct).value}</p>
                       )
                     )}
                   </div>
@@ -1474,12 +1483,34 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
                         {!formData.isSet && (
                           <div className="md:col-span-1">
                             <div className="flex items-center gap-2 mb-2">
+                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-600">
+                                <Archive size={18} />
+                              </span>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-700">Initial {getDisplayStock({ _id: 'new', isSet: false }).label}</p>
+                                <p className="text-xs text-gray-500">Starting quantity at this location</p>
+                              </div>
+                            </div>
+                            <input
+                              type="number"
+                              name="stock"
+                              value={formData.stock}
+                              onChange={handleFormChange}
+                              min="0"
+                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent shadow-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                        )}
+                        {!formData.isSet && (
+                          <div className="md:col-span-1">
+                            <div className="flex items-center gap-2 mb-2">
                               <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600">
-                                <Package size={18} />
+                                <Plus size={18} />
                               </span>
                               <div>
                                 <p className="text-sm font-semibold text-gray-700">Low Stock Threshold</p>
-                                <p className="text-xs text-gray-500">Trigger low-stock alerts below this quantity</p>
+                                <p className="text-xs text-gray-500">Trigger low-stock alerts below this qty</p>
                               </div>
                             </div>
                             <input
