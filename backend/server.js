@@ -85,17 +85,17 @@ app.use(cors(corsOptions));
 // Additional CORS headers middleware (fallback - ensures headers are always set)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
+
   // Normalize and check origin
   if (origin) {
     const normalizedOrigin = normalizeOrigin(origin);
     const normalizedAllowed = allowedOrigins.map(normalizeOrigin);
-    
+
     if (normalizedAllowed.includes(normalizedOrigin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept, X-Requested-With');
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept, X-Requested-With');
     } else {
       // Log for debugging CORS issues
       if (req.path.includes('/api/sql')) {
@@ -108,13 +108,13 @@ app.use((req, res, next) => {
     // In development, allow requests without origin
     res.header('Access-Control-Allow-Origin', '*');
   }
-  
+
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     res.sendStatus(204);
     return;
   }
-  
+
   next();
 });
 
@@ -123,8 +123,8 @@ app.use(express.json());
 
 // Sample route
 app.get("/", (req, res) => {
-  res.send("Server is running........! 😉😉😉😉😉😉 <br> <b>Backend is running! 😉</b>");
-  
+  res.send("Server is running.........! 😉😉😉😉😉😉 <br> <b>Backend is running! 😉</b>");
+
 });
 
 // Mount product routes
@@ -162,7 +162,7 @@ app.use((err, req, res, next) => {
       res.header('Access-Control-Allow-Credentials', 'true');
     }
   }
-  
+
   console.error("Error:", err);
   console.error("Stack:", err.stack);
   const statusCode = err.statusCode || res.statusCode || 500;
@@ -184,7 +184,7 @@ app.use((req, res) => {
       res.header('Access-Control-Allow-Credentials', 'true');
     }
   }
-  
+
   res.status(404).json({ message: "Route not found" });
 });
 
