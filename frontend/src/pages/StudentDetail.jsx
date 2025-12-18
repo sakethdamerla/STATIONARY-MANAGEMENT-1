@@ -1156,6 +1156,7 @@ const StudentDetail = ({
           prefilledItems={prefillProducts}
           mode={transactionMode}
           isOnline={isOnline}
+          currentUser={currentUser}
           onClose={() => {
             setShowTransactionModal(false);
             setPrefillProducts([]);

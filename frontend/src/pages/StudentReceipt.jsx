@@ -560,9 +560,13 @@ const StudentReceiptModal = ({
           isPaid,
           remarks,
           createdBy: currentUser?.id,
-          collegeId: currentUser?.assignedCollege || currentUser?.assignedBranch?._id || currentUser?.assignedBranch || undefined,
+          collegeId: (typeof currentUser?.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser?.assignedCollege) ||
+            (typeof currentUser?.assignedBranch === 'object' ? currentUser.assignedBranch._id : currentUser?.assignedBranch) ||
+            undefined,
           // Support for legacy assignment
-          branchId: currentUser?.assignedCollege || currentUser?.assignedBranch?._id || currentUser?.assignedBranch || undefined,
+          branchId: (typeof currentUser?.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser?.assignedCollege) ||
+            (typeof currentUser?.assignedBranch === 'object' ? currentUser.assignedBranch._id : currentUser?.assignedBranch) ||
+            undefined,
         }),
       });
 

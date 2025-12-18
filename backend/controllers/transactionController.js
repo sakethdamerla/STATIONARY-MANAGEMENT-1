@@ -171,6 +171,18 @@ const createTransaction = asyncHandler(async (req, res) => {
      }
   }
 
+  // Backup: If still no collegeId, find college associated with student's course
+  if (!targetCollegeId && student.course) {
+    console.log('[DEBUG] createTransaction: Attempting backup lookup for course:', student.course);
+    const backupCollege = await College.findOne({ courses: student.course });
+    if (backupCollege) {
+      console.log('[DEBUG] createTransaction: Backup found college:', backupCollege.name);
+      targetCollegeId = backupCollege._id;
+    } else {
+      console.log('[DEBUG] createTransaction: No college found for course:', student.course);
+    }
+  }
+
   // Critical: If college-wise management is active, we MUST have a collegeId for stock deduction
   // unless we decide to fallback to Global Stock (which defeats the purpose).
   // For safety during migration, if no collegeId is found, we might throw Error or fallback.
