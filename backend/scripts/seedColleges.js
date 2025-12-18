@@ -5,24 +5,32 @@ const { College } = require('../models/collegeModel');
 const colleges = [
   {
     name: 'Pydah College of Engineering',
-    location: 'Kakinada',
+    location: 'PATAVALA',
     description: 'Main Engineering Campus',
     isActive: true,
-    courses: ['btech', 'mtech'],
+    
   },
   {
     name: 'Pydah Polytechnic College',
-    location: 'Visakhapatnam',
+    location: 'PATAVALA',
     description: 'Polytechnic Campus',
     isActive: true,
-    courses: ['diploma'],
+    
   },
   {
     name: 'Pydah Degree College',
-    location: 'Kakinada',
+    location: 'PATAVALA',
     description: 'Arts & Science Campus',
     isActive: true,
-    courses: ['degree'],
+    
+  },
+  {
+    name : 'Pydah Pharmacy College',
+    location: 'PATAVALA',
+    description : 'Pharmacy Campus',
+    isActive : true,
+    
+
   }
 ];
 
