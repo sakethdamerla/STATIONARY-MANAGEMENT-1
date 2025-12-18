@@ -89,38 +89,8 @@ const createStockEntry = async (req, res) => {
         const savedEntry = await stockEntry.save();
         createdEntries.push(savedEntry);
 
-        // Update Stock Logic
-        if (collegeDoc) {
-           // Update College Stock Memory Map first? No, direct update array
-           // Actually, saving college doc in loop might be race-condition prone if concurrent? 
-           // But here we are sequential.
-           // Better to update memory map and save ONCE after loop?
-           // Yes.
-           const pId = item.product.toString();
-           if (collegeStockMap.has(pId)) {
-               const s = collegeStockMap.get(pId);
-               s.quantity = (s.quantity || 0) + Number(item.quantity);
-           } else {
-               const newItem = { product: item.product, quantity: Number(item.quantity) };
-               collegeDoc.stock.push(newItem);
-               // Re-find to add to map reference?
-               // Since we pushed to array, we should be fine if we just save at end.
-               // But let's keep map updated if we might see same item twice in batch?
-               // If batch has duplicates, map helps.
-               // Refinding pushed item in mongoose array might be tricky without save.
-               // Let's simplified: Check map, update. If not in map, PUSH TO ARRAY and ADD TO MAP.
-               // Mongoose array push works. 
-               
-               // To be safe for duplicates in same batch:
-               // We need a stable reference.
-               // Mongoose array elements are subdocs.
-               // Let's rebuild map from current array state?
-               // Or simply:
-           }
-           // Optimization: Just accumulate changes in a local map and apply ONCE.
-           
-        } else {
-           // Update Central Stock - Update immediately
+        // Update Central Stock if not for a college
+        if (!collegeDoc) {
            productDoc.stock = (productDoc.stock || 0) + Number(item.quantity);
            await productDoc.save();
         }
@@ -245,21 +215,40 @@ const updateStockEntry = async (req, res) => {
     const oldQuantity = stockEntry.quantity;
     const oldProductId = stockEntry.product.toString();
 
-    // If quantity is being changed, update product stock accordingly
+    // If quantity is being changed, update stock accordingly
     if (quantity !== undefined && quantity !== oldQuantity) {
-      const product = await Product.findById(stockEntry.product);
-      if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
-      }
-
       const quantityDiff = quantity - oldQuantity;
       
-      // Update product stock
-      product.stock = (product.stock || 0) + quantityDiff;
-      if (product.stock < 0) {
-        return res.status(400).json({ message: 'Cannot reduce stock below 0' });
+      if (stockEntry.college) {
+        const { College } = require('../models/collegeModel');
+        const college = await College.findById(stockEntry.college);
+        if (college) {
+          const stockItem = college.stock.find(s => s.product.toString() === oldProductId);
+          if (stockItem) {
+            stockItem.quantity = (stockItem.quantity || 0) + quantityDiff;
+            if (stockItem.quantity < 0) {
+              return res.status(400).json({ message: 'Cannot reduce college stock below 0' });
+            }
+          } else if (quantityDiff > 0) {
+            college.stock.push({ product: oldProductId, quantity: quantityDiff });
+          } else {
+            return res.status(400).json({ message: 'Insufficient college stock to reduce' });
+          }
+          await college.save();
+        }
+      } else {
+        const product = await Product.findById(stockEntry.product);
+        if (!product) {
+          return res.status(404).json({ message: 'Product not found' });
+        }
+
+        // Update product stock
+        product.stock = (product.stock || 0) + quantityDiff;
+        if (product.stock < 0) {
+          return res.status(400).json({ message: 'Cannot reduce central stock below 0' });
+        }
+        await product.save();
       }
-      await product.save();
     }
 
     // Update stock entry fields
@@ -300,11 +289,24 @@ const deleteStockEntry = async (req, res) => {
       return res.status(404).json({ message: 'Stock entry not found' });
     }
 
-    // Restore product stock
-    const product = await Product.findById(stockEntry.product);
-    if (product) {
-      product.stock = Math.max(0, (product.stock || 0) - stockEntry.quantity);
-      await product.save();
+    // Revert stock changes
+    if (stockEntry.college) {
+      const { College } = require('../models/collegeModel');
+      const college = await College.findById(stockEntry.college);
+      if (college) {
+        const stockItem = college.stock.find(s => s.product.toString() === stockEntry.product.toString());
+        if (stockItem) {
+          stockItem.quantity = Math.max(0, (stockItem.quantity || 0) - stockEntry.quantity);
+          // Optional: remove if 0? Let's keep for consistency with other parts
+          await college.save();
+        }
+      }
+    } else {
+      const product = await Product.findById(stockEntry.product);
+      if (product) {
+        product.stock = Math.max(0, (product.stock || 0) - stockEntry.quantity);
+        await product.save();
+      }
     }
 
     await StockEntry.findByIdAndDelete(req.params.id);
