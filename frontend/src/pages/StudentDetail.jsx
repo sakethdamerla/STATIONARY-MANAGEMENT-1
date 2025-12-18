@@ -282,6 +282,53 @@ const StudentDetail = ({
     [enrichItems]
   );
 
+  const handleMarkAsPaid = async (transaction) => {
+    if (!isOnline) {
+      setComponentUpdateStatus({
+        type: 'error',
+        message: 'Re-connect to the network before marking transactions as paid.',
+      });
+      return;
+    }
+
+    const transactionId = transaction._id || transaction.id;
+    const actionKey = `paid:${transactionId}`;
+    setComponentUpdating(actionKey);
+    setComponentUpdateStatus({ type: '', message: '' });
+
+    try {
+      const response = await fetch(apiUrl(`/api/transactions/${transactionId}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isPaid: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to update transaction' }));
+        throw new Error(errorData.message || 'Failed to update transaction.');
+      }
+
+      await fetchStudentTransactions(true); // Force refresh
+      await refreshProducts();
+      setComponentUpdateStatus({
+        type: 'success',
+        message: 'Transaction marked as paid successfully.',
+      });
+    } catch (error) {
+      console.error('Failed to mark transaction as paid:', error);
+      setComponentUpdateStatus({
+        type: 'error',
+        message: error.message || 'Unable to mark transaction as paid.',
+      });
+    } finally {
+      if (componentUpdating === actionKey) {
+        setComponentUpdating('');
+      }
+    }
+  };
+
   const handleMarkComponentTaken = useCallback(
     async (transaction, item, component) => {
       if (!isOnline) {
@@ -757,6 +804,21 @@ const StudentDetail = ({
                                     }`}>
                                     {transaction.isPaid ? 'Paid' : 'Unpaid'}
                                   </span>
+                                  {!transaction.isPaid && !transaction.isPending && (
+                                    <button
+                                      onClick={() => handleMarkAsPaid(transaction)}
+                                      disabled={!isOnline || componentUpdating === `paid:${transaction._id || transaction.id}`}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-green-600 text-white hover:bg-green-500 transition-colors disabled:opacity-50 no-print"
+                                      title="Click to deduct stock and mark as paid"
+                                    >
+                                      {componentUpdating === `paid:${transaction._id || transaction.id}` ? (
+                                        <Loader2 size={10} className="animate-spin" />
+                                      ) : (
+                                        <DollarSign size={10} />
+                                      )}
+                                      Mark Paid
+                                    </button>
+                                  )}
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${transaction.paymentMethod === 'cash'
                                     ? 'bg-blue-100 text-blue-700 border border-blue-200'
                                     : 'bg-indigo-100 text-indigo-700 border border-indigo-200'

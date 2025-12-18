@@ -239,36 +239,49 @@ const createTransaction = asyncHandler(async (req, res) => {
         const componentId = component._id.toString();
         const required = requestedQuantity * (Number(setItem.quantity) || 1);
         
-        // CHECK COLLEGE STOCK INSTEAD OF GLOBAL STOCK
-        const available = getProjectedStock(componentId, collegeStockMap, stockChanges);
+        // CHECK COLLEGE STOCK IF PAID
+        if (isPaid) {
+          const available = getProjectedStock(componentId, collegeStockMap, stockChanges);
+          let taken = true;
+          let reason;
 
-        let taken = true;
-        let reason;
+          if (available < required) {
+            taken = false;
+            itemStatus = 'partial';
+            reason = `Insufficient stock at college (required ${required}, available ${Math.max(available, 0)})`;
+          } else {
+            accumulateStockChange(stockChanges, componentId, -required);
+          }
 
-        if (available < required) {
-          taken = false;
-          itemStatus = 'partial';
-          reason = `Insufficient stock at college (required ${required}, available ${Math.max(available, 0)})`;
+          componentDetails.push({
+            productId: component._id,
+            name: component.name,
+            quantity: required,
+            taken,
+            reason: taken ? undefined : reason,
+          });
         } else {
-          accumulateStockChange(stockChanges, componentId, -required);
+          // IF UNPAID, we allow it even if stock is low, and don't deduct yet
+          componentDetails.push({
+            productId: component._id,
+            name: component.name,
+            quantity: required,
+            taken: true, // Mark as taken by default in the transaction record if unpaid? 
+            // Or maybe false if we want them to mark it manually later?
+            // "allow for creation even when out of stock" suggests they are PLANNING to give it.
+            // Let's set taken: true as the "desired" state, but we don't deduct stock yet.
+          });
         }
-
-        componentDetails.push({
-          productId: component._id,
-          name: component.name,
-          quantity: required,
-          taken,
-          reason: taken ? undefined : reason,
-        });
       }
     } else {
-      // CHECK COLLEGE STOCK INSTEAD OF GLOBAL STOCK
-      if (getProjectedStock(productId, collegeStockMap, stockChanges) < requestedQuantity) {
-        res.status(400);
-        throw new Error(`Insufficient stock for ${product.name} at this college. Available: ${collegeStockMap.get(productId) || 0}, Requested: ${requestedQuantity}`);
+      // CHECK COLLEGE STOCK IF PAID
+      if (isPaid) {
+        if (getProjectedStock(productId, collegeStockMap, stockChanges) < requestedQuantity) {
+          res.status(400);
+          throw new Error(`Insufficient stock for ${product.name} at this college. Available: ${collegeStockMap.get(productId) || 0}, Requested: ${requestedQuantity}`);
+        }
+        accumulateStockChange(stockChanges, productId, -requestedQuantity);
       }
-
-      accumulateStockChange(stockChanges, productId, -requestedQuantity);
     }
 
     const itemTotal = requestedQuantity * Number(item.price);
@@ -290,8 +303,10 @@ const createTransaction = asyncHandler(async (req, res) => {
     validatedItems.push(transactionItem);
   }
 
-  // Apply stock changes after validation to the COLLEGE
-  await applyStockChanges(stockChanges, targetCollegeId);
+  // Apply stock changes after validation to the COLLEGE only if PAID
+  if (isPaid && stockChanges.size > 0) {
+    await applyStockChanges(stockChanges, targetCollegeId);
+  }
 
   // Generate unique transaction ID
   const timestamp = Date.now();
@@ -316,6 +331,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     paymentMethod: paymentMethod || 'cash',
     isPaid: isPaid || false,
     paidAt: isPaid ? new Date() : null,
+    stockDeducted: isPaid || false,
     transactionDate: new Date(),
     remarks: remarks || '',
   });
@@ -428,10 +444,13 @@ const updateTransaction = asyncHandler(async (req, res) => {
 
   const { items, paymentMethod, isPaid, remarks } = req.body;
 
-  // If items are being updated, recalculate total
+  // If items are being updated, recalculate total and handle stock
   if (items && Array.isArray(items) && items.length > 0) {
-    // First, restore stock from old transaction items
-    if (transaction.items && transaction.items.length > 0) {
+    // Use targetIsPaid to determine if we should deduct stock for NEW items
+    const targetIsPaid = isPaid !== undefined ? isPaid : transaction.isPaid;
+
+    // First, restore stock from old transaction items ONLY if it was deducted
+    if (transaction.stockDeducted && transaction.items && transaction.items.length > 0) {
       const restoreIds = new Set(transaction.items.map((oldItem) => oldItem.productId));
       const { productMap: restoreProductMap } = await loadProductsWithComponents(restoreIds);
       const restoreChanges = new Map();
@@ -537,13 +556,16 @@ const updateTransaction = asyncHandler(async (req, res) => {
           let reason = desiredComponent?.reason;
 
           if (taken) {
-            if (getProjectedStock(componentId, newStockMap, stockChanges) < required) {
-              res.status(400);
-              throw new Error(
-                `Insufficient stock for ${component.name} in set ${product.name}. Required: ${required}, Available: ${component.stock}`
-              );
+            // ONLY check and deduct stock if PAID
+            if (targetIsPaid) {
+              if (getProjectedStock(componentId, newStockMap, stockChanges) < required) {
+                res.status(400);
+                throw new Error(
+                  `Insufficient stock for ${component.name} in set ${product.name}. Required: ${required}, Available: ${component.stock}`
+                );
+              }
+              accumulateStockChange(stockChanges, componentId, -required);
             }
-            accumulateStockChange(stockChanges, componentId, -required);
           } else {
             itemStatus = 'partial';
             if (!reason) {
@@ -560,12 +582,14 @@ const updateTransaction = asyncHandler(async (req, res) => {
           });
         }
       } else {
-        if (getProjectedStock(productId, newStockMap, stockChanges) < requestedQuantity) {
-          res.status(400);
-          throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${requestedQuantity}`);
-        }
+        if (targetIsPaid) {
+          if (getProjectedStock(productId, newStockMap, stockChanges) < requestedQuantity) {
+            res.status(400);
+            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${requestedQuantity}`);
+          }
 
-        accumulateStockChange(stockChanges, productId, -requestedQuantity);
+          accumulateStockChange(stockChanges, productId, -requestedQuantity);
+        }
       }
 
       const itemTotal = requestedQuantity * Number(item.price);
@@ -588,7 +612,10 @@ const updateTransaction = asyncHandler(async (req, res) => {
     }
 
     const colId = transaction.collegeId || transaction.branchId;
-    await applyStockChanges(stockChanges, colId);
+    if (targetIsPaid && stockChanges.size > 0) {
+      await applyStockChanges(stockChanges, colId);
+    }
+    transaction.stockDeducted = targetIsPaid;
 
     transaction.items = validatedItems;
     transaction.totalAmount = totalAmount;
@@ -612,8 +639,77 @@ const updateTransaction = asyncHandler(async (req, res) => {
   }
 
   if (isPaid !== undefined) {
+    const prevPaid = transaction.isPaid;
+    const prevDeducted = transaction.stockDeducted;
+    
     transaction.isPaid = isPaid;
     transaction.paidAt = isPaid ? new Date() : null;
+
+    // Handle stock deduction transition if items were NOT updated above
+    // (If items WERE updated, stockDeducted was already handled)
+    const itemsUpdated = items && Array.isArray(items) && items.length > 0;
+    
+    if (!itemsUpdated) {
+      if (isPaid && !prevDeducted) {
+        // Mark as paid, need to deduct stock
+        const currentProductIds = new Set(transaction.items.map(i => i.productId));
+        const { productMap, stockMap } = await loadProductsWithComponents(currentProductIds);
+        const stockChanges = new Map();
+
+        for (const item of transaction.items) {
+          const productId = item.productId.toString();
+          const product = productMap.get(productId);
+          if (!product) continue;
+
+          if (product.isSet && item.setComponents?.length) {
+            for (const comp of item.setComponents) {
+              if (!comp.taken) continue;
+              const compId = comp.productId.toString();
+              const req = Number(comp.quantity) || 0;
+              if (getProjectedStock(compId, stockMap, stockChanges) < req) {
+                res.status(400);
+                throw new Error(`Insufficient stock for ${comp.name} during payment processing.`);
+              }
+              accumulateStockChange(stockChanges, compId, -req);
+            }
+          } else {
+            if (getProjectedStock(productId, stockMap, stockChanges) < item.quantity) {
+              res.status(400);
+              throw new Error(`Insufficient stock for ${product.name} during payment processing.`);
+            }
+            accumulateStockChange(stockChanges, productId, -item.quantity);
+          }
+        }
+
+        const colId = transaction.collegeId || transaction.branchId;
+        await applyStockChanges(stockChanges, colId);
+        transaction.stockDeducted = true;
+      } else if (!isPaid && prevDeducted) {
+        // Mark as unpaid, need to restore stock
+        const currentProductIds = new Set(transaction.items.map(i => i.productId));
+        const { productMap } = await loadProductsWithComponents(currentProductIds);
+        const restoreChanges = new Map();
+
+        for (const item of transaction.items) {
+          const productId = item.productId.toString();
+          const product = productMap.get(productId);
+          if (!product) continue;
+
+          if (product.isSet && item.setComponents?.length) {
+            for (const comp of item.setComponents) {
+              if (!comp.taken) continue;
+              accumulateStockChange(restoreChanges, comp.productId.toString(), Number(comp.quantity) || 0);
+            }
+          } else {
+            accumulateStockChange(restoreChanges, productId, item.quantity);
+          }
+        }
+
+        const colId = transaction.collegeId || transaction.branchId;
+        await applyStockChanges(restoreChanges, colId);
+        transaction.stockDeducted = false;
+      }
+    }
 
     // Update student's paid status
     const student = await User.findById(transaction.student.userId);
@@ -644,8 +740,8 @@ const deleteTransaction = asyncHandler(async (req, res) => {
     throw new Error('Transaction not found');
   }
 
-  // Restore product stock when deleting transaction
-  if (transaction.items && transaction.items.length > 0) {
+  // Restore product stock when deleting transaction ONLY if stock was deducted
+  if (transaction.stockDeducted && transaction.items && transaction.items.length > 0) {
     const restoreIds = new Set(transaction.items.map((item) => item.productId));
     const { productMap: restoreProductMap } = await loadProductsWithComponents(restoreIds);
     const restoreChanges = new Map();

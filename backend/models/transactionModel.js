@@ -130,6 +130,11 @@ const transactionSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    stockDeducted: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
   },
   {
     timestamps: true,

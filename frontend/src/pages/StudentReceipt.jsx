@@ -476,7 +476,14 @@ const StudentReceiptModal = ({
       }
 
       const maxStock = product?.stock || 0;
-      const newQuantity = Math.max(0, Math.min(current + delta, maxStock));
+      let newQuantity;
+
+      if (isPaid) {
+        newQuantity = Math.max(0, Math.min(current + delta, maxStock));
+      } else {
+        newQuantity = Math.max(0, current + delta);
+      }
+
       if (newQuantity === 0) {
         const { [productId]: removed, ...rest } = prev;
         return rest;
@@ -739,9 +746,14 @@ const StudentReceiptModal = ({
                               {!isSet && (
                                 <span className="text-xs text-blue-600 font-medium">
                                   Stock:{' '}
-                                  <span className={item.stock <= 5 ? 'text-red-600 font-semibold' : item.stock <= 10 ? 'text-amber-600 font-semibold' : 'text-blue-800'}>
+                                  <span className={item.stock <= 0 ? 'text-red-600 font-bold' : item.stock <= 5 ? 'text-red-600 font-semibold' : item.stock <= 10 ? 'text-amber-600 font-semibold' : 'text-blue-800'}>
                                     {item.stock || 0}
                                   </span>
+                                  {quantity > item.stock && !isPaid && (
+                                    <span className="ml-2 text-[10px] text-amber-600 font-bold animate-pulse">
+                                      (EXCEEDS STOCK)
+                                    </span>
+                                  )}
                                 </span>
                               )}
                               {isSet && (
@@ -808,7 +820,9 @@ const StudentReceiptModal = ({
                                   max={item.stock || 0}
                                   value={quantity}
                                   onChange={(e) => {
-                                    const val = Math.max(0, Math.min(parseInt(e.target.value, 10) || 0, item.stock || 0));
+                                    const inputVal = parseInt(e.target.value, 10) || 0;
+                                    const maxAllowed = isPaid ? (item.stock || 0) : 999;
+                                    const val = Math.max(0, Math.min(inputVal, maxAllowed));
                                     if (val === 0) {
                                       const { [item._id]: removed, ...rest } = selectedItems;
                                       setSelectedItems(rest);
@@ -822,7 +836,7 @@ const StudentReceiptModal = ({
                                   type="button"
                                   className="w-6 h-6 flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors rounded-r-md disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() => handleQuantityChange(item._id, 1)}
-                                  disabled={quantity >= (item.stock || 0)}
+                                  disabled={isPaid && quantity >= (item.stock || 0)}
                                 >
                                   <Plus size={10} />
                                 </button>
