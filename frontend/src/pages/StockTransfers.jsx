@@ -56,12 +56,14 @@ const StockTransfers = ({ currentUser }) => {
       if (filters.endDate) queryParams.append('endDate', filters.endDate);
 
       const res = await fetch(apiUrl(`/api/stock-transfers?${queryParams.toString()}`));
-      if (res.ok) {
-        const data = await res.json();
-        setStockTransfers(data);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch transfers: ${res.statusText}`);
       }
+      const data = await res.json();
+      setStockTransfers(data);
     } catch (err) {
       console.error('Error fetching stock transfers:', err);
+      setStatusMsg({ type: 'error', message: 'Failed to load stock transfers: ' + err.message });
     } finally {
       setLoading(false);
     }
@@ -70,25 +72,29 @@ const StockTransfers = ({ currentUser }) => {
   const fetchProducts = async () => {
     try {
       const res = await fetch(apiUrl('/api/products'));
-      if (res.ok) {
-        const data = await res.json();
-        // Filter out set products for transfers (only individual products)
-        setProducts(data.filter(p => !p.isSet));
+      if (!res.ok) {
+        throw new Error(`Failed to fetch products: ${res.statusText}`);
       }
+      const data = await res.json();
+      // Filter out set products for transfers (only individual products)
+      setProducts(data.filter(p => !p.isSet));
     } catch (err) {
       console.error('Error fetching products:', err);
+      setStatusMsg({ type: 'error', message: 'Failed to load products: ' + err.message });
     }
   };
 
   const fetchColleges = async () => {
     try {
       const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true&withStock=true'));
-      if (res.ok) {
-        const data = await res.json();
-        setColleges(data);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch colleges: ${res.statusText}`);
       }
+      const data = await res.json();
+      setColleges(data);
     } catch (err) {
       console.error('Error fetching colleges:', err);
+      setStatusMsg({ type: 'error', message: 'Failed to load colleges: ' + err.message });
     }
   };
 
@@ -98,14 +104,15 @@ const StockTransfers = ({ currentUser }) => {
     if (!collegeId || !productId) return 0;
     try {
       const res = await fetch(apiUrl(`/api/stock-transfers/colleges/${collegeId}/stock/${productId}`));
-      if (res.ok) {
-        const data = await res.json();
-        return data.quantity || 0;
+      if (!res.ok) {
+        throw new Error(`Failed to fetch college stock: ${res.statusText}`);
       }
+      const data = await res.json();
+      return data.quantity || 0;
     } catch (err) {
       console.error('Error fetching college stock:', err);
+      return 0;
     }
-    return 0;
   };
 
   // Helper to get stock for the selected source (Central or College)
@@ -423,8 +430,8 @@ const StockTransfers = ({ currentUser }) => {
               ))}
             </select>
             <select
-              value={filters.toBranch}
-              onChange={(e) => setFilters({ ...filters, toBranch: e.target.value })}
+              value={filters.toCollege}
+              onChange={(e) => setFilters({ ...filters, toCollege: e.target.value })}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="">All Colleges</option>

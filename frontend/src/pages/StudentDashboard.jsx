@@ -38,18 +38,46 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
   const isSuperAdmin = currentUser?.role === 'Administrator';
   const userPermissions = Array.isArray(currentUser?.permissions) ? currentUser.permissions : [];
 
+  const [colleges, setColleges] = useState([]);
+  const [selectedCollege, setSelectedCollege] = useState('all');
+
   // Get allowed courses for course-dashboard permission
   const allowedCourses = useMemo(() => {
-    if (isSuperAdmin) return null; // Super admin sees all courses
-    if (!hasViewAccess(userPermissions, 'course-dashboard')) return []; // No access to course dashboard
+    if (isSuperAdmin && selectedCollege === 'all') return null; // Super admin sees all courses if no college selected
 
-    // Get course-specific permissions
-    const courses = getAllowedCourses(userPermissions);
-    // If user has course-dashboard permission but no course-specific permissions,
-    // they see all courses (return null)
-    // If they have course-specific permissions, return those courses
-    return courses.length > 0 ? courses : null; // null means all courses, empty array means no access
-  }, [isSuperAdmin, userPermissions]);
+    let baseAllowed = [];
+    if (hasViewAccess(userPermissions, 'course-dashboard')) {
+      baseAllowed = getAllCoursesFromPermissions(userPermissions);
+    }
+
+    // If a college is selected, restrict to its courses
+    if (selectedCollege !== 'all') {
+      const college = colleges.find(c => c._id === selectedCollege);
+      if (college && Array.isArray(college.courses)) {
+        // Only include courses from the college
+        return college.courses.map(c => normalizeCourseName(c));
+      }
+      // If college not found or has no courses, return empty if restricted
+      return [];
+    }
+
+    // If no college selected but has base permissions
+    return baseAllowed.length > 0 ? baseAllowed : (hasViewAccess(userPermissions, 'course-dashboard') ? null : []);
+  }, [isSuperAdmin, userPermissions, selectedCollege, colleges]);
+
+  // Helper to extract course names from permissions
+  function getAllCoursesFromPermissions(permissions) {
+    const courses = [];
+    permissions.forEach(perm => {
+      if (typeof perm === 'string' && perm.startsWith('course-dashboard-')) {
+        const parts = perm.split(':');
+        const key = parts[0];
+        const courseName = key.replace('course-dashboard-', '');
+        courses.push(courseName);
+      }
+    });
+    return courses;
+  }
 
   // Load from cache first if available
   const cachedStudents = useMemo(() => {
@@ -70,6 +98,16 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
   const [config, setConfig] = useState(() => loadJSON('configCache', null));
   const isOnline = typeof isOnlineProp === 'boolean' ? isOnlineProp : useOnlineStatus();
   const hasInitialized = useRef(false);
+
+  // Set initial college for sub-admins
+  useEffect(() => {
+    if (currentUser?.assignedCollege) {
+      const collegeId = typeof currentUser.assignedCollege === 'object'
+        ? currentUser.assignedCollege._id
+        : currentUser.assignedCollege;
+      setSelectedCollege(collegeId);
+    }
+  }, [currentUser]);
 
   // Debounce search term
   useEffect(() => {
@@ -92,6 +130,24 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
       setStudents(prepareStudents(initialStudents));
     }
   }, [initialStudents]);
+
+  // Fetch colleges independently to ensure they are available for UI display
+  useEffect(() => {
+    const fetchColleges = async () => {
+      try {
+        const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
+        if (res.ok) {
+          const data = await res.json();
+          setColleges(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error('Error fetching colleges:', err);
+      }
+    };
+    if (isOnline) {
+      fetchColleges();
+    }
+  }, [isOnline]);
 
   // Smart fetch - only if cache is stale or missing
   const fetchData = useCallback(async (forceRefresh = false) => {
@@ -167,6 +223,7 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
             })
         );
       }
+
 
       await Promise.all(promises);
     } catch (error) {
@@ -456,13 +513,38 @@ const StudentDashboard = ({ initialStudents = [], isOnline: isOnlineProp, curren
                 </p>
               </div>
             </div>
-            <button
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium"
-              onClick={() => navigate('/add-student')}
-            >
-              <Plus size={18} />
-              Add Student
-            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              {isSuperAdmin && (
+                <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2 shadow-sm">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Viewing College:</span>
+                  <select
+                    value={selectedCollege}
+                    onChange={(e) => setSelectedCollege(e.target.value)}
+                    className="text-sm font-medium text-blue-700 bg-transparent focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">All Colleges</option>
+                    {colleges.map(college => (
+                      <option key={college._id} value={college._id}>{college.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {!isSuperAdmin && currentUser?.assignedCollege && (
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 shadow-sm">
+                  <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Campus:</span>
+                  <span className="text-sm font-medium text-blue-800">
+                    {colleges.find(c => c._id === (typeof currentUser.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser.assignedCollege))?.name || 'Local Campus'}
+                  </span>
+                </div>
+              )}
+              <button
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-medium"
+                onClick={() => navigate('/add-student')}
+              >
+                <Plus size={18} />
+                Add Student
+              </button>
+            </div>
           </div>
         </div>
 

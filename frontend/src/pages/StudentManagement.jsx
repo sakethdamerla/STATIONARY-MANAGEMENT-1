@@ -26,21 +26,21 @@ const StudentRow = ({
           <input
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             value={editFields.name}
-            onChange={e => setEditFields(prev => ({...prev, name: e.target.value}))}
+            onChange={e => setEditFields(prev => ({ ...prev, name: e.target.value }))}
           />
         </td>
         <td className="px-6 py-4 whitespace-nowrap">
           <input
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             value={editFields.studentId}
-            onChange={e => setEditFields(prev => ({...prev, studentId: e.target.value}))}
+            onChange={e => setEditFields(prev => ({ ...prev, studentId: e.target.value }))}
           />
         </td>
         <td className="px-6 py-4 whitespace-nowrap">
           <select
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             value={editFields.course}
-            onChange={e => setEditFields(prev => ({...prev, course: e.target.value}))}
+            onChange={e => setEditFields(prev => ({ ...prev, course: e.target.value }))}
           >
             <option value="b.tech">B.Tech</option>
             <option value="diploma">Diploma</option>
@@ -52,14 +52,14 @@ const StudentRow = ({
             className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             type="number"
             value={editFields.year}
-            onChange={e => setEditFields(prev => ({...prev, year: e.target.value}))}
+            onChange={e => setEditFields(prev => ({ ...prev, year: e.target.value }))}
           />
         </td>
         <td className="px-6 py-4 whitespace-nowrap">
           <input
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             value={editFields.branch}
-            onChange={e => setEditFields(prev => ({...prev, branch: e.target.value}))}
+            onChange={e => setEditFields(prev => ({ ...prev, branch: e.target.value }))}
           />
         </td>
         <td className="px-6 py-4 whitespace-nowrap">
@@ -182,6 +182,8 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
   const [sqlError, setSqlError] = useState('');
   const [sqlMeta, setSqlMeta] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [colleges, setColleges] = useState([]);
+  const [selectedCollege, setSelectedCollege] = useState('all');
   const [syncFeedback, setSyncFeedback] = useState(null);
   const [syncStats, setSyncStats] = useState(null);
   const [expandedDetails, setExpandedDetails] = useState(null); // 'inserted', 'updated', 'skipped', null
@@ -208,22 +210,53 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
   }, []);
 
   useEffect(() => {
+    if (currentUser?.assignedCollege) {
+      const collegeId = typeof currentUser.assignedCollege === 'object'
+        ? currentUser.assignedCollege._id
+        : currentUser.assignedCollege;
+      setSelectedCollege(collegeId);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(apiUrl('/api/config/academic'));
-        if (res.ok) {
-          const data = await res.json();
-          setConfig(data);
-          const firstCourse = data.courses?.[0];
+        const configRes = await fetch(apiUrl('/api/config/academic'));
+        const collegeRes = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
+
+        if (configRes.ok && collegeRes.ok) {
+          const configData = await configRes.json();
+          const collegeData = await collegeRes.json();
+
+          setConfig(configData);
+          setColleges(Array.isArray(collegeData) ? collegeData : []);
+
+          // Set initial defaults based on permissions/college
+          let availableCourses = configData.courses || [];
+          if (currentUser?.assignedCollege && currentUser.role !== 'Administrator') {
+            const collegeId = typeof currentUser.assignedCollege === 'object'
+              ? currentUser.assignedCollege._id
+              : currentUser.assignedCollege;
+            const college = collegeData.find(c => c._id === collegeId);
+            if (college && Array.isArray(college.courses)) {
+              availableCourses = availableCourses.filter(c =>
+                college.courses.includes(c.name)
+              );
+            }
+          }
+
+          const firstCourse = availableCourses[0];
           if (firstCourse) {
             setCourse(firstCourse.name);
             setYear(String(firstCourse.years?.[0] || '1'));
             setBranch(firstCourse.branches?.[0] || '');
           }
         }
-      } catch (_) {}
+      } catch (err) {
+        console.error('Failed to load student management data:', err);
+      }
     })();
-  }, []);
+  }, [currentUser]);
 
   // Load SQL students from cache on mount (if available)
   useEffect(() => {
@@ -257,10 +290,10 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
       setSqlError('');
       try {
         // Add forceRefresh query parameter when forceRefresh is true
-        const url = forceRefresh 
+        const url = forceRefresh
           ? apiUrl(`/api/sql/students?forceRefresh=true`)
           : apiUrl('/api/sql/students');
-        
+
         const res = await fetch(url);
         if (!res.ok) {
           const errorText = await res.text();
@@ -302,7 +335,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
     setSyncFeedback(null);
     setSyncStats(null);
     // Keep modal open to show progress
-    
+
     try {
       // Build filter arrays from dropdown selections
       const filters = {
@@ -315,7 +348,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
       const res = await fetch(apiUrl('/api/sql/students/sync'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           filters,
           forceRefresh: true, // Tell backend to fetch fresh data from SQL
           noCache: true, // Additional flag to ensure no caching
@@ -393,7 +426,23 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
   };
 
   const filteredStudents = useMemo(() => {
+    // Determine allowed courses based on selected college
+    let allowedCourseNames = null;
+    if (selectedCollege !== 'all') {
+      const college = colleges.find(c => c._id === selectedCollege);
+      if (college && Array.isArray(college.courses)) {
+        allowedCourseNames = college.courses;
+      } else {
+        allowedCourseNames = []; // Restricted to no courses if college not found
+      }
+    }
+
     return (dataSource || []).filter(student => {
+      // Permission filtering
+      if (allowedCourseNames !== null) {
+        if (!allowedCourseNames.includes(student.course)) return false;
+      }
+
       const term = (searchTerm || '').toLowerCase();
       if (term) {
         const nameMatch = String(student.name || '').toLowerCase().includes(term);
@@ -404,7 +453,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
       if (yearFilter !== 'all' && String(student.year) !== String(yearFilter)) return false;
       return true;
     });
-  }, [dataSource, searchTerm, courseFilter, yearFilter]);
+  }, [dataSource, searchTerm, courseFilter, yearFilter, selectedCollege, colleges]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -496,18 +545,40 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Student Management</h1>
-            <p className="text-gray-600">Manage all student records and information</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-gray-600">Manage all student records and information</p>
+              {isSuperAdmin && (
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-2 py-1 ml-2 shadow-sm">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">College:</span>
+                  <select
+                    value={selectedCollege}
+                    onChange={(e) => setSelectedCollege(e.target.value)}
+                    className="text-xs font-semibold text-blue-600 bg-transparent focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">All Colleges</option>
+                    {colleges.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {!isSuperAdmin && currentUser?.assignedCollege && (
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-2 py-1 ml-2">
+                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-tight">Campus:</span>
+                  <span className="text-xs font-semibold text-blue-700">
+                    {colleges.find(c => c._id === (typeof currentUser.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser.assignedCollege))?.name || 'Local'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="bg-gray-900 text-gray-100 rounded-xl px-1 py-1 flex items-center">
             <button
               onClick={() => setViewMode(VIEW_MODES.mongo)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === VIEW_MODES.mongo
-                  ? 'bg-blue-600 text-white shadow'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === VIEW_MODES.mongo
+                ? 'bg-blue-600 text-white shadow'
+                : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
             >
               Stationery Students
             </button>
@@ -518,11 +589,10 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
                   fetchSqlStudents();
                 }
               }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                viewMode === VIEW_MODES.sql
-                  ? 'bg-blue-600 text-white shadow'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === VIEW_MODES.sql
+                ? 'bg-blue-600 text-white shadow'
+                : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
               disabled={sqlLoading}
             >
               External SQL Students
@@ -568,11 +638,10 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
 
       {syncFeedback && (
         <div
-          className={`mb-6 rounded-xl border p-4 text-sm ${
-            syncFeedback.type === 'success'
-              ? 'bg-green-50 border-green-200 text-green-800'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}
+          className={`mb-6 rounded-xl border p-4 text-sm ${syncFeedback.type === 'success'
+            ? 'bg-green-50 border-green-200 text-green-800'
+            : 'bg-red-50 border-red-200 text-red-700'
+            }`}
         >
           {syncFeedback.message}
         </div>
@@ -594,13 +663,13 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
                 <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Processed</h4>
                 <p className="text-2xl font-semibold text-gray-900 mt-1">
-                  {syncStats.filtered !== undefined && syncStats.filtered !== syncStats.total 
-                    ? `${syncStats.filtered} / ${syncStats.total}` 
+                  {syncStats.filtered !== undefined && syncStats.filtered !== syncStats.total
+                    ? `${syncStats.filtered} / ${syncStats.total}`
                     : syncStats.total}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {syncStats.filtered !== undefined && syncStats.filtered !== syncStats.total 
-                    ? `Filtered: ${syncStats.filtered} of ${syncStats.total}` 
+                  {syncStats.filtered !== undefined && syncStats.filtered !== syncStats.total
+                    ? `Filtered: ${syncStats.filtered} of ${syncStats.total}`
                     : `Table: ${syncStats.table || 'students'}`}
                 </p>
               </div>
@@ -780,11 +849,10 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
                         <td className="px-3 py-2 text-yellow-800">{student.branch || 'N/A'}</td>
                         <td className="px-3 py-2 text-yellow-800">
                           {student.status ? (
-                            <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${
-                              student.reason?.includes('Admission cancelled') 
-                                ? 'bg-red-100 text-red-700' 
-                                : 'bg-gray-100 text-gray-700'
-                            }`}>
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${student.reason?.includes('Admission cancelled')
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-gray-100 text-gray-700'
+                              }`}>
                               {student.status}
                             </span>
                           ) : (
@@ -986,9 +1054,21 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={course}
-                    onChange={e => setCourse(e.target.value)}
+                    onChange={e => {
+                      const newCourse = e.target.value;
+                      setCourse(newCourse);
+                      const found = config?.courses?.find(c => c.name === newCourse);
+                      if (found) {
+                        setYear(String(found.years?.[0] || '1'));
+                        setBranch(found.branches?.[0] || '');
+                      }
+                    }}
                   >
-                    {(config?.courses || []).map(c => (
+                    {(config?.courses || []).filter(c => {
+                      if (selectedCollege === 'all') return true;
+                      const college = colleges.find(col => col._id === selectedCollege);
+                      return college?.courses?.includes(c.name);
+                    }).map(c => (
                       <option key={c.name} value={c.name}>{c.displayName}</option>
                     ))}
                   </select>
@@ -1051,8 +1131,8 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
                     <p className="text-xs sm:text-sm text-gray-600">Apply filters to sync specific students</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setShowSyncModal(false)} 
+                <button
+                  onClick={() => setShowSyncModal(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 ml-2"
                 >
                   <X size={24} />
@@ -1138,7 +1218,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
                         ? sqlStudents.filter(s => s.course === syncFilters.course)
                         : sqlStudents;
                       const availableBranches = Array.from(new Set(filteredByCourse.map(s => s.branch).filter(Boolean))).sort();
-                      
+
                       return availableBranches.map(branch => (
                         <option key={branch} value={branch}>
                           {branch}
@@ -1187,7 +1267,7 @@ const StudentManagement = ({ students = [], setStudents, addStudent, refreshStud
                       }
                       const availableYears = Array.from(new Set(filtered.map(s => s.year).filter(y => y && y !== 'N/A')))
                         .sort((a, b) => Number(a) - Number(b));
-                      
+
                       return availableYears.map(year => (
                         <option key={year} value={String(year)}>
                           Year {year}

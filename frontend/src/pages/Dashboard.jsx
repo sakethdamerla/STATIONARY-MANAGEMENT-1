@@ -316,6 +316,15 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+          {!isSuperAdmin && currentUser?.assignedCollege && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 shadow-sm">
+              <Building2 className="text-blue-600" size={18} />
+              <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Campus:</span>
+              <span className="text-sm font-bold text-blue-900">
+                {colleges.find(c => c._id === (typeof currentUser.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser.assignedCollege))?.name || 'Loading...'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Key Statistics Cards */}
