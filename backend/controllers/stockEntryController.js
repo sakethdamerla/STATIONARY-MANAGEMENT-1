@@ -152,7 +152,7 @@ const createStockEntry = async (req, res) => {
  */
 const getStockEntries = async (req, res) => {
   try {
-    const { product, vendor, startDate, endDate } = req.query;
+    const { product, vendor, startDate, endDate, college } = req.query;
     const filter = {};
 
     if (product) filter.product = product;
@@ -161,6 +161,14 @@ const getStockEntries = async (req, res) => {
       filter.createdAt = {};
       if (startDate) filter.createdAt.$gte = new Date(startDate);
       if (endDate) filter.createdAt.$lte = new Date(endDate);
+    }
+    if (college) {
+      if (college === 'central') {
+        // Entries for central warehouse have no college assigned
+        filter.college = { $in: [null, undefined] };
+      } else {
+        filter.college = college;
+      }
     }
 
     const stockEntries = await StockEntry.find(filter)
