@@ -56,10 +56,14 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
 
   // Set default college for SubAdmin
   useEffect(() => {
-    if (!isSuperAdmin && currentUser?.assignedCollege && colleges.length > 0) {
-      setFormData(prev => ({ ...prev, targetLocation: currentUser.assignedCollege }));
+    if (!isSuperAdmin && currentUser?.assignedCollege) {
+      // Handle both populated object and ID string
+      const collegeId = typeof currentUser.assignedCollege === 'object'
+        ? currentUser.assignedCollege._id
+        : currentUser.assignedCollege;
+      setFormData(prev => ({ ...prev, targetLocation: collegeId }));
     }
-  }, [isSuperAdmin, currentUser, colleges]);
+  }, [isSuperAdmin, currentUser]);
 
   // Update selected product display
   useEffect(() => {
@@ -306,23 +310,30 @@ const AddStock = ({ products = [], setProducts, currentUser }) => {
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-800">Receive At</label>
                 <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <select
-                    name="targetLocation"
-                    value={formData.targetLocation}
-                    onChange={handleInputChange}
-                    className={`${selectCls} ${!isSuperAdmin ? 'bg-gray-100' : ''}`}
-                    disabled={!isSuperAdmin}
-                  >
-                    <option value="">Central Warehouse (Global)</option>
-                    {colleges.map(college => (
-                      <option key={college._id} value={college._id}>{college.name}</option>
-                    ))}
-                  </select>
+                  {isSuperAdmin ? (
+                    <>
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      <select
+                        name="targetLocation"
+                        value={formData.targetLocation}
+                        onChange={handleInputChange}
+                        className={selectCls}
+                      >
+                        <option value="">Central Warehouse (Global)</option>
+                        {colleges.map(college => (
+                          <option key={college._id} value={college._id}>{college.name}</option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <div className="w-full pl-3 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 flex items-center gap-2">
+                      <Building2 size={16} className="text-blue-500" />
+                      <span className="font-medium">
+                        {colleges.find(c => c._id === formData.targetLocation)?.name || 'Loading College...'}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                {!isSuperAdmin && (
-                  <p className="text-xs text-gray-500 mt-1 pl-1">Locked to your assigned college</p>
-                )}
               </div>
 
               {/* Vendor */}

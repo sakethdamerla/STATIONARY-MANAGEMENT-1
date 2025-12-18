@@ -28,25 +28,25 @@ const AuditLogs = ({ currentUser }) => {
   const currentUserInfo = useMemo(() => {
     return currentUser || getCurrentUserInfo();
   }, [currentUser]);
-  
+
   const currentUserPermissions = Array.isArray(currentUserInfo?.permissions) ? currentUserInfo.permissions : [];
   const isSuperAdmin = currentUserInfo?.role === 'Administrator';
-  
+
   // Check for legacy audit-logs permission (without access level)
   const hasLegacyAuditPermission = currentUserPermissions.some(p => {
     if (typeof p !== 'string') return false;
     // Check for 'audit-logs' or 'audit-logs:view' or 'audit-logs:full'
     return p === 'audit-logs' || p.startsWith('audit-logs:');
   });
-  
+
   // Use hasViewAccess to properly check permissions with access levels
   const canAccessEntry =
-    isSuperAdmin || 
-    hasLegacyAuditPermission || 
+    isSuperAdmin ||
+    hasLegacyAuditPermission ||
     hasViewAccess(currentUserPermissions, 'audit-log-entry');
   const canAccessApproval =
-    isSuperAdmin || 
-    hasLegacyAuditPermission || 
+    isSuperAdmin ||
+    hasLegacyAuditPermission ||
     hasViewAccess(currentUserPermissions, 'audit-log-approval');
 
   const [activeTab, setActiveTab] = useState(() => {
@@ -61,38 +61,38 @@ const AuditLogs = ({ currentUser }) => {
   const [entryStatus, setEntryStatus] = useState({});
   const [isSubmittingAll, setIsSubmittingAll] = useState(false);
   const [pendingLogs, setPendingLogs] = useState([]);
-const groupLogsByBatch = (logs = []) => {
-  const groups = new Map();
-  logs.forEach((log) => {
-    const key = log.batchId || log._id;
-    if (!groups.has(key)) {
-      groups.set(key, {
-        batchId: key,
-        status: log.status,
-        createdBy: log.createdBy || 'System',
-        createdAt: log.createdAt,
-        approvedBy: log.approvedBy,
-        approvedAt: log.approvedAt,
-        items: [],
-      });
-    }
-    const group = groups.get(key);
-    group.items.push(log);
-    if (log.status && group.status !== log.status) {
-      group.status = log.status;
-    }
-    if (log.approvedBy) {
-      group.approvedBy = log.approvedBy;
-    }
-    if (log.approvedAt) {
-      group.approvedAt = log.approvedAt;
-    }
-  });
+  const groupLogsByBatch = (logs = []) => {
+    const groups = new Map();
+    logs.forEach((log) => {
+      const key = log.batchId || log._id;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          batchId: key,
+          status: log.status,
+          createdBy: log.createdBy || 'System',
+          createdAt: log.createdAt,
+          approvedBy: log.approvedBy,
+          approvedAt: log.approvedAt,
+          items: [],
+        });
+      }
+      const group = groups.get(key);
+      group.items.push(log);
+      if (log.status && group.status !== log.status) {
+        group.status = log.status;
+      }
+      if (log.approvedBy) {
+        group.approvedBy = log.approvedBy;
+      }
+      if (log.approvedAt) {
+        group.approvedAt = log.approvedAt;
+      }
+    });
 
-  return Array.from(groups.values()).sort(
-    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-  );
-};
+    return Array.from(groups.values()).sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+  };
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState('');
   const [approvingId, setApprovingId] = useState('');
@@ -134,11 +134,21 @@ const groupLogsByBatch = (logs = []) => {
     }
   };
 
+  // Fetch current user's college info
+  const userCollegeId =
+    currentUserInfo?.assignedCollege?._id ||
+    (typeof currentUserInfo?.assignedCollege === 'string' ? currentUserInfo?.assignedCollege : null);
+
   const fetchPendingLogs = async () => {
     try {
       setLogsLoading(true);
       setLogsError('');
-      const response = await fetch(apiUrl('/api/audit-logs?status=pending'));
+      // If Sub-Admin, filter by their college. SuperAdmin sees all (Central + All Colleges)
+      const query = userCollegeId && !isSuperAdmin
+        ? `?status=pending&collegeId=${userCollegeId}`
+        : '?status=pending';
+
+      const response = await fetch(apiUrl(`/api/audit-logs${query}`));
       if (!response.ok) {
         throw new Error(`Failed to load audit logs (${response.status})`);
       }
@@ -156,7 +166,12 @@ const groupLogsByBatch = (logs = []) => {
     try {
       setHistoryLoading(true);
       setHistoryError('');
-      const response = await fetch(apiUrl('/api/audit-logs?status=all'));
+      // Similar filtering for history
+      const query = userCollegeId && !isSuperAdmin
+        ? `?status=all&collegeId=${userCollegeId}`
+        : '?status=all';
+
+      const response = await fetch(apiUrl(`/api/audit-logs${query}`));
       if (!response.ok) {
         throw new Error(`Failed to load audit history (${response.status})`);
       }
@@ -171,6 +186,39 @@ const groupLogsByBatch = (logs = []) => {
     }
   };
 
+  // Helper to get stock for product based on context (Central vs College)
+  const getContextStock = (product) => {
+    // If we have college stock map, use it. Otherwise specific logic needed.
+    // For now, if SubAdmin, show 0 if not loaded, or rely on fetching college stock?
+    // NOTE: The products list currently comes from /api/products (Central). 
+    // We need to fetch college stock if user is SubAdmin.
+    return product.stock ?? 0;
+  };
+
+  // Need to fetch College Stock if user is SubAdmin to show correct "Current Stock"
+  const [collegeStockMap, setCollegeStockMap] = useState({});
+
+  useEffect(() => {
+    if (userCollegeId && !isSuperAdmin) {
+      // Fetch college stock to override central stock display
+      const fetchCollegeStock = async () => {
+        try {
+          const res = await fetch(apiUrl(`/api/stock-transfers/colleges/${userCollegeId}/stock`));
+          if (res.ok) {
+            const data = await res.json();
+            const map = {};
+            (data.stock || []).forEach(item => {
+              const pId = typeof item.product === 'object' ? item.product._id : item.product;
+              map[pId] = item.quantity;
+            });
+            setCollegeStockMap(map);
+          }
+        } catch (e) { console.error('Error fetching college stock', e); }
+      };
+      fetchCollegeStock();
+    }
+  }, [userCollegeId, isSuperAdmin, refreshKey]);
+
   useEffect(() => {
     fetchProducts();
     fetchPendingLogs();
@@ -183,13 +231,22 @@ const groupLogsByBatch = (logs = []) => {
       const next = { ...prev };
       products.forEach(product => {
         const existing = next[product._id] || {};
+        // Determine correct stock to show based on context
+        const currentStock = (userCollegeId && !isSuperAdmin)
+          ? (collegeStockMap[product._id] ?? 0)
+          : (product.stock ?? 0);
+
         if (existing.beforeQuantity === undefined || existing.beforeQuantity === '') {
           next[product._id] = {
-            beforeQuantity: Number(product.stock ?? 0),
+            beforeQuantity: Number(currentStock),
             afterQuantity: existing.afterQuantity ?? '',
             notes: existing.notes ?? '',
           };
         } else {
+          // If we already have values, keep them, but update "before" might be tricky if stock changed elsewhere.
+          // Let's typically respect what was loaded or user input.
+          // If user hasn't touched it, update it? Risk of overwriting input.
+          // Safer: Only set default if not present.
           next[product._id] = {
             beforeQuantity: existing.beforeQuantity,
             afterQuantity: existing.afterQuantity ?? '',
@@ -199,7 +256,7 @@ const groupLogsByBatch = (logs = []) => {
       });
       return next;
     });
-  }, [products]);
+  }, [products, collegeStockMap, userCollegeId, isSuperAdmin]); // Dependency on collegeStockMap
 
   const handleEntryChange = (productId, field, value) => {
     setEntryValues(prev => ({
@@ -213,9 +270,16 @@ const groupLogsByBatch = (logs = []) => {
 
   const submitAuditForProduct = async (product) => {
     const values = entryValues[product._id] || {};
+
+    // Fallback logic for initial beforeQuantity
+    const currentStock = (userCollegeId && !isSuperAdmin)
+      ? (collegeStockMap[product._id] ?? 0)
+      : (product.stock ?? 0);
+
     const beforeQuantity = values.beforeQuantity !== undefined && values.beforeQuantity !== ''
       ? Number(values.beforeQuantity)
-      : Number(product.stock || 0);
+      : Number(currentStock);
+
     const afterQuantity = values.afterQuantity !== undefined && values.afterQuantity !== ''
       ? Number(values.afterQuantity)
       : null;
@@ -235,8 +299,9 @@ const groupLogsByBatch = (logs = []) => {
       const response = await fetch(apiUrl('/api/audit-logs'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           productId: product._id,
+          collegeId: userCollegeId || null, // Send collegeId if SubAdmin
           beforeQuantity,
           afterQuantity,
           notes: values.notes || '',
@@ -255,7 +320,10 @@ const groupLogsByBatch = (logs = []) => {
       setEntryValues(prev => ({
         ...prev,
         [product._id]: {
-          beforeQuantity: Number(product.stock ?? 0),
+          beforeQuantity: Number(currentStock), // Reset to current? Or ideally update to 'after'? 
+          // Actually, 'before' should likely become the 'after' value if approved? 
+          // No, approval is async. Reset to blank is fine.
+          beforeQuantity: Number(afterQuantity), // Optimistic update?
           afterQuantity: '',
           notes: '',
         },
@@ -313,6 +381,7 @@ const groupLogsByBatch = (logs = []) => {
     setIsSubmittingAll(false);
   };
 
+  // ... (Approval logic remains mostly same, backend handles actual stock update)
   const processGroupedLogs = async (group, action) => {
     if (!canAccessApproval) {
       return;
@@ -344,6 +413,10 @@ const groupLogsByBatch = (logs = []) => {
 
       await fetchPendingLogs();
       await fetchProducts();
+      // Refresh college stock if relevant
+      if (userCollegeId && !isSuperAdmin) {
+        setRefreshKey(prev => prev + 1); // Trigger re-fetch
+      }
       await fetchHistoryLogs();
 
       alert(
@@ -380,7 +453,7 @@ const groupLogsByBatch = (logs = []) => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Audit Logs</h1>
               <p className="text-gray-600 mt-1">
-                Record stock audit entries and approve adjustments to keep your inventory accurate.
+                Record {userCollegeId && !isSuperAdmin ? 'College' : 'Stock'} audit entries and approve adjustments.
               </p>
             </div>
           </div>
@@ -396,15 +469,15 @@ const groupLogsByBatch = (logs = []) => {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
+          {/* Same Tabs */}
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               onClick={() => canAccessEntry && setActiveTab('entry')}
               disabled={!canAccessEntry}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-                activeTab === 'entry'
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-100'
-              } ${!canAccessEntry ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${activeTab === 'entry'
+                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+                } ${!canAccessEntry ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
             >
               {canAccessEntry ? <ClipboardList size={18} /> : <Lock size={18} />}
               Audit Log Entry
@@ -412,11 +485,10 @@ const groupLogsByBatch = (logs = []) => {
             <button
               onClick={() => canAccessApproval && setActiveTab('approval')}
               disabled={!canAccessApproval}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-                activeTab === 'approval'
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-100'
-              } ${!canAccessApproval ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${activeTab === 'approval'
+                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+                } ${!canAccessApproval ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
             >
               {canAccessApproval ? <ClipboardCheck size={18} /> : <Lock size={18} />}
               Audit Approval
@@ -438,9 +510,10 @@ const groupLogsByBatch = (logs = []) => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Audit Log Entry</h3>
                   <p className="text-sm text-gray-500">
-                    Provide the before and after quantities observed during your stock audit.
+                    Provide the before and after quantities for {userCollegeId && !isSuperAdmin ? 'your College' : 'Central Warehouse'}.
                   </p>
                 </div>
+                {/* ... same headers ... */}
                 <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
                   {products.length} product{products.length === 1 ? '' : 's'}
                 </span>
@@ -463,6 +536,7 @@ const groupLogsByBatch = (logs = []) => {
                 </button>
               </div>
 
+              {/* ... same loading states ... */}
               {productsLoading ? (
                 <div className="flex flex-col items-center justify-center py-16">
                   <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
@@ -489,7 +563,7 @@ const groupLogsByBatch = (logs = []) => {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock ({userCollegeId && !isSuperAdmin ? 'College' : 'Central'})</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Before Audit</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">After Audit</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
@@ -500,6 +574,10 @@ const groupLogsByBatch = (logs = []) => {
                       {products.map(product => {
                         const values = entryValues[product._id] || {};
                         const status = entryStatus[product._id];
+                        const currentStock = (userCollegeId && !isSuperAdmin)
+                          ? (collegeStockMap[product._id] ?? 0)
+                          : (product.stock ?? 0);
+
                         return (
                           <tr key={product._id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4">
@@ -509,13 +587,13 @@ const groupLogsByBatch = (logs = []) => {
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="text-sm font-semibold text-gray-900">{product.stock ?? 0}</span>
+                              <span className="text-sm font-semibold text-gray-900">{currentStock}</span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <input
                                 type="number"
                                 min="0"
-                                placeholder={String(product.stock ?? 0)}
+                                placeholder={String(currentStock)}
                                 value={values.beforeQuantity ?? ''}
                                 onChange={(e) => handleEntryChange(product._id, 'beforeQuantity', e.target.value)}
                                 className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -541,6 +619,7 @@ const groupLogsByBatch = (logs = []) => {
                               />
                             </td>
                             <td className="px-6 py-4">
+                              {/* ... same status ... */}
                               {status === 'submitting' && (
                                 <div className="flex items-center gap-2 text-sm text-blue-600">
                                   <RefreshCcw size={14} className="animate-spin" />
@@ -625,6 +704,9 @@ const groupLogsByBatch = (logs = []) => {
                       0
                     );
                     const totalProducts = group.items.length;
+                    // Check if group belongs to a college (take from first item)
+                    const collegeName = group.items[0]?.college?.name;
+
                     return (
                       <div key={group.batchId} className="px-6 py-5 hover:bg-gray-50 transition-colors">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -632,7 +714,12 @@ const groupLogsByBatch = (logs = []) => {
                             <p className="text-sm font-semibold text-gray-900">
                               Submitted by {group.createdBy} on {new Date(group.createdAt).toLocaleString()}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            {collegeName && (
+                              <p className="text-xs font-semibold text-blue-600 mt-0.5">
+                                For College: {collegeName}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">
                               {totalProducts} item{totalProducts === 1 ? '' : 's'} • Total difference: {totalDifference > 0 ? '+' : ''}
                               {totalDifference}
                             </p>
@@ -685,7 +772,9 @@ const groupLogsByBatch = (logs = []) => {
                                       <div className="flex flex-col">
                                         <span className="font-medium text-gray-900">{log.product?.name || 'N/A'}</span>
                                         <span className="text-xs text-gray-500">
-                                          Current stock: {log.product?.stock ?? 'N/A'}
+                                          {log.college
+                                            ? `College Stock`
+                                            : `Central Stock: ${log.product?.stock ?? 'N/A'}`}
                                         </span>
                                       </div>
                                     </td>

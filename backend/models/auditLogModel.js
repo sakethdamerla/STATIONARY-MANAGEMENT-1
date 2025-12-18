@@ -7,6 +7,11 @@ const auditLogSchema = new mongoose.Schema(
       ref: 'Product',
       required: true,
     },
+    college: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'College',
+      default: null, // null means Central/Global audit
+    },
     beforeQuantity: {
       type: Number,
       required: true,
