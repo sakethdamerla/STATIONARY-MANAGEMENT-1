@@ -3,7 +3,7 @@ import { Search, Filter, Package, Building2, FileText, Calendar, DollarSign, Eye
 import { apiUrl } from '../../utils/api';
 import { hasFullAccess } from '../../utils/permissions';
 
-const StockEntries = ({ currentUser }) => {
+const StockEntries = ({ currentUser, viewContext = 'central' }) => {
   // Check access level - use currentUser prop if provided, otherwise fallback to localStorage
   const user = currentUser || JSON.parse(localStorage.getItem('currentUser') || 'null');
   const isSuperAdmin = user?.role === 'Administrator';
@@ -43,6 +43,10 @@ const StockEntries = ({ currentUser }) => {
     receiptSubheader: 'Stationery Management System',
   });
 
+  // Active college context: sub-admins are locked to their assigned college,
+  // super-admins can toggle via `viewContext` (central vs specific college)
+  const [activeCollegeId, setActiveCollegeId] = useState(null);
+
   useEffect(() => {
     let isMounted = true;
     (async () => {
@@ -65,16 +69,38 @@ const StockEntries = ({ currentUser }) => {
     return () => { isMounted = false; };
   }, []);
 
-  const handlePrint = (entry) => {
-    if (!entry) return;
+  // Resolve active college based on user role and viewContext
+  useEffect(() => {
+    let targetCollegeId = null;
+
+    if (!isSuperAdmin && user?.assignedCollege) {
+      // Sub-admin: always their assigned college
+      targetCollegeId =
+        typeof user.assignedCollege === 'object'
+          ? user.assignedCollege._id
+          : user.assignedCollege;
+    } else if (isSuperAdmin && viewContext !== 'central') {
+      // Super-admin viewing a specific college
+      targetCollegeId = viewContext;
+    }
+
+    setActiveCollegeId(targetCollegeId);
+  }, [isSuperAdmin, user, viewContext]);
+
+  const handlePrintInvoice = (group) => {
+    if (!group) return;
 
     const safe = (val) => (val ?? '').toString();
     const fmtDate = (val) => (val ? new Date(val).toLocaleString() : '—');
 
+    const items = Array.isArray(group.items) && group.items.length > 0 ? group.items : [];
+    const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const totalCostValue = items.reduce((sum, item) => sum + (item.totalCost || 0), 0);
+
     const html = `
       <html>
         <head>
-          <title>Stock Entry Report</title>
+          <title>Stock Invoice</title>
           <style>
             @page { size: auto; margin: 0mm; }
             body { font-family: 'Inter', Arial, sans-serif; padding: 18mm 16mm; margin: 0; color: #0f172a; background: #fff; }
@@ -85,10 +111,15 @@ const StockEntries = ({ currentUser }) => {
             .title { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 6px; }
             .meta { margin-top: 8px; font-size: 11px; color: #475569; }
             .section-title { font-size: 14px; font-weight: 700; margin: 12px 0 8px; color: #0f172a; }
+            .summary { margin-bottom: 12px; font-size: 12px; color: #475569; }
             .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 18px; }
             .item { background: #fff; border: none; border-radius: 0; padding: 0; }
             .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 2px; }
             .value { font-size: 14px; font-weight: 700; color: #0f172a; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+            .table th, .table td { padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+            .table th { background: #f8fafc; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; color: #64748b; }
+            .table tfoot td { font-weight: 700; }
             .remarks { margin-top: 16px; background: #fff; border: none; border-radius: 0; padding: 0; color: #0f172a; font-size: 13px; }
           </style>
         </head>
@@ -97,56 +128,78 @@ const StockEntries = ({ currentUser }) => {
             <div class="header">
               <div class="brand">${safe(receiptSettings.receiptHeader)}</div>
               <div class="subhead">${safe(receiptSettings.receiptSubheader)}</div>
-              <div class="title">Stock Entry Report</div>
+              <div class="title">Stock Invoice</div>
               <div class="meta">
                 <div><strong>Generated:</strong> ${fmtDate(new Date())}</div>
-                <div><strong>Entry ID:</strong> ${safe(entry._id || '—')}</div>
+                <div><strong>Invoice:</strong> ${safe(group.invoiceNumber || '—')}</div>
               </div>
             </div>
 
             <div class="section-title">Overview</div>
             <div class="grid">
               <div class="item">
-                <div class="label">Product</div>
-                <div class="value">${safe(entry.product?.name || 'Unknown Product')}</div>
-              </div>
-              <div class="item">
                 <div class="label">Vendor</div>
-                <div class="value">${safe(entry.vendor?.name || 'Unknown Vendor')}</div>
-              </div>
-              <div class="item">
-                <div class="label">Quantity</div>
-                <div class="value">${safe(entry.quantity)}</div>
-              </div>
-              <div class="item">
-                <div class="label">Entry Date</div>
-                <div class="value">${fmtDate(entry.createdAt)}</div>
-              </div>
-            </div>
-
-            <div class="section-title">Financials</div>
-            <div class="grid">
-              <div class="item">
-                <div class="label">Unit Price</div>
-                <div class="value">₹${Number(entry.purchasePrice || 0).toFixed(2)}</div>
-              </div>
-              <div class="item">
-                <div class="label">Total Cost</div>
-                <div class="value">₹${Number(entry.totalCost || 0).toFixed(2)}</div>
+                <div class="value">${safe(group.vendor?.name || 'Unknown Vendor')}</div>
               </div>
               <div class="item">
                 <div class="label">Invoice Number</div>
-                <div class="value">${safe(entry.invoiceNumber || '—')}</div>
+                <div class="value">${safe(group.invoiceNumber || '—')}</div>
               </div>
               <div class="item">
                 <div class="label">Invoice Date</div>
-                <div class="value">${fmtDate(entry.invoiceDate)}</div>
+                <div class="value">${fmtDate(group.invoiceDate || group.createdAt)}</div>
+              </div>
+              <div class="item">
+                <div class="label">Location</div>
+                <div class="value">${
+                  group.college
+                    ? safe(group.college.name)
+                    : 'Central Warehouse'
+                }</div>
               </div>
             </div>
 
-            ${entry.remarks ? `
+            <div class="section-title">Line Items</div>
+            <div class="summary">
+              <div><strong>Total Quantity:</strong> ${safe(totalQuantity)}</div>
+              <div><strong>Total Cost:</strong> ₹${Number(totalCostValue).toFixed(2)}</div>
+            </div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Unit Price</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items
+                  .map((item, index) => `
+                    <tr>
+                      <td>${index + 1}</td>
+                      <td>${safe(item.product?.name || 'Unknown Product')}</td>
+                      <td>${safe(item.quantity)}</td>
+                      <td>₹${Number(item.purchasePrice || 0).toFixed(2)}</td>
+                      <td>₹${Number(item.totalCost || 0).toFixed(2)}</td>
+                    </tr>
+                  `)
+                  .join('')}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2">Totals</td>
+                  <td>${safe(totalQuantity)}</td>
+                  <td></td>
+                  <td>₹${Number(totalCostValue).toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            ${group.remarks ? `
               <div class="section-title">Remarks</div>
-              <div class="remarks">${safe(entry.remarks)}</div>
+              <div class="remarks">${safe(group.remarks)}</div>
             ` : ''}
           </div>
         </body>
@@ -186,7 +239,7 @@ const StockEntries = ({ currentUser }) => {
 
   useEffect(() => {
     fetchStockEntries();
-  }, [filters]);
+  }, [filters, activeCollegeId]);
 
   const fetchStockEntries = async () => {
     try {
@@ -196,6 +249,14 @@ const StockEntries = ({ currentUser }) => {
       if (filters.vendor) queryParams.append('vendor', filters.vendor);
       if (filters.startDate) queryParams.append('startDate', filters.startDate);
       if (filters.endDate) queryParams.append('endDate', filters.endDate);
+      if (activeCollegeId) {
+        queryParams.append('college', activeCollegeId);
+      } else {
+        // Explicitly filter for central warehouse when super-admin is in central view
+        if (isSuperAdmin && viewContext === 'central') {
+          queryParams.append('college', 'central');
+        }
+      }
 
       const res = await fetch(apiUrl(`/api/stock-entries?${queryParams.toString()}`));
       if (res.ok) {
@@ -531,6 +592,14 @@ const StockEntries = ({ currentUser }) => {
                 <div className="text-right">
                   <p className="text-xs text-gray-500 uppercase font-semibold">Total Cost</p>
                   <p className="text-lg font-bold text-gray-900">{formatCurrency(group.totalCost || group.totalCost)}</p>
+                  <button
+                    onClick={() => handlePrintInvoice(group)}
+                    className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Print full invoice"
+                  >
+                    <Printer size={14} />
+                    Print
+                  </button>
                 </div>
               </div>
 
@@ -559,13 +628,6 @@ const StockEntries = ({ currentUser }) => {
                         title="View Details"
                       >
                         <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => handlePrint(entry)}
-                        className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
-                        title="Print Receipt"
-                      >
-                        <Printer size={16} />
                       </button>
                       {canEditStockEntries && (
                         <>

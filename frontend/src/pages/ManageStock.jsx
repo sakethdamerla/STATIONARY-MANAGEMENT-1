@@ -129,7 +129,7 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
           </div>
 
           {/* Admin Context Selector */}
-          {isSuperAdmin && activeTab === 'products' && (
+          {isSuperAdmin && (activeTab === 'products' || activeTab === 'entries') && (
             <div className="mt-4 flex items-center gap-2 justify-end">
               <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
                 <Filter size={14} className="text-gray-500" /> View Stock For:
@@ -180,7 +180,12 @@ const ManageStock = ({ itemCategories, addItemCategory, setItemCategories, curre
             {activeTab === 'stock' && canAccessStock && (
               <AddStock products={products} setProducts={setProducts} currentUser={currentUser} />
             )}
-            {activeTab === 'entries' && canAccessEntries && <StockEntries currentUser={currentUser} />}
+            {activeTab === 'entries' && canAccessEntries && (
+              <StockEntries
+                currentUser={currentUser}
+                viewContext={viewContext}
+              />
+            )}
             {activeTab === 'vendors' && canAccessVendors && <VendorManagement currentUser={currentUser} />}
           </div>
         )}

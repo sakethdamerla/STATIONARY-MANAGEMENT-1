@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, Package, ArrowRight, Calendar, CheckCircle, XCircle, Clock, Trash2, Plus, AlertCircle } from 'lucide-react';
+import { Search, Filter, Package, ArrowRight, Calendar, CheckCircle, XCircle, Clock, Trash2, Plus, AlertCircle, Printer } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 import { hasFullAccess } from '../utils/permissions';
 
@@ -34,11 +34,37 @@ const StockTransfers = ({ currentUser }) => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ type: '', message: '' });
+  const [receiptSettings, setReceiptSettings] = useState({
+    receiptHeader: 'PYDAH GROUP OF INSTITUTIONS',
+    receiptSubheader: 'Stationery Management System',
+  });
 
   useEffect(() => {
     fetchStockTransfers();
     fetchProducts();
     fetchColleges();
+  }, []);
+
+  // Load receipt header/subheader for print
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl('/api/settings'));
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setReceiptSettings({
+              receiptHeader: data.receiptHeader || 'PYDAH GROUP OF INSTITUTIONS',
+              receiptSubheader: data.receiptSubheader || 'Stationery Management System',
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load receipt settings for transfer print', err);
+      }
+    })();
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
@@ -141,6 +167,195 @@ const StockTransfers = ({ currentUser }) => {
       return true;
     });
   }, [stockTransfers, searchQuery]);
+
+  const handlePrintTransfer = (transfer) => {
+    if (!transfer) return;
+
+    const safe = (val) => (val ?? '').toString();
+    const fmtDate = (val) => (val ? new Date(val).toLocaleString() : 'N/A');
+
+    const items = Array.isArray(transfer.items) ? transfer.items : [];
+    const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+    const hasTransaction = !!transfer.transactionId;
+    const totalAmount = hasTransaction ? Number(transfer.transactionId.totalAmount || 0) : 0;
+
+    const html = `
+      <html>
+        <head>
+          <title>Stock Transfer</title>
+          <style>
+            @page { size: auto; margin: 0mm; }
+            body { font-family: 'Inter', Arial, sans-serif; padding: 18mm 16mm; margin: 0; color: #0f172a; background: #fff; }
+            .wrapper { max-width: 960px; margin: 0 auto; padding: 0; background: #fff; }
+            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 18px; }
+            .brand { font-size: 20px; font-weight: 800; color: #1d4ed8; letter-spacing: 0.5px; }
+            .subhead { font-size: 12px; color: #475569; margin-top: 4px; }
+            .title { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 6px; }
+            .meta { margin-top: 8px; font-size: 11px; color: #475569; }
+            .section-title { font-size: 14px; font-weight: 700; margin: 12px 0 8px; color: #0f172a; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 18px; }
+            .item { background: #fff; border: none; border-radius: 0; padding: 0; }
+            .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 2px; }
+            .value { font-size: 14px; font-weight: 700; color: #0f172a; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+            .table th, .table td { padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+            .table th { background: #f8fafc; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; color: #64748b; }
+            .table tfoot td { font-weight: 700; }
+            .remarks { margin-top: 16px; font-size: 13px; color: #0f172a; }
+            .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+            .badge-status { background: #e0f2fe; color: #0369a1; }
+            .badge-paid { background: #dcfce7; color: #15803d; }
+            .badge-unpaid { background: #fee2e2; color: #b91c1c; }
+          </style>
+        </head>
+        <body>
+          <div class="wrapper">
+            <div class="header">
+              <div class="brand">${safe(receiptSettings.receiptHeader)}</div>
+              <div class="subhead">${safe(receiptSettings.receiptSubheader)}</div>
+              <div class="title">Stock Transfer</div>
+              <div class="meta">
+                <div><strong>Generated:</strong> ${fmtDate(new Date())}</div>
+                <div><strong>Transfer ID:</strong> ${safe(transfer._id || '')}</div>
+              </div>
+            </div>
+
+            <div class="section-title">Overview</div>
+            <div class="grid">
+              <div class="item">
+                <div class="label">From</div>
+                <div class="value">${
+                  transfer.fromCollege
+                    ? safe(transfer.fromCollege.name || 'College')
+                    : 'Central Warehouse'
+                }</div>
+              </div>
+              <div class="item">
+                <div class="label">To College</div>
+                <div class="value">${safe(
+                  transfer.toCollege?.name || transfer.toBranch?.name || 'N/A'
+                )}</div>
+              </div>
+              <div class="item">
+                <div class="label">Transfer Date</div>
+                <div class="value">${fmtDate(transfer.transferDate)}</div>
+              </div>
+              <div class="item">
+                <div class="label">Status</div>
+                <div class="value">
+                  <span class="badge badge-status">${safe(
+                    (transfer.status || 'pending').toUpperCase()
+                  )}</span>
+                </div>
+              </div>
+              <div class="item">
+                <div class="label">Payment</div>
+                <div class="value">
+                  <span class="badge ${transfer.isPaid ? 'badge-paid' : 'badge-unpaid'}">
+                    ${transfer.isPaid ? 'PAID' : 'UNPAID'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-title">Items</div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  ${hasTransaction ? '<th>Price</th><th>Subtotal</th>' : '<th></th><th></th>'}
+                </tr>
+              </thead>
+              <tbody>
+                ${items
+                  .map((item, index) => {
+                    const price = item.product?.price || 0;
+                    const subtotal = price * (item.quantity || 0);
+                    return `
+                      <tr>
+                        <td>${index + 1}</td>
+                        <td>${safe(item.product?.name || 'N/A')}</td>
+                        <td>${safe(item.quantity)}</td>
+                        ${
+                          hasTransaction
+                            ? `<td>₹${Number(price).toFixed(2)}</td><td>₹${Number(
+                                subtotal
+                              ).toFixed(2)}</td>`
+                            : '<td></td><td></td>'
+                        }
+                      </tr>
+                    `;
+                  })
+                  .join('')}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2">Totals</td>
+                  <td>${safe(totalQuantity)}</td>
+                  <td></td>
+                  <td>${hasTransaction ? `₹${totalAmount.toFixed(2)}` : ''}</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            ${
+              hasTransaction
+                ? `
+            <div class="section-title">Transaction</div>
+            <div class="grid">
+              <div class="item">
+                <div class="label">Transaction ID</div>
+                <div class="value">${safe(transfer.transactionId.transactionId || '')}</div>
+              </div>
+              <div class="item">
+                <div class="label">Payment Method</div>
+                <div class="value">${safe(transfer.transactionId.paymentMethod || '')}</div>
+              </div>
+            </div>
+            `
+                : ''
+            }
+
+            ${
+              transfer.remarks
+                ? `
+            <div class="section-title">Remarks</div>
+            <div class="remarks">${safe(transfer.remarks)}</div>
+            `
+                : ''
+            }
+          </div>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 500);
+    };
+  };
 
   const addProductItem = () => {
     setFormData(prev => ({
@@ -506,6 +721,7 @@ const StockTransfers = ({ currentUser }) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -542,6 +758,19 @@ const StockTransfers = ({ currentUser }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(transfer.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintTransfer(transfer);
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                          title="Print Transfer"
+                        >
+                          <Printer size={14} />
+                          Print
+                        </button>
                       </td>
                     </tr>
                   ))}
