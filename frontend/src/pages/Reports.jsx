@@ -21,6 +21,9 @@ const Reports = ({ currentUser }) => {
     startDate: '',
     endDate: '',
   });
+  const [colleges, setColleges] = useState([]);
+  const [selectedCollege, setSelectedCollege] = useState('');
+  const [selectedCollegeData, setSelectedCollegeData] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showSalesSummaryPrint, setShowSalesSummaryPrint] = useState(false);
@@ -70,6 +73,7 @@ const Reports = ({ currentUser }) => {
   const [expandedDays, setExpandedDays] = useState(new Set()); // Track expanded days: "monthKey-dayKey"
 
   useEffect(() => {
+    fetchColleges();
     fetchTransactions();
     fetchStudents();
     fetchVendors();
@@ -77,6 +81,42 @@ const Reports = ({ currentUser }) => {
     fetchStockEntries();
     fetchProducts();
   }, []);
+
+  // Set default college for sub-admins
+  useEffect(() => {
+    if (!isSuperAdmin && currentUser?.assignedCollege) {
+      const collegeId = typeof currentUser.assignedCollege === 'object' ? currentUser.assignedCollege._id : currentUser.assignedCollege;
+      setSelectedCollege(collegeId);
+    }
+  }, [isSuperAdmin, currentUser]);
+
+  // Update selected college data when selection changes
+  useEffect(() => {
+    if (selectedCollege) {
+      const college = colleges.find(c => c._id === selectedCollege);
+      setSelectedCollegeData(college || null);
+    } else {
+      setSelectedCollegeData(null);
+    }
+    // Refetch data when college changes
+    fetchTransactions();
+    fetchStockEntries();
+    fetchProducts();
+    // fetchStudents will be filtered client-side based on courses, but we refetch to be sure
+    fetchStudents();
+  }, [selectedCollege, colleges]);
+
+  const fetchColleges = async () => {
+    try {
+      const res = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
+      if (res.ok) {
+        const data = await res.json();
+        setColleges(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Error fetching colleges:', err);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'stock') {
@@ -122,7 +162,9 @@ const Reports = ({ currentUser }) => {
   const fetchStockEntries = async () => {
     try {
       setStockEntriesLoading(true);
-      const response = await fetch(apiUrl('/api/stock-entries'));
+      const queryParams = new URLSearchParams();
+      if (selectedCollege) queryParams.append('college', selectedCollege);
+      const response = await fetch(apiUrl(`/api/stock-entries?${queryParams.toString()}`));
       if (response.ok) {
         const data = await response.json();
         setStockEntries(Array.isArray(data) ? data : []);
@@ -137,10 +179,26 @@ const Reports = ({ currentUser }) => {
   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
-      const response = await fetch(apiUrl('/api/products'));
+      const url = selectedCollege
+        ? apiUrl(`/api/stock-transfers/colleges/${selectedCollege}/stock`)
+        : apiUrl('/api/products');
+
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setProducts(Array.isArray(data) ? data : []);
+        let productsData = [];
+
+        if (selectedCollege) {
+          // Response for college stock is { _id, name, stock: [...] }
+          productsData = (data.stock || []).map(item => ({
+            ...item.product,
+            stock: item.quantity
+          }));
+        } else {
+          productsData = Array.isArray(data) ? data : [];
+        }
+
+        setProducts(productsData);
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -160,6 +218,7 @@ const Reports = ({ currentUser }) => {
       if (filters.isPaid !== '') queryParams.append('isPaid', filters.isPaid);
       if (filters.startDate) queryParams.append('startDate', filters.startDate);
       if (filters.endDate) queryParams.append('endDate', filters.endDate);
+      if (selectedCollege) queryParams.append('collegeId', selectedCollege);
 
       const response = await fetch(apiUrl(`/api/transactions?${queryParams.toString()}`));
       if (response.ok) {
@@ -209,7 +268,12 @@ const Reports = ({ currentUser }) => {
   };
 
   const courseOptions = useMemo(() => {
-    // Further deduplicate and normalize for display
+    // If a college is selected, only show courses for that college
+    if (selectedCollege && selectedCollegeData?.courses) {
+      return [...selectedCollegeData.courses].sort((a, b) => a.localeCompare(b));
+    }
+
+    // Otherwise, show all unique courses from all students
     const normalizedMap = new Map();
     courses.forEach(course => {
       if (course) {
@@ -221,7 +285,7 @@ const Reports = ({ currentUser }) => {
     });
     return Array.from(normalizedMap.values())
       .sort((a, b) => a.localeCompare(b));
-  }, [courses]);
+  }, [courses, selectedCollege, selectedCollegeData]);
 
   useEffect(() => {
     fetchTransactions();
@@ -865,15 +929,15 @@ const Reports = ({ currentUser }) => {
       format: 'a5'
     });
 
-    // Header Section
+    // Headers
     pdf.setFontSize(18);
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFont(undefined, 'bold');
-    pdf.text(receiptSettings.receiptHeader, 74, 12, { align: 'center' });
-    pdf.setFontSize(10);
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFont(undefined, 'normal');
-    pdf.text(receiptSettings.receiptSubheader, 74, 18, { align: 'center' });
+    pdf.setTextColor(44, 62, 80);
+    const headerText = selectedCollegeData ? selectedCollegeData.name.toUpperCase() : receiptSettings.receiptHeader;
+    pdf.text(headerText, 105, 20, { align: 'center' });
+
+    pdf.setFontSize(12);
+    pdf.setTextColor(127, 140, 141);
+    pdf.text(receiptSettings.receiptSubheader, 105, 28, { align: 'center' });
     pdf.setFontSize(12);
     pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'bold');
@@ -1156,15 +1220,32 @@ const Reports = ({ currentUser }) => {
 
   const generateStockReport = async () => {
     try {
-      const queryParams = new URLSearchParams();
-      if (reportFilters.productCategory) queryParams.append('category', reportFilters.productCategory);
-      if (reportFilters.course) queryParams.append('course', reportFilters.course);
+      setProductsLoading(true);
+      const url = selectedCollege
+        ? apiUrl(`/api/stock-transfers/colleges/${selectedCollege}/stock`)
+        : apiUrl('/api/products');
 
-      const response = await fetch(apiUrl(`/api/products?${queryParams.toString()}`));
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch products for report');
 
-      const allProducts = await response.json();
-      const products = Array.isArray(allProducts) ? allProducts.filter(product => !product?.isSet) : [];
+      const data = await response.json();
+      let products = [];
+
+      if (selectedCollege) {
+        // College stock response structure
+        products = (data.stock || []).map(item => ({
+          ...item.product,
+          stock: item.quantity
+        }));
+      } else {
+        const allProducts = data;
+        products = Array.isArray(allProducts) ? allProducts.filter(product => !product?.isSet) : [];
+      }
+
+      // Apply existing filters
+      if (reportFilters.productCategory) {
+        products = products.filter(p => p.category === reportFilters.productCategory);
+      }
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -1176,7 +1257,8 @@ const Reports = ({ currentUser }) => {
       pdf.setFontSize(18);
       pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'bold');
-      pdf.text(receiptSettings.receiptHeader, 105, 15, { align: 'center' });
+      const headerText = selectedCollegeData ? selectedCollegeData.name.toUpperCase() : receiptSettings.receiptHeader;
+      pdf.text(headerText, 105, 15, { align: 'center' });
       pdf.setFontSize(12);
       pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'normal');
@@ -1293,8 +1375,11 @@ const Reports = ({ currentUser }) => {
 
   const generateVendorPurchaseReport = async () => {
     try {
-      // Fetch all stock entries first
-      const response = await fetch(apiUrl('/api/stock-entries'));
+      const queryParams = new URLSearchParams();
+      if (selectedCollege) queryParams.append('college', selectedCollege);
+
+      // Fetch stock entries with college context
+      const response = await fetch(apiUrl(`/api/stock-entries?${queryParams.toString()}`));
       if (!response.ok) throw new Error('Failed to fetch stock entries for report');
 
       let stockEntries = await response.json();
@@ -1327,7 +1412,8 @@ const Reports = ({ currentUser }) => {
       pdf.setFontSize(18);
       pdf.setTextColor(30, 58, 138);
       pdf.setFont(undefined, 'bold');
-      pdf.text(receiptSettings.receiptHeader, 105, 15, { align: 'center' });
+      const headerText = selectedCollegeData ? selectedCollegeData.name.toUpperCase() : receiptSettings.receiptHeader;
+      pdf.text(headerText, 105, 15, { align: 'center' });
       pdf.setFontSize(12);
       pdf.setTextColor(100, 100, 100);
       pdf.setFont(undefined, 'normal');
@@ -1511,6 +1597,7 @@ const Reports = ({ currentUser }) => {
         if (reportFilters.isPaid !== '') queryParams.append('isPaid', reportFilters.isPaid);
         if (reportFilters.startDate) queryParams.append('startDate', reportFilters.startDate);
         if (reportFilters.endDate) queryParams.append('endDate', reportFilters.endDate);
+        if (selectedCollege) queryParams.append('collegeId', selectedCollege);
 
         const response = await fetch(apiUrl(`/api/transactions?${queryParams.toString()}`));
         if (!response.ok) throw new Error('Failed to fetch transactions for report');
@@ -1585,8 +1672,39 @@ const Reports = ({ currentUser }) => {
               </div>
             </div>
 
-            {/* Right Side: Tabs and Generate Report Button */}
+            {/* Right Side: Tabs and Actions */}
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
+              {/* College Selector (SuperAdmin only) */}
+              {isSuperAdmin && (
+                <div className="relative min-w-[200px]">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <select
+                    value={selectedCollege}
+                    onChange={(e) => setSelectedCollege(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none cursor-pointer text-sm font-medium"
+                  >
+                    <option value="">Central Warehouse (Global)</option>
+                    {colleges.map(college => (
+                      <option key={college._id} value={college._id}>
+                        {college.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <ChevronDown size={16} className="text-gray-500" />
+                  </div>
+                </div>
+              )}
+
+              {/* Campus Indicator (SubAdmin only) */}
+              {!isSuperAdmin && selectedCollegeData && (
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+                  <Building2 className="text-blue-600" size={18} />
+                  <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Campus:</span>
+                  <span className="text-sm font-bold text-blue-900">{selectedCollegeData.name}</span>
+                </div>
+              )}
+
               {/* Tab Navigation */}
               <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
                 <button

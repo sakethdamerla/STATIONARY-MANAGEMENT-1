@@ -371,9 +371,17 @@ const createTransaction = asyncHandler(async (req, res) => {
  * @access  Public
  */
 const getAllTransactions = asyncHandler(async (req, res) => {
-  const { course, studentId, transactionType, paymentMethod, isPaid, startDate, endDate } = req.query;
+  const { course, studentId, transactionType, paymentMethod, isPaid, startDate, endDate, collegeId } = req.query;
   
   const filter = {};
+
+  if (collegeId) {
+    filter.$or = [
+      { collegeId: collegeId },
+      { branchId: collegeId }, // Keep support for legacy branchId field
+      { 'collegeTransfer.collegeId': collegeId }
+    ];
+  }
   
   if (transactionType) {
     // Legacy support: if 'branch_transfer', assume 'college_transfer' or handle legacy data
