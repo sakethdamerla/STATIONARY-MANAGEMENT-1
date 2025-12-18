@@ -325,11 +325,13 @@ const getStockTransfers = asyncHandler(async (req, res) => {
     if (endDate) filter.transferDate.$lte = new Date(endDate + 'T23:59:59');
   }
 
+  // Sort primarily by creation time so the newest transfers appear first,
+  // with transferDate as a secondary sort key for stable ordering when needed.
   const stockTransfers = await StockTransfer.find(filter)
     .populate('items.product', 'name price stock category')
     .populate('toCollege', 'name location')
     .populate('transactionId', 'transactionId totalAmount paymentMethod isPaid transactionType')
-    .sort({ transferDate: -1, createdAt: -1 });
+    .sort({ createdAt: -1, transferDate: -1 });
 
   res.json(stockTransfers);
 });
