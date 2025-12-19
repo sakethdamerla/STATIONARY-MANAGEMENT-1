@@ -76,8 +76,15 @@ const GeneralPurchase = ({ currentUser }) => {
 
                     // Set initial context
                     if (!isSuperAdmin && currentUser?.assignedCollege) {
-                        setViewContext(currentUser.assignedCollege);
-                        const college = data.find(c => c._id === currentUser.assignedCollege);
+                        let collegeId = currentUser.assignedCollege;
+                        // Handle case where assignedCollege is an object (populated)
+                        if (typeof collegeId === 'object' && collegeId !== null) {
+                            collegeId = collegeId._id || '';
+                        }
+                        const finalId = String(collegeId);
+                        setViewContext(finalId);
+
+                        const college = data.find(c => c._id === finalId);
                         if (college) setSelectedCollegeName(college.name);
                     } else if (isSuperAdmin) {
                         setViewContext('all');
@@ -140,6 +147,11 @@ const GeneralPurchase = ({ currentUser }) => {
                 }));
                 setProducts(productsWithStock);
             } else if (viewContext && viewContext !== 'all') {
+                // Guard against object being passed as ID
+                if (typeof viewContext === 'object') {
+                    console.warn('Invalid viewContext (object detected), skipping fetch:', viewContext);
+                    return;
+                }
                 // Fetch specific college stock
                 const stockRes = await fetch(apiUrl(`/api/general-products/colleges/${viewContext}/stock`));
                 if (stockRes.ok) {
