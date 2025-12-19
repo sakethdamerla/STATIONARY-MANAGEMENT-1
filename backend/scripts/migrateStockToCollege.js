@@ -52,16 +52,16 @@ async function migrateStock() {
 
     console.log(`Successfully migrated stock for ${newStock.length} products to ${college.name}.`);
     
-    // Optional: Zero out central stock?
-    // User request: "transferred all the stock to the Pydah College of Engineering".
-    // Usually stock transfer implies moving it. But for safety, I will NOT zero out global Product.stock
-    // unless explicitly told, because Product.stock is often used as the 'master' definition.
-    // However, if the system is now strictly Context-based, maybe we should?
-    // But the current implementation uses Product.stock as "Central" stock. 
-    // If we moved it, Central should be 0.
-    // I will leaving Product.stock untouched for now to act as a backup, or if 'Central' means 'Unassigned'.
-    // If the user wants to *move* it, they might expect Central to be empty.
-    // But safely duplicating is better than deleting.
+    // 5. Zero out central stock (Product.stock) since we're MOVING not COPYING
+    // This prevents stock from showing in both central warehouse and college
+    console.log('Zeroing out central warehouse stock...');
+    const productIdsToZero = products.map(p => p._id);
+    const zeroResult = await Product.updateMany(
+      { _id: { $in: productIdsToZero } },
+      { $set: { stock: 0 } }
+    );
+    console.log(`Zeroed out stock for ${zeroResult.modifiedCount} products in central warehouse.`);
+    console.log('Stock has been MOVED (not copied) to the college.');
     
   } catch (error) {
     console.error('Migration failed:', error);
