@@ -13,6 +13,9 @@ const stockTransferRoutes = require("./routes/stockTransferRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
 const sqlStudentRoutes = require("./routes/sqlStudentRoutes");
+const generalProductRoutes = require("./routes/generalProductRoutes");
+const generalPurchaseRoutes = require("./routes/generalPurchaseRoutes");
+const generalDistributionRoutes = require("./routes/generalDistributionRoutes");
 
 dotenv.config();
 
@@ -149,6 +152,10 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 // MySQL-backed student data
 app.use("/api/sql", sqlStudentRoutes);
+// General product and purchase routes
+app.use("/api/general-products", generalProductRoutes);
+app.use("/api/general-purchases", generalPurchaseRoutes);
+app.use("/api/general-distributions", generalDistributionRoutes);
 
 // Error handling middleware (must be after all routes)
 app.use((err, req, res, next) => {

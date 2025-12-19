@@ -17,6 +17,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 const StudentDue = lazy(() => import('./pages/StudentDue.jsx'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs.jsx'));
 const StockTransfers = lazy(() => import('./pages/StockTransfers.jsx'));
+const GeneralPurchase = lazy(() => import('./pages/GeneralPurchase.jsx'));
 import ProtectedRoute from './components/ProtectedRoute';
 import { apiUrl } from './utils/api';
 import useOnlineStatus from './hooks/useOnlineStatus';
@@ -544,6 +545,14 @@ function App() {
                     element={
                       <ProtectedRoute currentUser={currentUser} requiredPermission="stock-transfers">
                         <StockTransfers currentUser={currentUser} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/general-purchase"
+                    element={
+                      <ProtectedRoute currentUser={currentUser} requiredPermission="general-purchase">
+                        <GeneralPurchase currentUser={currentUser} />
                       </ProtectedRoute>
                     }
                   />

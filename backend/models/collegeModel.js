@@ -46,6 +46,11 @@ const collegeSchema = new mongoose.Schema(
       type: [collegeStockSchema],
       default: [],
     },
+    // General product stock inventory for this college
+    generalStock: {
+      type: [collegeStockSchema],
+      default: [],
+    },
     // Allowed courses for this college
     courses: {
       type: [String],
@@ -60,6 +65,7 @@ const collegeSchema = new mongoose.Schema(
 collegeSchema.index({ name: 1 }, { unique: true });
 collegeSchema.index({ isActive: 1 });
 collegeSchema.index({ 'stock.product': 1 });
+collegeSchema.index({ 'generalStock.product': 1 });
 
 const College = mongoose.model('College', collegeSchema);
 
