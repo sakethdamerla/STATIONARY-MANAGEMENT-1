@@ -325,6 +325,7 @@ const createTransaction = asyncHandler(async (req, res) => {
       course: student.course,
       year: student.year,
       branch: student.branch || '',
+      semester: student.semester || null,
     },
     items: validatedItems,
     totalAmount,

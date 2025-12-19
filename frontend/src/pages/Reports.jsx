@@ -2028,6 +2028,7 @@ const Reports = ({ currentUser }) => {
                               <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
@@ -2047,6 +2048,9 @@ const Reports = ({ currentUser }) => {
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
                                     <span className="text-sm text-gray-900">{transaction.student?.course?.toUpperCase() || 'N/A'}</span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-900">{transaction.student?.branch?.toUpperCase() || 'N/A'}</span>
                                   </td>
                                   <td className="px-6 py-4">
                                     <span className="text-sm text-gray-900">
@@ -2963,6 +2967,18 @@ const Reports = ({ currentUser }) => {
                 <div>
                   <p className="text-sm text-gray-500">Course</p>
                   <p className="font-semibold">{selectedTransaction.student?.course?.toUpperCase()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Branch</p>
+                  <p className="font-semibold">{selectedTransaction.student?.branch?.toUpperCase() || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Year</p>
+                  <p className="font-semibold">{selectedTransaction.student?.year || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Semester</p>
+                  <p className="font-semibold">{selectedTransaction.student?.semester || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Payment Method</p>

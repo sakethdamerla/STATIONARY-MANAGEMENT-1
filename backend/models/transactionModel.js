@@ -38,6 +38,7 @@ const transactionSchema = new mongoose.Schema(
       course: { type: String, required: function() { return this.transactionType === 'student'; } },
       year: { type: Number, required: function() { return this.transactionType === 'student'; } },
       branch: { type: String, default: '' },
+      semester: { type: Number, default: null },
     },
     // College transfer details
     collegeTransfer: {

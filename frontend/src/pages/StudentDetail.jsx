@@ -39,20 +39,95 @@ const StudentDetail = ({
   const refreshProducts = useCallback(async () => {
     if (typeof setProducts !== 'function') return;
     try {
-      const res = await fetch(apiUrl('/api/products'));
-      if (!res.ok) return;
-      const data = await res.json();
-      setProducts(Array.isArray(data) ? data : []);
+      // Determine college ID based on user or student's course
+      let collegeId = null;
+
+      // Priority 1: Check if current user has an assigned college (for sub-admins)
+      if (currentUser?.assignedCollege) {
+        collegeId = typeof currentUser.assignedCollege === 'object'
+          ? currentUser.assignedCollege._id
+          : currentUser.assignedCollege;
+      }
+      // Priority 2: Legacy support for assignedBranch
+      else if (currentUser?.assignedBranch) {
+        collegeId = typeof currentUser.assignedBranch === 'object'
+          ? currentUser.assignedBranch._id
+          : currentUser.assignedBranch;
+      }
+      // Priority 3: Find college by student's course
+      else if (student?.course) {
+        try {
+          const collegesRes = await fetch(apiUrl('/api/stock-transfers/colleges?activeOnly=true'));
+          if (collegesRes.ok) {
+            const colleges = await collegesRes.json();
+            const studentCollege = colleges.find(c =>
+              Array.isArray(c.courses) && c.courses.some(course =>
+                String(course).toLowerCase().trim() === String(student.course).toLowerCase().trim()
+              )
+            );
+            if (studentCollege) {
+              collegeId = studentCollege._id;
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to find college for student course:', err);
+        }
+      }
+
+      // Always fetch global products first (for product details)
+      const productsRes = await fetch(apiUrl('/api/products'));
+      if (!productsRes.ok) return;
+      const globalProducts = await productsRes.json();
+
+      if (collegeId) {
+        // Fetch college-specific stock
+        const stockRes = await fetch(apiUrl(`/api/stock-transfers/colleges/${collegeId}/stock`));
+        if (stockRes.ok) {
+          const stockData = await stockRes.json();
+
+          // Create a map of productId -> college stock quantity
+          const collegeStockMap = {};
+          (stockData.stock || []).forEach(item => {
+            const pId = typeof item.product === 'object' ? item.product._id : item.product;
+            collegeStockMap[pId] = item.quantity;
+          });
+
+          // Merge college stock with global products
+          const productsWithCollegeStock = (globalProducts || []).map(product => ({
+            ...product,
+            stock: collegeStockMap[product._id] !== undefined ? collegeStockMap[product._id] : 0
+          }));
+
+          setProducts(Array.isArray(productsWithCollegeStock) ? productsWithCollegeStock : []);
+        } else {
+          // If college stock fetch fails, use global products with zero stock
+          const productsWithZeroStock = (globalProducts || []).map(product => ({
+            ...product,
+            stock: 0
+          }));
+          setProducts(Array.isArray(productsWithZeroStock) ? productsWithZeroStock : []);
+        }
+      } else {
+        // No college context - use global/central stock
+        setProducts(Array.isArray(globalProducts) ? globalProducts : []);
+      }
     } catch (error) {
       console.warn('Failed to refresh products after transaction:', error);
     }
-  }, [setProducts]);
+  }, [setProducts, currentUser, student?.course]);
 
   useEffect(() => {
     const s = students.find(s => String(s.id) === String(id));
     setStudent(s || null);
     setAvatarFailed(false);
   }, [id, students]);
+
+  // Refresh products when student changes to get college-specific stock
+  useEffect(() => {
+    if (student?.course) {
+      refreshProducts();
+    }
+  }, [student?.course, refreshProducts]);
 
   // Fetch course-specific receipt settings
   useEffect(() => {
