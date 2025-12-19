@@ -22,6 +22,7 @@ const SIDEBAR_ITEMS = [
     ],
   },
   { path: '/stock-transfers', label: 'Stock Transfers', key: 'stock-transfers' },
+  { path: '/general-purchase', label: 'General Purchase', key: 'general-purchase' },
   { path: '/transactions', label: 'Reports', key: 'transactions' },
   { path: '/student-due', label: 'Student Due', key: 'student-due' },
   {

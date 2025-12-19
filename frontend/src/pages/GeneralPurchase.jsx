@@ -500,7 +500,7 @@ const GeneralPurchase = ({ currentUser }) => {
                 <div className="mb-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <ShoppingCart className="w-7 h-7 text-white" />
                             </div>
                             <div>
@@ -514,7 +514,7 @@ const GeneralPurchase = ({ currentUser }) => {
                             <button
                                 onClick={() => setActiveTab('products')}
                                 className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'products'
-                                    ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md'
+                                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                                     : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                             >
@@ -524,7 +524,7 @@ const GeneralPurchase = ({ currentUser }) => {
                             <button
                                 onClick={() => setActiveTab('purchase')}
                                 className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'purchase'
-                                    ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md'
+                                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                                     : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                             >
@@ -534,7 +534,7 @@ const GeneralPurchase = ({ currentUser }) => {
                             <button
                                 onClick={() => setActiveTab('distribute')}
                                 className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'distribute'
-                                    ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md'
+                                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                                     : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                             >
@@ -544,7 +544,7 @@ const GeneralPurchase = ({ currentUser }) => {
                             <button
                                 onClick={() => setActiveTab('history')}
                                 className={`flex-1 min-w-[140px] md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'history'
-                                    ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md'
+                                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                                     : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                             >
@@ -561,7 +561,7 @@ const GeneralPurchase = ({ currentUser }) => {
                                 <Filter size={14} className="text-gray-500" /> View Stock For:
                             </span>
                             <select
-                                className="text-sm border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500"
+                                className="text-sm border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={viewContext}
                                 onChange={(e) => setViewContext(e.target.value)}
                             >
@@ -693,7 +693,7 @@ const ProductsTab = ({
                     }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isFormExpanded
                         ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        : 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
                 >
                     {isFormExpanded ? (
@@ -719,7 +719,7 @@ const ProductsTab = ({
                                 required
                                 value={productForm.name}
                                 onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
                         <div>
@@ -728,7 +728,7 @@ const ProductsTab = ({
                                 type="text"
                                 value={productForm.category}
                                 onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
                         <div>
@@ -740,7 +740,7 @@ const ProductsTab = ({
                                 step="0.01"
                                 value={productForm.price}
                                 onChange={(e) => setProductForm({ ...productForm, price: parseFloat(e.target.value) || 0 })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
                         <div>
@@ -750,7 +750,7 @@ const ProductsTab = ({
                                 min="0"
                                 value={productForm.lowStockThreshold}
                                 onChange={(e) => setProductForm({ ...productForm, lowStockThreshold: parseInt(e.target.value) || 10 })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
                         <div className="md:col-span-2">
@@ -759,14 +759,14 @@ const ProductsTab = ({
                                 value={productForm.description}
                                 onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                                 rows="2"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
                         <div className="md:col-span-2 flex gap-2">
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                             >
                                 <Save size={16} />
                                 {loading ? 'Saving...' : editingProduct ? 'Update Product' : 'Add Product'}
@@ -920,7 +920,7 @@ const VendorPurchaseTab = ({
                                 <select
                                     value={purchaseForm.college}
                                     onChange={(e) => setPurchaseForm({ ...purchaseForm, college: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="">Central Warehouse</option>
                                     {colleges.map(c => (
@@ -937,7 +937,7 @@ const VendorPurchaseTab = ({
                                 required
                                 value={purchaseForm.vendor}
                                 onChange={(e) => setPurchaseForm({ ...purchaseForm, vendor: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Select Vendor</option>
                                 {vendors.map(v => (
@@ -954,7 +954,7 @@ const VendorPurchaseTab = ({
                                 value={purchaseForm.invoiceNumber}
                                 onChange={(e) => setPurchaseForm({ ...purchaseForm, invoiceNumber: e.target.value })}
                                 placeholder="INV-001"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
@@ -965,7 +965,7 @@ const VendorPurchaseTab = ({
                                 type="date"
                                 value={purchaseForm.invoiceDate}
                                 onChange={(e) => setPurchaseForm({ ...purchaseForm, invoiceDate: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
@@ -998,7 +998,7 @@ const VendorPurchaseTab = ({
                             <select
                                 value={currentPurchaseItem.product}
                                 onChange={(e) => setCurrentPurchaseItem({ ...currentPurchaseItem, product: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Select Product</option>
                                 {products.map(p => (
@@ -1021,7 +1021,7 @@ const VendorPurchaseTab = ({
                                 value={currentPurchaseItem.quantity}
                                 onChange={(e) => setCurrentPurchaseItem({ ...currentPurchaseItem, quantity: e.target.value })}
                                 placeholder="0"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
@@ -1035,7 +1035,7 @@ const VendorPurchaseTab = ({
                                 value={currentPurchaseItem.purchasePrice}
                                 onChange={(e) => setCurrentPurchaseItem({ ...currentPurchaseItem, purchasePrice: e.target.value })}
                                 placeholder="0.00"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
@@ -1108,7 +1108,7 @@ const VendorPurchaseTab = ({
                             disabled={loading || purchaseItems.length === 0}
                             className={`px-6 py-2.5 rounded-lg flex items-center gap-2 text-white font-medium shadow-sm transition-all ${loading || purchaseItems.length === 0
                                 ? 'bg-gray-300 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
+                                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
                                 }`}
                         >
                             <Save size={18} />
@@ -1162,7 +1162,7 @@ const DistributeTab = ({
                                 required
                                 value={distributionForm.recipientName}
                                 onChange={(e) => setDistributionForm({ ...distributionForm, recipientName: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -1172,7 +1172,7 @@ const DistributeTab = ({
                                 required
                                 value={distributionForm.department}
                                 onChange={(e) => setDistributionForm({ ...distributionForm, department: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -1182,7 +1182,7 @@ const DistributeTab = ({
                                 required
                                 value={distributionForm.authorizedBy}
                                 onChange={(e) => setDistributionForm({ ...distributionForm, authorizedBy: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -1191,7 +1191,7 @@ const DistributeTab = ({
                                 type="text"
                                 value={distributionForm.contactNumber}
                                 onChange={(e) => setDistributionForm({ ...distributionForm, contactNumber: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                         {(isSuperAdmin || viewContext === 'all') && (
@@ -1203,7 +1203,7 @@ const DistributeTab = ({
                                     required
                                     value={distributionForm.collegeId}
                                     onChange={(e) => setDistributionForm({ ...distributionForm, collegeId: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="">Select College</option>
                                     {colleges.map(c => (
@@ -1218,7 +1218,7 @@ const DistributeTab = ({
                                 value={distributionForm.remarks}
                                 onChange={(e) => setDistributionForm({ ...distributionForm, remarks: e.target.value })}
                                 rows="2"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                     </div>
@@ -1239,7 +1239,7 @@ const DistributeTab = ({
                                         value="cash"
                                         checked={distributionForm.paymentMethod === 'cash'}
                                         onChange={(e) => setDistributionForm({ ...distributionForm, paymentMethod: e.target.value })}
-                                        className="mr-2 text-green-600 focus:ring-green-500"
+                                        className="mr-2 text-blue-600 focus:ring-blue-500"
                                     />
                                     Cash
                                 </label>
@@ -1249,7 +1249,7 @@ const DistributeTab = ({
                                         value="online"
                                         checked={distributionForm.paymentMethod === 'online'}
                                         onChange={(e) => setDistributionForm({ ...distributionForm, paymentMethod: e.target.value })}
-                                        className="mr-2 text-green-600 focus:ring-green-500"
+                                        className="mr-2 text-blue-600 focus:ring-blue-500"
                                     />
                                     Online
                                 </label>
@@ -1261,7 +1261,7 @@ const DistributeTab = ({
                                     type="checkbox"
                                     checked={distributionForm.isPaid}
                                     onChange={(e) => setDistributionForm({ ...distributionForm, isPaid: e.target.checked })}
-                                    className="mr-2 rounded text-green-600 focus:ring-green-500"
+                                    className="mr-2 rounded text-blue-600 focus:ring-blue-500"
                                 />
                                 <span className="text-sm font-medium text-gray-700">Mark as Paid</span>
                             </label>
@@ -1283,7 +1283,7 @@ const DistributeTab = ({
                             <select
                                 value={productToAdd}
                                 onChange={(e) => setProductToAdd(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Choose a product...</option>
                                 {products.map(p => (
@@ -1392,7 +1392,7 @@ const DistributeTab = ({
                             disabled={loading || selectedProductList.length === 0}
                             className={`px-6 py-2.5 rounded-lg flex items-center gap-2 text-white font-medium shadow-sm transition-all ${loading || selectedProductList.length === 0
                                 ? 'bg-gray-300 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
+                                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
                                 }`}
                         >
                             <Save size={18} />
@@ -1430,7 +1430,7 @@ const HistoryTab = ({
                             placeholder="Search by buyer..."
                             value={historyFilters.buyerName}
                             onChange={(e) => setHistoryFilters({ ...historyFilters, buyerName: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         />
                     </div>
                     <div>
@@ -1440,7 +1440,7 @@ const HistoryTab = ({
                             placeholder="Search by department..."
                             value={historyFilters.department}
                             onChange={(e) => setHistoryFilters({ ...historyFilters, department: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         />
                     </div>
                     <div>
@@ -1448,7 +1448,7 @@ const HistoryTab = ({
                         <select
                             value={historyFilters.isPaid}
                             onChange={(e) => setHistoryFilters({ ...historyFilters, isPaid: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         >
                             <option value="">All</option>
                             <option value="true">Paid</option>
