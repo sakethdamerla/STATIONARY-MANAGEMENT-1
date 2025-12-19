@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Package, ShoppingCart, History, Plus, Minus, Search, Save, X, Eye, Trash2, Filter, Building2, UserPlus, FileText, Calendar, DollarSign } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
+import { Package, ShoppingCart, History, Plus, Minus, Search, Save, X, Eye, Trash2, Filter, Building2, UserPlus, FileText, Calendar, DollarSign, Printer } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 
 const GeneralPurchase = ({ currentUser }) => {
@@ -658,6 +659,7 @@ const GeneralPurchase = ({ currentUser }) => {
                             setHistoryFilters={setHistoryFilters}
                             selectedTransaction={selectedTransaction}
                             setSelectedTransaction={setSelectedTransaction}
+                            selectedCollegeName={selectedCollegeName}
                         />
                     )}
                 </div>
@@ -1417,6 +1419,138 @@ const DistributeTab = ({
     );
 };
 
+// Actual Template Component
+const ThermalReceiptTemplate = ({ transaction }) => {
+    return (
+        <div className="thermal-receipt" style={{ padding: '10px', width: '80mm', margin: '0 auto', fontFamily: 'Arial, sans-serif', color: '#000' }}>
+            <style>{`
+                @page { size: 80mm auto; margin: 0; }
+                @media print {
+                    body { margin: 0; padding: 0; }
+                    .thermal-receipt {
+                        width: 78mm !important;
+                        margin: 0 auto !important;
+                        padding: 5px !important;
+                    }
+                    * { box-shadow: none !important; }
+                }
+            `}</style>
+
+            <div style={{ textAlign: 'center', borderBottom: '1px dashed #000', paddingBottom: '5px', marginBottom: '10px' }}>
+                <h1 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0, textTransform: 'uppercase' }}>Pydah Group</h1>
+                <p style={{ fontSize: '12px', margin: '2px 0' }}>General Purchase Receipt</p>
+                <p style={{ fontSize: '10px', margin: '2px 0' }}>
+                    {new Date(transaction.distributionDate || transaction.invoiceDate).toLocaleString('en-IN', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    })}
+                </p>
+            </div>
+
+            <div style={{ fontSize: '12px', marginBottom: '10px' }}>
+                {transaction.type === 'distribution' ? (
+                    <>
+                        <p style={{ margin: '2px 0' }}>
+                            <strong>Recipient:</strong> {transaction.recipientName} {transaction.department && `(${transaction.department})`}
+                        </p>
+                        {transaction.authorizedBy && (
+                            <p style={{ margin: '2px 0' }}><strong>Auth By:</strong> {transaction.authorizedBy}</p>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <p style={{ margin: '2px 0' }}><strong>Vendor:</strong> {transaction.vendor?.name}</p>
+                        <p style={{ margin: '2px 0' }}><strong>Ref:</strong> {transaction.invoiceNumber}</p>
+                    </>
+                )}
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginBottom: '10px' }}>
+                <thead>
+                    <tr style={{ borderBottom: '1px solid #000' }}>
+                        <th style={{ textAlign: 'left', padding: '2px 0', width: '45%' }}>Item</th>
+                        <th style={{ textAlign: 'center', padding: '2px 0', width: '15%' }}>Qty</th>
+                        <th style={{ textAlign: 'right', padding: '2px 0', width: '20%' }}>Rate</th>
+                        <th style={{ textAlign: 'right', padding: '2px 0', width: '20%' }}>Amt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {transaction.items && transaction.items.map((item, idx) => (
+                        <tr key={idx}>
+                            <td style={{ padding: '2px 0', verticalAlign: 'top' }}>
+                                {item.product?.name || item.name || 'Item'}
+                            </td>
+                            <td style={{ padding: '2px 0', textAlign: 'center', verticalAlign: 'top' }}>
+                                {item.quantity}
+                            </td>
+                            <td style={{ padding: '2px 0', textAlign: 'right', verticalAlign: 'top' }}>
+                                {Number(item.price || item.purchasePrice || 0).toFixed(0)}
+                            </td>
+                            <td style={{ padding: '2px 0', textAlign: 'right', verticalAlign: 'top' }}>
+                                {Number(item.total || (item.quantity * (item.price || item.purchasePrice || 0))).toFixed(0)}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+
+            <div style={{ borderTop: '1px dashed #000', paddingTop: '5px', marginTop: '5px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}>
+                    <span>
+                        TOTAL
+                        {transaction.type === 'distribution' && (
+                            <span style={{ fontSize: '12px', marginLeft: '2px' }}>
+                                ({transaction.paymentMethod === 'cash' ? 'CASH' : 'ONLINE'})
+                            </span>
+                        )}:
+                    </span>
+                    <span>₹{Number(transaction.totalAmount).toFixed(2)}</span>
+                </div>
+            </div>
+
+            {transaction.remarks && (
+                <div style={{ marginTop: '5px', fontSize: '11px', borderTop: '1px dotted #ccc', paddingTop: '2px' }}>
+                    <strong>Note:</strong> {transaction.remarks}
+                </div>
+            )}
+
+            <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px', borderTop: '1px solid #000', paddingTop: '5px' }}>
+                <p style={{ margin: '2px 0' }}>Thank you!</p>
+            </div>
+        </div>
+    );
+};
+
+// Internal component for handling print logic to avoid hook rules in loop
+const PrintButton = ({ transaction }) => {
+    const componentRef = useRef();
+    const handlePrint = useReactToPrint({
+        contentRef: componentRef,
+        documentTitle: `Receipt-${transaction.distributionId || transaction.invoiceNumber || 'Transaction'}`,
+        removeAfterPrint: true
+    });
+
+    // Only show print for distributions or if needed for purchases too
+    if (!transaction) return null;
+
+    return (
+        <>
+            <div style={{ display: 'none' }}>
+                <div ref={componentRef}>
+                    <ThermalReceiptTemplate transaction={transaction} />
+                </div>
+            </div>
+            <button
+                onClick={(e) => { e.stopPropagation(); handlePrint(); }}
+                className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                title="Print Receipt"
+            >
+                <Printer size={16} />
+            </button>
+        </>
+    );
+};
+
 // History Tab Component
 const HistoryTab = ({
     purchases,
@@ -1424,7 +1558,8 @@ const HistoryTab = ({
     historyFilters,
     setHistoryFilters,
     selectedTransaction,
-    setSelectedTransaction
+    setSelectedTransaction,
+    selectedCollegeName
 }) => {
     // Separate state for purchase modal (vendor) vs distribution modal (recipient)
     // For simplicity, we can use the same modal structure but populate different data, or use selectedTransaction
@@ -1513,6 +1648,7 @@ const HistoryTab = ({
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center justify-center gap-2">
+                                                <PrintButton transaction={{ ...dist, type: 'distribution' }} />
                                                 <button
                                                     onClick={() => setSelectedTransaction({ ...dist, type: 'distribution' })}
                                                     className="p-1 text-blue-600 hover:bg-blue-50 rounded"
@@ -1561,6 +1697,7 @@ const HistoryTab = ({
                                         <td className="px-4 py-3 text-right text-sm font-medium">₹{purchase.totalAmount.toFixed(2)}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center justify-center gap-2">
+                                                <PrintButton transaction={{ ...purchase, type: 'purchase' }} />
                                                 <button
                                                     onClick={() => setSelectedTransaction({ ...purchase, type: 'purchase' })}
                                                     className="p-1 text-blue-600 hover:bg-blue-50 rounded"
@@ -1593,12 +1730,15 @@ const HistoryTab = ({
                                 <h3 className="text-xl font-bold text-gray-900">
                                     {selectedTransaction.type === 'distribution' ? 'Distribution Details' : 'Purchase Details'}
                                 </h3>
-                                <button
-                                    onClick={() => setSelectedTransaction(null)}
-                                    className="p-2 hover:bg-gray-100 rounded-full"
-                                >
-                                    <X size={20} />
-                                </button>
+                                <div className="flex gap-2">
+                                    {/* Print Button removed from here */}
+                                    <button
+                                        onClick={() => setSelectedTransaction(null)}
+                                        className="p-2 hover:bg-gray-100 rounded-full"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="space-y-4">
@@ -1713,6 +1853,9 @@ const HistoryTab = ({
                                     )}
                                 </div>
                             </div>
+
+                            {/* Thermal Receipt Template - Hidden unless printing */}
+                            <ThermalReceipt transaction={selectedTransaction} collegeName={selectedCollegeName} />
                         </div>
                     </div>
                 </div>
@@ -1720,5 +1863,7 @@ const HistoryTab = ({
         </div>
     );
 };
+
+
 
 export default GeneralPurchase;
