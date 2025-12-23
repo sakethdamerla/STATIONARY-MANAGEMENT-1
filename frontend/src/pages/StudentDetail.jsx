@@ -257,6 +257,14 @@ const StudentDetail = ({
     }
     // If product has no branches specified (empty array), it applies to all branches (for that course)
 
+    // Semester filter: if product has semesters, student's semester must be in the array
+    const productSemesters = Array.isArray(p.semesters) ? p.semesters : [];
+
+    // Safety check: ensure student exists
+    if (student && productSemesters.length > 0 && student.semester) {
+      if (!productSemesters.includes(Number(student.semester))) return false;
+    }
+
     return true;
   });
 

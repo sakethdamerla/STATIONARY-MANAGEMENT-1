@@ -481,7 +481,7 @@ const AddProduct = ({ itemCategories, addItemCategory, setItemCategories, curren
             remarks: formData.remarks || '',
             forCourse: formData.forCourse || undefined,
             years: formData.years || [],
-            branch: Array.isArray(formData.branch) && formData.branch.length > 0 ? formData.branch : undefined,
+            branch: formData.branch,
             semesters: formData.semesters || [],
             isSet: formData.isSet || undefined,
             setItems: formData.isSet
