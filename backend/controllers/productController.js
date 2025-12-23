@@ -46,46 +46,47 @@ const sanitizeSetItems = async (setItems) => {
  */
 const createProduct = async (req, res) => {
   try {
-  console.log('POST /api/products body:', req.body);
-  // Diagnostic: print the year schema options to ensure the loaded schema allows year=0
-  try {
-    console.log('Product.year schema options:', Product.schema.path('year') && Product.schema.path('year').options);
-  } catch (diagErr) {
-    console.warn('Could not read Product schema year options:', diagErr);
-  }
-  const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters, collegeId } = req.body;
-  // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
-  let parsedYears = [];
-  if (years && Array.isArray(years)) {
-    parsedYears = years.map(y => Number(y)).filter(y => !isNaN(y) && y >= 0 && y <= 10);
-  } else if (year !== undefined && year !== null && year !== '') {
-    const parsedYear = Number(year);
-    if (!isNaN(parsedYear) && parsedYear >= 0 && parsedYear <= 10) {
-      parsedYears = parsedYear === 0 ? [] : [parsedYear]; // 0 means all years (empty array)
-    }
-  }
 
-  // Handle branch array - if branch is provided as array, use it; otherwise handle string for backward compatibility
-  let parsedBranches = [];
-  if (branch !== undefined && branch !== null) {
-    if (Array.isArray(branch)) {
-      parsedBranches = branch.filter(b => typeof b === 'string' && b.trim().length > 0).map(b => b.trim());
-    } else if (typeof branch === 'string' && branch.trim().length > 0) {
-      parsedBranches = [branch.trim()]; // Convert single string to array for backward compatibility
+    console.log('POST /api/products body:', req.body);
+    // Diagnostic: print the year schema options to ensure the loaded schema allows year=0
+    try {
+      console.log('Product.year schema options:', Product.schema.path('year') && Product.schema.path('year').options);
+    } catch (diagErr) {
+      console.warn('Could not read Product schema year options:', diagErr);
     }
-  }
-  
-  // sanitize numeric fields
-  const parsedPrice = price !== undefined && price !== null && price !== '' ? Number(price) : 0;
-  let parsedStock = stock !== undefined && stock !== null && stock !== '' ? Number(stock) : 0;
+    const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters } = req.body;
+    // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
+    let parsedYears = [];
+    if (years && Array.isArray(years)) {
+      parsedYears = years.map(y => Number(y)).filter(y => !isNaN(y) && y >= 0 && y <= 10);
+    } else if (year !== undefined && year !== null && year !== '') {
+      const parsedYear = Number(year);
+      if (!isNaN(parsedYear) && parsedYear >= 0 && parsedYear <= 10) {
+        parsedYears = parsedYear === 0 ? [] : [parsedYear]; // 0 means all years (empty array)
+      }
+    }
 
-  const sanitizedSetItems = isSet ? await sanitizeSetItems(setItems) : [];
-  if (isSet && sanitizedSetItems.length === 0) {
-    return res.status(400).json({ message: 'Set products must include at least one existing item' });
-  }
-  if (isSet) {
-    parsedStock = parsedStock < 0 ? 0 : parsedStock;
-  }
+    // Handle branch array - if branch is provided as array, use it; otherwise handle string for backward compatibility
+    let parsedBranches = [];
+    if (branch !== undefined && branch !== null) {
+      if (Array.isArray(branch)) {
+        parsedBranches = branch.filter(b => typeof b === 'string' && b.trim().length > 0).map(b => b.trim());
+      } else if (typeof branch === 'string' && branch.trim().length > 0) {
+        parsedBranches = [branch.trim()]; // Convert single string to array for backward compatibility
+      }
+    }
+
+    // sanitize numeric fields
+    const parsedPrice = price !== undefined && price !== null && price !== '' ? Number(price) : 0;
+    let parsedStock = stock !== undefined && stock !== null && stock !== '' ? Number(stock) : 0;
+
+    const sanitizedSetItems = isSet ? await sanitizeSetItems(setItems) : [];
+    if (isSet && sanitizedSetItems.length === 0) {
+      return res.status(400).json({ message: 'Set products must include at least one existing item' });
+    }
+    if (isSet) {
+      parsedStock = parsedStock < 0 ? 0 : parsedStock;
+    }
 
     const thresholdNumber = lowStockThreshold !== undefined && lowStockThreshold !== null && lowStockThreshold !== ''
       ? Math.max(0, Number(lowStockThreshold) || 0)
@@ -185,41 +186,45 @@ const getProductById = async (req, res) => {
  */
 const updateProduct = async (req, res) => {
   try {
+    console.log(`PUT /api/products/${req.params.id} body:`, req.body);
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
     // Track old name for updating transactions if name changes
     const oldName = product.name;
 
-    const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters, collegeId } = req.body;
-    
-  // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
-  let parsedYears = undefined;
-  if (years !== undefined && Array.isArray(years)) {
-    parsedYears = years.map(y => Number(y)).filter(y => !isNaN(y) && y >= 0 && y <= 10);
-  } else if (year !== undefined && year !== null && year !== '') {
-    const parsedYear = Number(year);
-    if (!isNaN(parsedYear) && parsedYear >= 0 && parsedYear <= 10) {
-      parsedYears = parsedYear === 0 ? [] : [parsedYear];
+    const { name, description, price, stock, imageUrl, forCourse, branch, years, year, remarks, isSet, setItems, lowStockThreshold, semesters } = req.body;
+    // Handle years array - if years is provided, use it; otherwise fallback to year for backward compatibility
+    let parsedYears = undefined;
+    if (years !== undefined && Array.isArray(years)) {
+      parsedYears = years.map(y => Number(y)).filter(y => !isNaN(y) && y >= 0 && y <= 10);
+    } else if (year !== undefined && year !== null && year !== '') {
+      const parsedYear = Number(year);
+      if (!isNaN(parsedYear) && parsedYear >= 0 && parsedYear <= 10) {
+        parsedYears = parsedYear === 0 ? [] : [parsedYear];
+      }
     }
-  }
 
-  // Handle branch array - if branch is provided as array, use it; otherwise handle string for backward compatibility
-  let parsedBranches = undefined;
-  if (branch !== undefined && branch !== null) {
-    if (Array.isArray(branch)) {
-      parsedBranches = branch.filter(b => typeof b === 'string' && b.trim().length > 0).map(b => b.trim());
-    } else if (typeof branch === 'string' && branch.trim().length > 0) {
-      parsedBranches = [branch.trim()]; // Convert single string to array for backward compatibility
-    } else {
-      parsedBranches = []; // Empty array if branch is empty string or null
+    // Handle branch array - if branch is provided as array, use it; otherwise handle string for backward compatibility
+    let parsedBranches = undefined;
+    if (branch !== undefined && branch !== null) {
+      if (Array.isArray(branch)) {
+        parsedBranches = branch.filter(b => typeof b === 'string' && b.trim().length > 0).map(b => b.trim());
+      } else if (typeof branch === 'string' && branch.trim().length > 0) {
+        parsedBranches = [branch.trim()]; // Convert single string to array for backward compatibility
+      } else {
+        parsedBranches = []; // Empty array if branch is empty string or null
+      }
     }
-  }
 
     // Track price change before updating
     const oldPrice = product.price;
-    const newPrice = price !== undefined && price !== null && price !== '' ? Number(price) : product.price;
-    
+    let newPrice = product.price;
+    if (price !== undefined && price !== null && price !== '') {
+      const parsed = Number(price);
+      newPrice = !isNaN(parsed) ? parsed : product.price;
+    }
+
     // If price is being changed, add old price to history and update timestamp
     if (price !== undefined && price !== null && price !== '' && newPrice !== oldPrice) {
       // Initialize price history if it doesn't exist
@@ -239,30 +244,37 @@ const updateProduct = async (req, res) => {
     product.name = name ?? product.name;
     product.description = description ?? product.description;
     product.price = newPrice;
-
     // If collegeId is provided, we update college stock instead of global stock
+    const { collegeId } = req.body;
     if (collegeId) {
       const college = await College.findById(collegeId);
       if (college) {
         if (!college.stock) college.stock = [];
-        
+
         const stockIndex = college.stock.findIndex(item => item.product.toString() === product._id.toString());
-        const newQuantity = stock !== undefined && stock !== null && stock !== '' ? Number(stock) : 0;
-        
+
+        let newQuantity = 0;
+        if (stock !== undefined && stock !== null) {
+          const parsed = Number(stock);
+          newQuantity = (!isNaN(parsed) && parsed >= 0) ? parsed : 0;
+        }
+
         if (stockIndex !== -1) {
           college.stock[stockIndex].quantity = newQuantity;
         } else {
           college.stock.push({ product: product._id, quantity: newQuantity });
         }
-        
+
         await college.save();
         console.log(`Updated stock for product ${product.name} in college ${college.name} to ${newQuantity}`);
       }
     } else {
       // Only update product.stock if NOT updating a specific college
-      product.stock = stock ?? product.stock;
+      if (stock !== undefined && stock !== null) {
+        const parsedStock = Number(stock);
+        product.stock = (stock === '' || isNaN(parsedStock)) ? 0 : parsedStock;
+      }
     }
-
     product.imageUrl = imageUrl ?? product.imageUrl;
     product.forCourse = forCourse ?? product.forCourse;
     if (parsedBranches !== undefined) {
@@ -277,7 +289,15 @@ const updateProduct = async (req, res) => {
     }
     product.remarks = remarks !== undefined ? remarks : product.remarks;
 
-    const isSetFlag = isSet !== undefined ? Boolean(isSet) : product.isSet;
+    // Robust parsing for isSet to handle string "false" from FormData or loose typing
+    let isSetFlag = product.isSet;
+    if (isSet !== undefined) {
+      if (typeof isSet === 'string') {
+        isSetFlag = (isSet.toLowerCase() === 'true');
+      } else {
+        isSetFlag = Boolean(isSet);
+      }
+    }
     let sanitizedSetItems = product.setItems;
 
     if (isSetFlag) {
@@ -313,12 +333,12 @@ const updateProduct = async (req, res) => {
       try {
         const { Transaction } = require('../models/transactionModel');
         const { User } = require('../models/userModel');
-        
+
         // Helper to convert product name to items key format
         const nameToKey = (name) => name?.toLowerCase().replace(/\s+/g, '_') || '';
         const oldKey = nameToKey(oldName);
         const newKey = nameToKey(newName);
-        
+
         // Update product name in transaction items
         await Transaction.updateMany(
           { 'items.productId': updated._id },
@@ -345,19 +365,19 @@ const updateProduct = async (req, res) => {
         if (oldKey && newKey && oldKey !== newKey) {
           // Find all users who have the old key in their items
           const usersWithOldKey = await User.find({ [`items.${oldKey}`]: { $exists: true } });
-          
+
           for (const user of usersWithOldKey) {
             const oldValue = user.items[oldKey];
             // Use $unset to remove old key and $set to add new key
             await User.updateOne(
               { _id: user._id },
-              { 
+              {
                 $unset: { [`items.${oldKey}`]: "" },
                 $set: { [`items.${newKey}`]: oldValue }
               }
             );
           }
-          
+
           console.log(`Updated items key from "${oldKey}" to "${newKey}" for ${usersWithOldKey.length} students`);
         }
 
@@ -370,6 +390,7 @@ const updateProduct = async (req, res) => {
 
     res.json(updated);
   } catch (error) {
+    console.error('Update Product Error:', error);
     res.status(400).json({ message: 'Error updating product', error: error.message });
   }
 };
