@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, Package, Eye, Edit, Trash2, X, Save, Calendar, DollarSign, FileText, Layers, MinusCircle, LayoutGrid, Table } from 'lucide-react';
+import { Plus, Search, Filter, Package, Eye, Edit, Trash2, X, Save, Calendar, DollarSign, FileText, Layers, MinusCircle, LayoutGrid, Table, Archive } from 'lucide-react';
 import { apiUrl } from '../../utils/api';
 import { hasFullAccess } from '../../utils/permissions';
 
